@@ -1,0 +1,156 @@
+{
+  "_note": "live bridge snapshot captured on 2026-04-14 from local xbridge",
+  "source": {
+    "nodeName": "pattern/toolbar",
+    "nodeType": "COMPONENT_SET",
+    "nodeRole": "component-set",
+    "sourceContext": "FDS_Inspector > Page 1"
+  },
+  "identity": {
+    "figmaNodeId": "1:43",
+    "variantProperties": {},
+    "componentProperties": {
+      "status": {
+        "name": "status",
+        "type": "VARIANT",
+        "defaultValue": "message",
+        "variantOptions": [
+          "message",
+          "default",
+          "perfect",
+          "color",
+          "font",
+          "contract"
+        ]
+      },
+      "error": {
+        "name": "error",
+        "type": "VARIANT",
+        "defaultValue": "True",
+        "variantOptions": [
+          "False",
+          "True"
+        ]
+      },
+      "success": {
+        "name": "success",
+        "type": "VARIANT",
+        "defaultValue": "True",
+        "variantOptions": [
+          "True"
+        ]
+      },
+      "active": {
+        "name": "active",
+        "type": "VARIANT",
+        "defaultValue": "False",
+        "variantOptions": [
+          "False",
+          "True"
+        ]
+      },
+      "hovered": {
+        "name": "hovered",
+        "type": "VARIANT",
+        "defaultValue": "False",
+        "variantOptions": [
+          "False",
+          "True"
+        ]
+      }
+    }
+  },
+  "layout": {
+    "variantCount": 0
+  },
+  "children": [
+    {
+      "name": "status=message, error=True, success=True, active=False, hovered=False",
+      "type": "COMPONENT",
+      "x": "__pending_node_detail__",
+      "y": "__pending_node_detail__",
+      "width": "__pending_node_detail__",
+      "height": "__pending_node_detail__",
+      "visible": true
+    },
+    {
+      "name": "status=default, error=True, success=True, active=False, hovered=False",
+      "type": "COMPONENT",
+      "x": "__pending_node_detail__",
+      "y": "__pending_node_detail__",
+      "width": "__pending_node_detail__",
+      "height": "__pending_node_detail__",
+      "visible": true
+    },
+    {
+      "name": "status=message, error=False, success=True, active=False, hovered=False",
+      "type": "COMPONENT",
+      "x": "__pending_node_detail__",
+      "y": "__pending_node_detail__",
+      "width": "__pending_node_detail__",
+      "height": "__pending_node_detail__",
+      "visible": true
+    },
+    {
+      "name": "status=perfect, error=False, success=True, active=False, hovered=False",
+      "type": "COMPONENT",
+      "x": "__pending_node_detail__",
+      "y": "__pending_node_detail__",
+      "width": "__pending_node_detail__",
+      "height": "__pending_node_detail__",
+      "visible": true
+    },
+    {
+      "name": "status=default, error=False, success=True, active=False, hovered=False",
+      "type": "COMPONENT",
+      "x": "__pending_node_detail__",
+      "y": "__pending_node_detail__",
+      "width": "__pending_node_detail__",
+      "height": "__pending_node_detail__",
+      "visible": true
+    },
+    {
+      "name": "status=default, error=False, success=True, active=False, hovered=True",
+      "type": "COMPONENT",
+      "x": "__pending_node_detail__",
+      "y": "__pending_node_detail__",
+      "width": "__pending_node_detail__",
+      "height": "__pending_node_detail__",
+      "visible": true
+    },
+    {
+      "name": "status=color, error=False, success=True, active=True, hovered=False",
+      "type": "COMPONENT",
+      "x": "__pending_node_detail__",
+      "y": "__pending_node_detail__",
+      "width": "__pending_node_detail__",
+      "height": "__pending_node_detail__",
+      "visible": true
+    },
+    {
+      "name": "status=color, error=False, success=True, active=True, hovered=True",
+      "type": "COMPONENT",
+      "x": "__pending_node_detail__",
+      "y": "__pending_node_detail__",
+      "width": "__pending_node_detail__",
+      "height": "__pending_node_detail__",
+      "visible": true
+    },
+    {
+      "name": "status=font, error=False, success=True, active=True, hovered=False",
+      "type": "COMPONENT",
+      "x": "__pending_node_detail__",
+      "y": "__pending_node_detail__",
+      "width": "__pending_node_detail__",
+      "height": "__pending_node_detail__",
+      "visible": true
+    }
+  ],
+  "notes": {
+    "comments": [],
+    "warnings": [
+      "child geometry still needs a follow-up get-node-details pass if pixel coordinates are required"
+    ],
+    "variants": []
+  }
+}

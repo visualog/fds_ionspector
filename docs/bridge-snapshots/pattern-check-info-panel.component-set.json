@@ -1,0 +1,75 @@
+{
+  "_note": "live bridge snapshot captured on 2026-04-14 from local xbridge",
+  "source": {
+    "nodeName": "pattern/check_info_pannel",
+    "nodeType": "COMPONENT_SET",
+    "nodeRole": "component-set",
+    "sourceContext": "FDS_Inspector > Page 1"
+  },
+  "identity": {
+    "figmaNodeId": "2:1097",
+    "variantProperties": {
+      "속성 1": {
+        "name": "속성 1",
+        "type": "VARIANT",
+        "defaultValue": "기본",
+        "variantOptions": [
+          "기본",
+          "베리언트2"
+        ]
+      }
+    },
+    "componentProperties": {
+      "속성 1": {
+        "name": "속성 1",
+        "type": "VARIANT",
+        "defaultValue": "기본",
+        "variantOptions": [
+          "기본",
+          "베리언트2"
+        ]
+      }
+    }
+  },
+  "layout": {
+    "variantCount": 2
+  },
+  "children": [
+    {
+      "name": "속성 1=기본",
+      "type": "COMPONENT",
+      "x": "__pending_node_detail__",
+      "y": "__pending_node_detail__",
+      "width": "__pending_node_detail__",
+      "height": "__pending_node_detail__",
+      "visible": true
+    },
+    {
+      "name": "속성 1=베리언트2",
+      "type": "COMPONENT",
+      "x": "__pending_node_detail__",
+      "y": "__pending_node_detail__",
+      "width": "__pending_node_detail__",
+      "height": "__pending_node_detail__",
+      "visible": true
+    }
+  ],
+  "notes": {
+    "comments": [],
+    "warnings": [
+      "child geometry still needs a follow-up get-node-details pass if pixel coordinates are required"
+    ],
+    "variants": [
+      {
+        "id": "2:431",
+        "name": "속성 1=기본",
+        "opacity": 1
+      },
+      {
+        "id": "2:1098",
+        "name": "속성 1=베리언트2",
+        "opacity": 1
+      }
+    ]
+  }
+}

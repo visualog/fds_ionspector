@@ -128,10 +128,29 @@
     <button class="btn-re-scan" id="scan" disabled>Re-scan Page</button>
   </div>
 
-  <div class="footer">
-    Connected to FDS v2.0
+  <div class="status-card">
+    <div class="status-row">
+      <span class="status-label">Token Source</span>
+      <span id="token-source-status" class="status-value">Not configured</span>
+    </div>
+    <div style="display:flex; flex-direction:column; gap:8px;">
+      <label class="status-label" for="token-file">Upload JSON</label>
+      <input id="token-file" type="file" accept="application/json,.json" />
+      <button class="btn-re-scan" id="save-file">Use uploaded token file</button>
+
+      <label class="status-label" for="token-url">JSON URL</label>
+      <input id="token-url" type="url" placeholder="https://example.com/tokens.json" style="width:100%; box-sizing:border-box; padding:10px; border:1px solid #e9ecef; border-radius:8px; font:inherit;" />
+      <button class="btn-re-scan" id="save-url">Fetch token URL</button>
+      <button class="btn-re-scan" id="clear-token-source" style="background:#e9ecef; color:#495057;">Clear token source</button>
+      <div id="token-message" class="status-label" style="min-height:16px;"></div>
+    </div>
   </div>
 
+  <div class="footer">
+    Connected to FDS xbridge
+  </div>
+
+  <script src="../token-source.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

@@ -27,89 +27,123 @@
   });
 
   const BUTTON_STATE_FACTORIES = Object.freeze({
-    color: ({ activeFilter, counts }) => ({
-      active: activeFilter === 'color',
-      badge: counts.color > 0 ? String(counts.color) : '',
-      dot: false,
+    color: ({ activeFilter, hoveredFilter, counts }) => buildViolationButtonState({
+      key: 'color',
+      activeFilter,
+      hoveredFilter,
+      count: counts.color,
+      indicator: 'badge',
     }),
-    font: ({ activeFilter }) => ({
-      active: activeFilter === 'font',
-      badge: '',
-      dot: false,
+    font: ({ activeFilter, hoveredFilter, counts }) => buildViolationButtonState({
+      key: 'font',
+      activeFilter,
+      hoveredFilter,
+      count: counts.font,
+      indicator: 'badge',
     }),
-    spacing: ({ activeFilter }) => ({
-      active: activeFilter === 'spacing',
-      badge: '',
-      dot: false,
+    spacing: ({ activeFilter, hoveredFilter, counts }) => buildViolationButtonState({
+      key: 'spacing',
+      activeFilter,
+      hoveredFilter,
+      count: counts.spacing,
+      indicator: 'badge',
     }),
-    radius: ({ activeFilter, counts }) => ({
-      active: activeFilter === 'radius',
-      badge: '',
-      dot: counts.radius > 0,
+    radius: ({ activeFilter, hoveredFilter, counts }) => buildViolationButtonState({
+      key: 'radius',
+      activeFilter,
+      hoveredFilter,
+      count: counts.radius,
+      indicator: 'badge',
     }),
     refresh: ({ isFigmaConnected, hasViolations }) => ({
       active: false,
+      hovered: false,
       badge: '',
-      dot: !isFigmaConnected || hasViolations,
+      badgeCount: '',
+      badgeCountVisible: false,
+      badgeMarker: false,
+      dot: false,
+      refreshNeeded: Boolean(hasViolations),
+      violationCount: 0,
     }),
     close: () => ({
       active: false,
+      hovered: false,
       badge: '',
+      badgeCount: '',
+      badgeCountVisible: false,
+      badgeMarker: false,
       dot: false,
+      refreshNeeded: false,
+      violationCount: 0,
     }),
   });
 
-  const VARIANT_LAYOUTS = Object.freeze({
-    [TOOLBAR_MODES.DISCONNECTED_MESSAGE]: Object.freeze({
-      width: 401,
-      items: Object.freeze([
-        { type: 'static', id: 'fds-btn-plug', kind: 'plug' },
-        { type: 'divider', id: 'fds-divider-a' },
-        { type: 'status', id: 'fds-toolbar-status', text: '피그마 FDS v2.0에서 FDS xbridge를 실행하세요.', tone: 'default' },
-        { type: 'divider', id: 'fds-divider-d' },
-        { type: 'button', ref: 'close' },
-      ]),
+  const TOOLBAR_SPEC = Object.freeze({
+    geometry: Object.freeze({
+      padding: 8,
+      itemSpacing: 16,
+      buttonSize: 32,
+      dividerHeight: 19,
+      collapsedWidth: 48,
     }),
-    [TOOLBAR_MODES.CONNECTED_MESSAGE]: Object.freeze({
-      width: 310,
-      items: Object.freeze([
-        { type: 'static', id: 'fds-btn-plug', kind: 'plugConnected' },
-        { type: 'divider', id: 'fds-divider-a' },
-        { type: 'status', id: 'fds-toolbar-status', text: 'FDS xbridge와 연결되었습니다.', tone: 'connected' },
-        { type: 'divider', id: 'fds-divider-d' },
-        { type: 'button', ref: 'close' },
-      ]),
-    }),
-    [TOOLBAR_MODES.DEFAULT]: Object.freeze({
-      width: 384,
-      items: Object.freeze([
-        { type: 'static', id: 'fds-btn-plug', kind: 'plugConnected' },
-        { type: 'divider', id: 'fds-divider-a' },
-        { type: 'group', id: 'fds-group-filters', refs: Object.freeze(['color', 'font', 'spacing', 'radius']) },
-        { type: 'divider', id: 'fds-divider-b' },
-        { type: 'button', ref: 'refresh' },
-        { type: 'divider', id: 'fds-divider-d' },
-        { type: 'button', ref: 'close' },
-      ]),
-    }),
-    [TOOLBAR_MODES.COMPACT]: Object.freeze({
-      width: 96,
-      items: Object.freeze([
-        { type: 'static', id: 'fds-btn-plug', kind: 'plug' },
-        { type: 'button', ref: 'close' },
-      ]),
-    }),
-    [TOOLBAR_MODES.SINGLE_BUTTON]: Object.freeze({
-      width: 48,
-      items: Object.freeze([
-        { type: 'button', ref: 'font' },
-      ]),
+    variants: Object.freeze({
+      [TOOLBAR_MODES.DISCONNECTED_MESSAGE]: Object.freeze({
+        width: 401,
+        statusWidth: 257,
+        items: Object.freeze([
+          { type: 'static', id: 'fds-btn-move', kind: 'move' },
+          { type: 'divider', id: 'fds-divider-a' },
+          { type: 'status', id: 'fds-toolbar-status', text: '피그마에서 FDS xbridge를 실행하세요.', tone: 'default' },
+          { type: 'divider', id: 'fds-divider-d' },
+          { type: 'button', ref: 'close' },
+        ]),
+      }),
+      [TOOLBAR_MODES.CONNECTED_MESSAGE]: Object.freeze({
+        width: 310,
+        statusWidth: 166,
+        items: Object.freeze([
+          { type: 'static', id: 'fds-btn-move', kind: 'move' },
+          { type: 'divider', id: 'fds-divider-a' },
+          { type: 'status', id: 'fds-toolbar-status', text: 'FDS xbridge와 연결되었습니다.', tone: 'connected' },
+          { type: 'divider', id: 'fds-divider-d' },
+          { type: 'button', ref: 'close' },
+        ]),
+      }),
+      [TOOLBAR_MODES.DEFAULT]: Object.freeze({
+        width: 336,
+        items: Object.freeze([
+          { type: 'static', id: 'fds-btn-move', kind: 'move' },
+          { type: 'divider', id: 'fds-divider-a' },
+          { type: 'button', ref: 'color' },
+          { type: 'button', ref: 'font' },
+          { type: 'button', ref: 'spacing' },
+          { type: 'button', ref: 'radius' },
+          { type: 'divider', id: 'fds-divider-d' },
+          { type: 'button', ref: 'close' },
+        ]),
+      }),
+      [TOOLBAR_MODES.COMPACT]: Object.freeze({
+        width: 96,
+        items: Object.freeze([
+          { type: 'static', id: 'fds-btn-plug', kind: 'plug' },
+          { type: 'button', ref: 'close' },
+        ]),
+      }),
+      [TOOLBAR_MODES.SINGLE_BUTTON]: Object.freeze({
+        width: 48,
+        items: Object.freeze([
+          { type: 'button', ref: 'font' },
+        ]),
+      }),
     }),
   });
+
+  const VARIANT_LAYOUTS = TOOLBAR_SPEC.variants;
 
   const VARIANT_STATUS_WIDTHS = Object.freeze({
-    [TOOLBAR_MODES.DISCONNECTED_MESSAGE]: 257,
-    [TOOLBAR_MODES.CONNECTED_MESSAGE]: 166,
+    [TOOLBAR_MODES.DISCONNECTED_MESSAGE]: TOOLBAR_SPEC.variants[TOOLBAR_MODES.DISCONNECTED_MESSAGE].statusWidth,
+    [TOOLBAR_MODES.CONNECTED_MESSAGE]: TOOLBAR_SPEC.variants[TOOLBAR_MODES.CONNECTED_MESSAGE].statusWidth,
   });
 
   const FIGMA_STATUS_BY_FILTER = Object.freeze({
@@ -118,6 +152,31 @@
     spacing: 'contract',
     radius: 'contract',
   });
+
+  function getViolationBadgeText({ count, hovered, active }) {
+    if (count <= 0) return '';
+    return hovered || active ? String(count) : '•';
+  }
+
+  function buildViolationButtonState({ key, activeFilter, hoveredFilter, count, indicator }) {
+    const active = activeFilter === key;
+    const hovered = hoveredFilter === key;
+    const isHighlighted = active || hovered;
+    const badgeCount = count > 0 ? String(count) : '';
+    const badge = getViolationBadgeText({ count, hovered, active });
+    const usesBadgeIndicator = indicator === 'badge';
+
+    return {
+      active,
+      hovered,
+      badge: usesBadgeIndicator ? badge : '',
+      badgeCount,
+      badgeCountVisible: count > 0 && isHighlighted,
+      badgeMarker: usesBadgeIndicator && count > 0,
+      dot: indicator === 'dot' ? count > 0 : false,
+      violationCount: count,
+    };
+  }
 
   function countViolationsByFilter(scanData, filter) {
     if (scanData?.counts && typeof scanData.counts[filter] === 'number') {
@@ -148,11 +207,24 @@
     };
   }
 
-  function createButtonStateMap({ activeFilter = DEFAULT_FILTER, isFigmaConnected = false, scanData = { violations: [], suggestions: [] } }) {
+  function createButtonStateMap({
+    activeFilter = DEFAULT_FILTER,
+    hoveredFilter = DEFAULT_FILTER,
+    isFigmaConnected = false,
+    scanData = { violations: [], suggestions: [] },
+  }) {
     const normalizedFilter = normalizeActiveFilter(activeFilter);
+    const normalizedHoveredFilter = normalizeActiveFilter(hoveredFilter);
     const counts = getViolationCounts(scanData);
     const hasViolations = (scanData?.violations || []).length > 0;
-    const ctx = { activeFilter: normalizedFilter, counts, hasViolations, isFigmaConnected, scanData };
+    const ctx = {
+      activeFilter: normalizedFilter,
+      hoveredFilter: normalizedHoveredFilter,
+      counts,
+      hasViolations,
+      isFigmaConnected,
+      scanData,
+    };
 
     return Object.keys(BUTTON_META).reduce((acc, key) => {
       const base = BUTTON_META[key];
@@ -165,8 +237,13 @@
     }, {});
   }
 
-  function getToolbarVariantState({ activeFilter = DEFAULT_FILTER, isFigmaConnected = false, scanData = { violations: [], suggestions: [] } }) {
-    return createButtonStateMap({ activeFilter, isFigmaConnected, scanData });
+  function getToolbarVariantState({
+    activeFilter = DEFAULT_FILTER,
+    hoveredFilter = DEFAULT_FILTER,
+    isFigmaConnected = false,
+    scanData = { violations: [], suggestions: [] },
+  }) {
+    return createButtonStateMap({ activeFilter, hoveredFilter, isFigmaConnected, scanData });
   }
 
   function getToolbarLayout(mode = TOOLBAR_MODES.DEFAULT) {
@@ -189,6 +266,18 @@
     return VARIANT_LAYOUTS[mode] ? mode : TOOLBAR_MODES.DEFAULT;
   }
 
+  function getCollapsedToolbarItem(baseItems, activeFilter) {
+    const normalizedFilter = normalizeActiveFilter(activeFilter);
+    if (normalizedFilter && FILTER_KEYS.includes(normalizedFilter)) {
+      return { type: 'button', ref: normalizedFilter };
+    }
+
+    const firstActionableButton = baseItems.find((item) => item.type === 'button' && FILTER_KEYS.includes(item.ref));
+    if (firstActionableButton) return firstActionableButton;
+
+    return baseItems[0] || null;
+  }
+
   function getFigmaToolbarAxes({
     mode = TOOLBAR_MODES.DEFAULT,
     activeFilter = DEFAULT_FILTER,
@@ -202,20 +291,51 @@
     const totalViolations = Object.values(counts).reduce((sum, count) => sum + count, 0);
     const hasViolations = totalViolations > 0;
 
-    let status = 'default';
-    if (!isFigmaConnected || normalizedMode === TOOLBAR_MODES.DISCONNECTED_MESSAGE || normalizedMode === TOOLBAR_MODES.CONNECTED_MESSAGE || normalizedMode === TOOLBAR_MODES.COMPACT) {
-      status = 'message';
-    } else if (normalizedFilter) {
-      status = FIGMA_STATUS_BY_FILTER[normalizedFilter] || 'default';
-    } else if (!hasViolations) {
-      status = 'perfect';
+    if (normalizedMode === TOOLBAR_MODES.DISCONNECTED_MESSAGE) {
+      return {
+        status: 'message',
+        error: 'True',
+        success: 'True',
+        active: 'False',
+        hovered: 'False',
+      };
+    }
+
+    if (normalizedMode === TOOLBAR_MODES.CONNECTED_MESSAGE) {
+      return {
+        status: 'message',
+        error: 'False',
+        success: 'True',
+        active: 'False',
+        hovered: 'False',
+      };
+    }
+
+    if (normalizedMode === TOOLBAR_MODES.COMPACT) {
+      return {
+        status: 'default',
+        error: 'True',
+        success: 'True',
+        active: 'False',
+        hovered: 'False',
+      };
+    }
+
+    if (normalizedFilter) {
+      return {
+        status: FIGMA_STATUS_BY_FILTER[normalizedFilter] || 'default',
+        error: 'False',
+        success: 'True',
+        active: 'True',
+        hovered: hovered ? 'True' : 'False',
+      };
     }
 
     return {
-      status,
-      error: hasViolations ? 'True' : 'False',
-      success: isFigmaConnected ? 'True' : 'False',
-      active: normalizedFilter ? 'True' : 'False',
+      status: hasViolations ? 'default' : 'perfect',
+      error: 'False',
+      success: 'True',
+      active: 'False',
       hovered: hovered ? 'True' : 'False',
     };
   }
@@ -223,21 +343,26 @@
   function createToolbarModel({
     mode = TOOLBAR_MODES.DEFAULT,
     activeFilter = DEFAULT_FILTER,
+    hoveredFilter = DEFAULT_FILTER,
     isFigmaConnected = false,
     scanData = { violations: [], suggestions: [] },
     options = {},
   }) {
     const normalizedMode = VARIANT_LAYOUTS[mode] ? mode : TOOLBAR_MODES.DEFAULT;
-    const buttons = createButtonStateMap({ activeFilter, isFigmaConnected, scanData });
+    const buttons = createButtonStateMap({ activeFilter, hoveredFilter, isFigmaConnected, scanData });
     const baseLayout = getToolbarLayout(normalizedMode);
-    const items = baseLayout.items.map((item) => {
+    const baseItems = baseLayout.items.map((item) => {
       if (item.type !== 'button' || normalizedMode !== TOOLBAR_MODES.SINGLE_BUTTON) return item;
       return { ...item, ref: options.singleButtonRef || item.ref };
     });
+    const collapsed = Boolean(options.collapsed);
+    const collapsedWidth = TOOLBAR_SPEC.geometry.collapsedWidth;
+    const collapsedItem = collapsed ? getCollapsedToolbarItem(baseItems, activeFilter) : null;
+    const items = collapsed && collapsedItem ? [collapsedItem] : baseItems;
 
     return {
       mode: normalizedMode,
-      width: baseLayout.width,
+      width: collapsed ? collapsedWidth : baseLayout.width,
       statusWidth: getToolbarStatusWidth(normalizedMode),
       buttons,
       items,
@@ -254,6 +379,7 @@
     BUTTON_META,
     DEFAULT_FILTER,
     FILTER_KEYS,
+    TOOLBAR_SPEC,
     TOOLBAR_MODES,
     countViolationsByFilter,
     createButtonStateMap,
