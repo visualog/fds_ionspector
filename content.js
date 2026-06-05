@@ -19,11 +19,20 @@ const {
 } = globalThis.FDSToolbarDrag;
 const { hasAuthoredTokenReference } = globalThis.FDSStyleTokenDetection;
 const { buildTokenRegistry } = globalThis.FDSTokenSource;
+const { escapeHtml } = globalThis.FDSHtmlUtils;
+const { createContentRenderers } = globalThis.FDSContentRender;
+const { createContentScanUtils } = globalThis.FDSContentScanUtils;
+const { createContentTheme } = globalThis.FDSContentTheme;
+const { createContentStateUtils } = globalThis.FDSContentStateUtils;
+const { createContentInspector } = globalThis.FDSContentInspection;
+const { createContentSummaryModel } = globalThis.FDSContentSummaryModel;
+const { createContentScanRunner } = globalThis.FDSContentScanRunner;
 const FDS_DESIGN_VARIABLES = globalThis.FDSDesignVariables;
 
 const FDS_BUILD = '2026-04-13-dev3';
 const BRIDGE_POLL_INTERVAL_MS = 3000;
 const BRIDGE_DISCONNECT_GRACE_SAMPLES = 3;
+const SUMMARY_LIST_MAX_HEIGHT = 168;
 const FDS_CSS_VARIABLES = FDS_DESIGN_VARIABLES?.cssVariables || {};
 const FDS_SPECS = FDS_DESIGN_VARIABLES?.inspectorSpecs || {
   colors: {},
@@ -43,12 +52,72 @@ const ICON_PATHS = {
   refresh: 'assets/ic_tool_rescan.svg',
   close: 'assets/ic_tool_close.svg',
 };
+const {
+  renderAssetIcon,
+  renderToolbarMarkup,
+  parseViolationItem,
+  formatTokenContextLabel,
+  createSummaryMetricCards,
+  renderSummaryEmptyState,
+  renderSummaryTabBar,
+  renderSummaryMetricCard,
+  renderSummaryGroupItem,
+  renderSummaryListItem,
+} = createContentRenderers({
+  iconPaths: ICON_PATHS,
+  getUrl: safeRuntimeGetUrl,
+  escapeHtml,
+});
+const {
+  recordIssue,
+  getElementIssueSignature,
+  getDirectTextContent,
+  hasDirectTextContent,
+  getIssueTone,
+  getIssueColorPart,
+  getIssueCategoryFromMessage,
+  rgbToHex,
+} = createContentScanUtils({ parseViolationItem });
+const {
+  applyThemeVariables,
+  applyToolbarSpecVariables,
+} = createContentTheme({
+  designVariables: FDS_DESIGN_VARIABLES,
+  cssVariables: FDS_CSS_VARIABLES,
+  toolbarSpec: TOOLBAR_SPEC,
+  toolbarModes: TOOLBAR_MODES,
+});
+const { getInspectionForFilter } = createContentInspector({
+  getActiveInspectorSpecs,
+  getKnownColorTokens,
+  hasAuthoredTokenReference,
+  hasDirectTextContent,
+  rgbToHex,
+});
 const TOKEN_SOURCE_STORAGE_KEY = 'fdsTokenSource';
-
+const SCAN_BATCH_BUDGET_MS = 12;
+const MAX_SCAN_ELEMENTS = 6000;
+const INSPECTOR_CARD_HIDE_DELAY_MS = 700;
+const IGNORED_SCAN_TAGS = new Set([
+  'SCRIPT',
+  'STYLE',
+  'NOSCRIPT',
+  'TEMPLATE',
+  'META',
+  'LINK',
+  'SVG',
+  'PATH',
+  'DEFS',
+  'CLIPPATH',
+  'MASK',
+  'LINEARGRADIENT',
+  'RADIALGRADIENT',
+  'STOP',
+]);
 let activeFilter = DEFAULT_FILTER;
 let isFigmaConnected = false;
-let scanData = createEmptyScanData();
-let toolbarMode = TOOLBAR_MODES.DISCONNECTED_MESSAGE;
+let scanData;
+let toolbarMode = TOOLBAR_MODES.DEFAULT;
 let previousConnectionState = null;
 let connectedMessageTimer = null;
 let bridgePollIntervalId = null;
@@ -58,6 +127,7 @@ let isDismissedByUser = false;
 let hasBoundViewportEvents = false;
 let dragState = null;
 let panelDragState = null;
+let customSummaryPanelPosition = null;
 let isToolbarCollapsed = false;
 let suppressToolbarClickUntil = 0;
 let isSummaryPanelDismissed = false;
@@ -65,9 +135,8 @@ let isSummaryPanelDockedToToolbar = false;
 let activeSummarySubtab = 'bg';
 let activeSummaryTone = 'danger';
 let activePinnedIssueKey = null;
-let activePinnedIssueNumber = null;
 let lockedPinnedIssueKey = null;
-let lockedPinnedIssueNumber = null;
+let expandedIssueGroupKeys = new Set();
 let bridgeConnectionTier = 'offline';
 let bridgeConnectionSummary = '브리지 연결 안 됨';
 let bridgeConnectionDetail = '브리지 연결이 끊겼거나 세션이 없습니다.';
@@ -79,10 +148,19 @@ let bridgeInspectorSpecOverrides = null;
 let bridgeColorTokenRegistry = { colors: {}, meta: { colorTokenCount: 0, colorVariableCount: 0 } };
 let bridgeTokenFileName = null;
 let bridgeTokenPageName = null;
+let snapshotInspectorSpecOverrides = null;
+let snapshotColorTokenRegistry = { colors: {}, meta: { colorTokenCount: 0 } };
+let snapshotTokenFileName = null;
+let hasSnapshotTokenSource = false;
 let isScanning = false;
 let scanStatusText = '';
+let scanErrorText = '';
 let activeScanPromise = null;
 let queuedScanReason = '';
+let lastScanMetrics = null;
+let inspectorCardHideTimer = null;
+let pendingSummaryMotion = null;
+let violationPinPositionFrame = null;
 
 const FILTER_LABELS = Object.freeze({
   color: '컬러',
@@ -90,8 +168,67 @@ const FILTER_LABELS = Object.freeze({
   spacing: '스페이싱',
   radius: '모서리 라운드',
 });
+const {
+  createEmptyScanData,
+  getFilterLabel,
+  getScanStatusMessage,
+} = createContentStateUtils({
+  filterLabels: FILTER_LABELS,
+  getActiveFilter: () => activeFilter,
+});
+scanData = createEmptyScanData();
+const {
+  normalizeActiveSummaryToneForCounts,
+  getVisibleIssueEntries,
+  getColorEntriesForActiveSubtab,
+  getColorToneCountsForActiveSubtab,
+  getToneCountsForEntries,
+  getTonePatternCountsForGroups,
+  getColorTonePatternCountsForActiveSubtab,
+  getColorSummaryTabs,
+  getSummaryListRenderKey,
+  getIssueGroupKey,
+  groupIssueEntries,
+} = createContentSummaryModel({
+  getScanData: () => scanData,
+  getActiveFilter: () => activeFilter,
+  getActiveSummarySubtab: () => activeSummarySubtab,
+  setActiveSummarySubtab: (nextSubtab) => {
+    activeSummarySubtab = nextSubtab;
+  },
+  getActiveSummaryTone: () => activeSummaryTone,
+  setActiveSummaryTone: (nextTone) => {
+    activeSummaryTone = nextTone;
+  },
+  getExpandedIssueGroupKeys: () => expandedIssueGroupKeys,
+  parseViolationItem,
+});
 
-const SCAN_SETTLE_DELAYS_MS = Object.freeze([80, 180, 320, 480]);
+function getFDSMotion() {
+  return globalThis.FDSMotion || null;
+}
+
+function requestSummaryMotion(kind, details = null) {
+  pendingSummaryMotion = typeof kind === 'object' && kind !== null ? kind : { kind, details };
+}
+
+function formatScanCompletionText(metrics = lastScanMetrics) {
+  if (!metrics || !Number(metrics.scannedElementCount)) return '';
+  const seconds = Math.max(0.1, Number(metrics.durationMs || 0) / 1000);
+  const scanned = Number(metrics.scannedElementCount || 0).toLocaleString('ko-KR');
+  const total = Number(metrics.totalElementCount || metrics.scannedElementCount || 0).toLocaleString('ko-KR');
+  const truncatedLabel = metrics.truncated ? ' · 일부만 검사' : '';
+  return `검사 완료 · ${scanned}/${total}개 요소 · ${seconds.toFixed(1)}초${truncatedLabel}`;
+}
+
+const SCAN_BATCH_SIZE = 80;
+
+function shouldForceScanErrorForVerification() {
+  const hostname = window.location?.hostname || '';
+  const isLocalVerificationHost = hostname === 'localhost' || hostname === '127.0.0.1';
+  return isLocalVerificationHost
+    && document.documentElement?.dataset?.fdsInspectorForceScanError === 'true';
+}
 
 function handleExtensionContextInvalid(error) {
   const message = error instanceof Error ? error.message : String(error || '');
@@ -157,19 +294,76 @@ function getKnownColorTokens(hex) {
   const sourceTokens = Array.isArray(activeTokenRegistry?.colors?.[hex])
     ? activeTokenRegistry.colors[hex]
     : [];
+  const snapshotTokens = Array.isArray(snapshotColorTokenRegistry?.colors?.[hex])
+    ? snapshotColorTokenRegistry.colors[hex]
+    : [];
   const builtInToken = FDS_SPECS.colors[hex] ? [FDS_SPECS.colors[hex]] : [];
-  return [...new Set([...bridgeTokens, ...sourceTokens, ...builtInToken])];
+  return [...new Set([...bridgeTokens, ...snapshotTokens, ...sourceTokens, ...builtInToken])];
+}
+
+function rankSuggestedTokens(tokens = []) {
+  return [...new Set(tokens.filter(Boolean))]
+    .sort((a, b) => {
+      const score = (token) => {
+        const text = String(token);
+        let value = 0;
+        if (/^Color\./.test(text)) value += 40;
+        if (/^(spacing|radius)\./.test(text)) value += 35;
+        if (/\b(text|bg|background|border|surface)\b/i.test(text)) value += 10;
+        if (!/^(light|dark|Unit)\./i.test(text)) value += 5;
+        return value;
+      };
+      return score(b) - score(a) || String(a).localeCompare(String(b));
+    });
+}
+
+function extractTokenNamesFromTag(tag) {
+  const match = String(tag || '').match(/:\s*(.+)$/);
+  if (!match) return [];
+  return match[1]
+    .split(',')
+    .map((item) => item.trim())
+    .filter(Boolean);
+}
+
+function getSuggestedTokensForIssue(entry) {
+  const message = String(entry?.message || '');
+  if (!message.includes('원시값 직접 사용')) return [];
+
+  const parsed = parseViolationItem(message);
+  const activeSpecs = getActiveInspectorSpecs();
+  if (entry?.category === 'color') {
+    return rankSuggestedTokens(getKnownColorTokens(parsed.value)).slice(0, 3);
+  }
+
+  if (entry?.category === 'spacing') {
+    const numericValue = Number.parseFloat(parsed.value);
+    const mappedTokens = Number.isFinite(numericValue)
+      ? activeSpecs.spacingTokens?.[numericValue] || activeSpecs.spacingTokens?.[String(numericValue)] || []
+      : [];
+    return rankSuggestedTokens([...mappedTokens, ...extractTokenNamesFromTag(parsed.tag)]).slice(0, 3);
+  }
+
+  if (entry?.category === 'radius') {
+    const mappedTokens = activeSpecs.radiusTokens?.[parsed.value] || [];
+    return rankSuggestedTokens([...mappedTokens, ...extractTokenNamesFromTag(parsed.tag)]).slice(0, 3);
+  }
+
+  return extractTokenNamesFromTag(parsed.tag).slice(0, 3);
 }
 
 function getActiveInspectorSpecs() {
+  const activeOverrides = bridgeInspectorSpecOverrides || snapshotInspectorSpecOverrides;
   return {
     ...FDS_SPECS,
-    spacing: Array.isArray(bridgeInspectorSpecOverrides?.spacing) && bridgeInspectorSpecOverrides.spacing.length > 0
-      ? bridgeInspectorSpecOverrides.spacing
+    spacing: Array.isArray(activeOverrides?.spacing) && activeOverrides.spacing.length > 0
+      ? activeOverrides.spacing
       : FDS_SPECS.spacing,
-    radius: Array.isArray(bridgeInspectorSpecOverrides?.radius) && bridgeInspectorSpecOverrides.radius.length > 0
-      ? bridgeInspectorSpecOverrides.radius
+    radius: Array.isArray(activeOverrides?.radius) && activeOverrides.radius.length > 0
+      ? activeOverrides.radius
       : FDS_SPECS.radius,
+    spacingTokens: activeOverrides?.spacingTokens || {},
+    radiusTokens: activeOverrides?.radiusTokens || {},
   };
 }
 
@@ -182,6 +376,12 @@ function getBridgeSpecStateSignature({
 } = {}) {
   const spacing = Array.isArray(overrides?.spacing) ? [...overrides.spacing] : [];
   const radius = Array.isArray(overrides?.radius) ? [...overrides.radius] : [];
+  const spacingTokens = overrides?.spacingTokens && typeof overrides.spacingTokens === 'object'
+    ? Object.entries(overrides.spacingTokens).sort()
+    : [];
+  const radiusTokens = overrides?.radiusTokens && typeof overrides.radiusTokens === 'object'
+    ? Object.entries(overrides.radiusTokens).sort()
+    : [];
   const colors = colorRegistry?.colors && typeof colorRegistry.colors === 'object'
     ? Object.keys(colorRegistry.colors)
       .sort()
@@ -194,6 +394,8 @@ function getBridgeSpecStateSignature({
     pageName: pageName || null,
     spacing,
     radius,
+    spacingTokens,
+    radiusTokens,
     colors,
   });
 }
@@ -221,6 +423,8 @@ async function refreshBridgeInspectorSpecs() {
   const nextOverrides = {
     spacing: Array.isArray(response?.specs?.spacing) ? response.specs.spacing : [],
     radius: Array.isArray(response?.specs?.radius) ? response.specs.radius : [],
+    spacingTokens: response?.specs?.spacingTokens && typeof response.specs.spacingTokens === 'object' ? response.specs.spacingTokens : {},
+    radiusTokens: response?.specs?.radiusTokens && typeof response.specs.radiusTokens === 'object' ? response.specs.radiusTokens : {},
     meta: response?.specs?.meta || null,
   };
   bridgeColorTokenRegistry = {
@@ -241,27 +445,62 @@ async function refreshBridgeInspectorSpecs() {
   };
 }
 
+async function refreshSnapshotInspectorSpecs() {
+  const response = await safeRuntimeSendMessage({ action: 'SNAPSHOT_TOKEN_SPECS' });
+  if (!response || response.status === 'error' || !response.specs) {
+    snapshotInspectorSpecOverrides = null;
+    snapshotColorTokenRegistry = { colors: {}, meta: { colorTokenCount: 0 } };
+    snapshotTokenFileName = null;
+    hasSnapshotTokenSource = false;
+    return { changed: false, source: 'snapshot' };
+  }
+
+  snapshotTokenFileName = typeof response.fileName === 'string' ? response.fileName : 'tokens/*.json';
+  hasSnapshotTokenSource = true;
+  snapshotInspectorSpecOverrides = {
+    spacing: Array.isArray(response?.specs?.spacing) ? response.specs.spacing : [],
+    radius: Array.isArray(response?.specs?.radius) ? response.specs.radius : [],
+    spacingTokens: response?.specs?.spacingTokens && typeof response.specs.spacingTokens === 'object' ? response.specs.spacingTokens : {},
+    radiusTokens: response?.specs?.radiusTokens && typeof response.specs.radiusTokens === 'object' ? response.specs.radiusTokens : {},
+    meta: response?.specs?.meta || null,
+  };
+  snapshotColorTokenRegistry = {
+    colors: response?.specs?.colors && typeof response.specs.colors === 'object' ? response.specs.colors : {},
+    meta: {
+      colorTokenCount: Number(response?.specs?.meta?.colorTokenCount || 0),
+    },
+  };
+
+  return { changed: true, source: 'snapshot', overrides: snapshotInspectorSpecOverrides };
+}
+
 function getBridgeTokenContextLabel() {
+  if (!isFigmaConnected && snapshotInspectorSpecOverrides) {
+    const sourceName = snapshotTokenFileName || '저장된 토큰 스냅샷';
+    const spacingCount = Number(snapshotInspectorSpecOverrides?.spacing?.length || 0);
+    const radiusCount = Number(snapshotInspectorSpecOverrides?.radius?.length || 0);
+    const colorCount = Number(snapshotColorTokenRegistry?.meta?.colorTokenCount || 0);
+    return formatTokenContextLabel({
+      sourceName,
+      colorCount,
+      spacingCount,
+      radiusCount,
+      fallbackLabel: '저장된 토큰 기준',
+    });
+  }
   if (!isFigmaConnected) return '';
   const sourceName = bridgeTokenFileName || '현재 연결 파일';
-  const pageName = bridgeTokenPageName ? ` · ${bridgeTokenPageName}` : '';
   const spacingCount = Number(bridgeInspectorSpecOverrides?.spacing?.length || 0);
   const radiusCount = Number(bridgeInspectorSpecOverrides?.radius?.length || 0);
   const colorCount = Number(bridgeColorTokenRegistry?.meta?.colorTokenCount || 0);
-  const tokenSummary = (spacingCount || radiusCount || colorCount)
-    ? `컬러 ${colorCount} · 간격 ${spacingCount} · 라운드 ${radiusCount}`
-    : '브리지 토큰 기준';
-  return `${sourceName}${pageName} · ${tokenSummary}`;
-}
-
-function getFilterLabel(filter = activeFilter) {
-  return FILTER_LABELS[filter] || filter || '페이지';
-}
-
-function getScanStatusMessage(reason = '') {
-  if (reason) return reason;
-  if (!activeFilter) return '초기 검사 결과를 계산하는 중입니다.';
-  return `${getFilterLabel(activeFilter)} 위반 수를 다시 계산하는 중입니다.`;
+  return formatTokenContextLabel({
+    sourceName,
+    pageName: bridgeTokenPageName || '',
+    colorCount,
+    spacingCount,
+    radiusCount,
+    fallbackLabel: '브리지 토큰 기준',
+  });
 }
 
 function setScanningState(nextScanning, reason = '') {
@@ -296,18 +535,9 @@ function waitForDelay(delayMs) {
   });
 }
 
-async function waitForScanSettle(delayMs) {
+async function yieldToBrowser() {
   await waitForNextPaint();
-  if (delayMs > 0) {
-    await waitForDelay(delayMs);
-  }
-}
-
-function getScanSignature() {
-  return JSON.stringify({
-    counts: scanData.counts,
-    issueKeys: scanData.issueEntries.map((entry) => entry.key).sort(),
-  });
+  await waitForDelay(0);
 }
 
 function ensureValidActiveFilter() {
@@ -335,79 +565,6 @@ function clearConnectedMessageTimer() {
   }
 }
 
-function createEmptyScanData() {
-  return {
-    violations: [],
-    issueEntries: [],
-    suggestions: [],
-    counts: {
-      color: 0,
-      font: 0,
-      spacing: 0,
-      radius: 0,
-    },
-    colorBreakdown: {
-      missing: 0,
-      primitiveRaw: 0,
-    },
-  };
-}
-
-function recordIssue(category, message, issues) {
-  issues.push(message);
-  if (scanData.counts && typeof scanData.counts[category] === 'number') {
-    scanData.counts[category] += 1;
-  }
-}
-
-function getElementIssueSignature(element) {
-  if (!element) return 'unknown';
-  const tag = element.tagName?.toLowerCase?.() || 'node';
-  const id = element.id ? `#${element.id}` : '';
-  const classes = typeof element.className === 'string' && element.className.trim()
-    ? `.${element.className.trim().split(/\s+/).slice(0, 3).join('.')}`
-    : '';
-  const text = getDirectTextContent(element).slice(0, 24);
-  return `${tag}${id}${classes}:${text}`;
-}
-
-function getDirectTextContent(element) {
-  if (!element) return '';
-  return Array.from(element.childNodes || [])
-    .filter((node) => node.nodeType === Node.TEXT_NODE)
-    .map((node) => node.textContent || '')
-    .join(' ')
-    .replace(/\s+/g, ' ')
-    .trim();
-}
-
-function hasDirectTextContent(element) {
-  return getDirectTextContent(element).length > 0;
-}
-
-function getIssueTone(message) {
-  if (String(message || '').includes('(미등록)')) return 'danger';
-  if (String(message || '').includes('(원시값 직접 사용)')) return 'warning';
-  return parseViolationItem(message).tone || 'danger';
-}
-
-function getIssueColorPart(message) {
-  const text = String(message || '');
-  if (text.startsWith('배경색 ')) return 'bg';
-  if (text.startsWith('글자색 ')) return 'text';
-  if (text.startsWith('보더색 ') || text.startsWith('외곽선 ')) return 'border';
-  return null;
-}
-
-function getIssueCategoryFromMessage(message, fallback = activeFilter) {
-  const text = String(message || '');
-  if (/^(배경색|글자색|보더색|외곽선)\s+/.test(text)) return 'color';
-  if (text.startsWith('서체 ')) return 'font';
-  if (text.startsWith('상단 패딩 ')) return 'spacing';
-  if (text.startsWith('라운드 ')) return 'radius';
-  return fallback || DEFAULT_FILTER;
-}
-
 function addIssueEntry({ category, message, element }) {
   if (!message) return null;
   const normalizedCategory = getIssueCategoryFromMessage(message, category);
@@ -427,105 +584,7 @@ function addIssueEntry({ category, message, element }) {
     message,
     element,
   };
-  scanData.issueEntries.push(entry);
   return entry;
-}
-
-function applyThemeVariables() {
-  const root = document.documentElement;
-  if (typeof FDS_DESIGN_VARIABLES?.applyCSSVariables === 'function') {
-    FDS_DESIGN_VARIABLES.applyCSSVariables(root);
-    return;
-  }
-
-  Object.entries(FDS_CSS_VARIABLES).forEach(([name, value]) => {
-    root.style.setProperty(name, String(value));
-  });
-}
-
-function applyToolbarSpecVariables(target = document.documentElement) {
-  if (!target || !TOOLBAR_SPEC?.geometry || !TOOLBAR_SPEC?.variants) return;
-
-  const { geometry, variants } = TOOLBAR_SPEC;
-  const defaultVariant = variants[TOOLBAR_MODES.DEFAULT] || {};
-  const connectedMessageVariant = variants[TOOLBAR_MODES.CONNECTED_MESSAGE] || {};
-  const disconnectedMessageVariant = variants[TOOLBAR_MODES.DISCONNECTED_MESSAGE] || {};
-
-  target.style.setProperty('--fds-toolbar-padding', `${geometry.padding}px`);
-  target.style.setProperty('--fds-toolbar-gap', `${geometry.itemSpacing}px`);
-  target.style.setProperty('--fds-toolbar-item-spacing', `${geometry.itemSpacing}px`);
-  target.style.setProperty('--fds-toolbar-button-size', `${geometry.buttonSize}px`);
-  target.style.setProperty('--fds-toolbar-divider-height', `${geometry.dividerHeight}px`);
-  target.style.setProperty('--fds-toolbar-collapsed-width', `${geometry.collapsedWidth}px`);
-  target.style.setProperty('--fds-toolbar-default-width', `${defaultVariant.width ?? 384}px`);
-  target.style.setProperty('--fds-toolbar-connected-message-width', `${connectedMessageVariant.width ?? 310}px`);
-  target.style.setProperty('--fds-toolbar-disconnected-message-width', `${disconnectedMessageVariant.width ?? 401}px`);
-  target.style.setProperty('--fds-toolbar-disconnected-status-width', `${disconnectedMessageVariant.statusWidth ?? 257}px`);
-}
-
-function renderAssetIcon(kind, alt) {
-  const path = ICON_PATHS[kind] || ICON_PATHS.close;
-  const src = path ? safeRuntimeGetUrl(path) : null;
-  if (!src) {
-    return `<span class="fds-icon-svg fds-icon-svg-fallback" aria-hidden="true"></span>`;
-  }
-
-  return `<img class="fds-icon-svg" src="${src}" alt="${alt || kind}" />`;
-}
-
-function renderDivider(id) {
-  return `<div id="${id}" class="fds-divider" aria-hidden="true"></div>`;
-}
-
-function renderToolbarStatus({ id, text, tone }) {
-  const extraClass = tone === 'connected' ? ' fds-toolbar-status-connected' : '';
-  return `<div id="${id}" class="fds-toolbar-status${extraClass}">${text}</div>`;
-}
-
-function renderToolbarButton(button) {
-  if (!button) return '';
-  const tooltip = button.tooltip || button.title || '';
-  const attrs = [
-    `id="${button.id}"`,
-    'class="fds-btn' + (button.extraClass ? ` ${button.extraClass}` : '') + (button.active ? ' active' : '') + (button.dot ? ' has-dot' : '') + '"',
-    `type="button"`,
-    `title="${button.title || ''}"`,
-    `data-tooltip="${tooltip}"`,
-    `data-kind="${button.kind}"`,
-  ];
-
-  if (button.filter) attrs.push(`data-filter="${button.filter}"`);
-  if (button.active) attrs.push('data-state="active"');
-  if (button.badgeMarker) attrs.push('data-badge="•"');
-  if (button.badgeCount) attrs.push(`data-badge-count="${button.badgeCount}"`);
-  if (button.badgeCountVisible) attrs.push('data-badge-visible="true"');
-  if (button.refreshNeeded) attrs.push('data-refresh-needed="true"');
-
-  return `<button ${attrs.join(' ')}><span class="fds-icon-slot">${renderAssetIcon(button.kind, button.title || button.kind)}</span></button>`;
-}
-
-function renderToolbarModelItem(item, model) {
-  if (item.type === 'static') {
-    const moveTooltip = '툴바 이동';
-    return `<button id="${item.id}" class="fds-btn-static fds-btn-move" type="button" title="${moveTooltip}" data-tooltip="${moveTooltip}" data-kind="${item.kind}"><span class="fds-icon-slot">${renderAssetIcon(item.kind, item.kind)}</span></button>`;
-  }
-
-  if (item.type === 'divider') return renderDivider(item.id);
-  if (item.type === 'status') return renderToolbarStatus(item);
-
-  if (item.type === 'group') {
-    return `<div id="${item.id}" class="fds-btn-group">${item.refs.map((ref) => renderToolbarButton(model.buttons[ref])).join('')}</div>`;
-  }
-
-  if (item.type === 'button') {
-    return renderToolbarButton(model.buttons[item.ref]);
-  }
-
-  return '';
-}
-
-function renderToolbarMarkup(model) {
-  return model.items.map((item) => renderToolbarModelItem(item, model)).join('');
 }
 
 function hideTooltip() {
@@ -595,6 +654,52 @@ function setRootVisibility(visible) {
   document.body.classList.toggle('fds-hide-all', !visible);
 }
 
+function isInspectorUIShellComplete(root = document.getElementById('fds-root')) {
+  return Boolean(root)
+    && Boolean(root.querySelector('#fds-issue-pin-layer'))
+    && Boolean(root.querySelector('#fds-toolbar'))
+    && Boolean(root.querySelector('#fds-summary-panel'))
+    && Boolean(root.querySelector('#fds-inspector-card'));
+}
+
+function isInspectorUIVisible() {
+  const root = document.getElementById('fds-root');
+  return Boolean(isExtensionVisible && !isDismissedByUser)
+    && isInspectorUIShellComplete(root)
+    && Boolean(root.querySelector('#fds-toolbar button'))
+    && root.style.display !== 'none'
+    && root.dataset.visible === 'true';
+}
+
+function ensureVisibleInspectorUI() {
+  let root = document.getElementById('fds-root');
+
+  if (root && root.getAttribute('data-fds-build') !== FDS_BUILD) {
+    clearConnectedMessageTimer();
+    stopBridgePolling();
+    hideTooltip();
+    root.remove();
+    root = null;
+  }
+
+  if (root && !isInspectorUIShellComplete(root)) {
+    root.remove();
+    root = null;
+  }
+
+  if (!root) {
+    createUI();
+    root = document.getElementById('fds-root');
+  }
+
+  if (root) {
+    setRootVisibility(true);
+    syncToolbar();
+  }
+
+  return root;
+}
+
 function stopBridgePolling() {
   if (bridgePollIntervalId !== null) {
     clearInterval(bridgePollIntervalId);
@@ -613,9 +718,14 @@ function startBridgePolling() {
 function showSummaryPanel() {
   const panel = document.getElementById('fds-summary-panel');
   if (!panel || !isExtensionVisible || isDismissedByUser || isSummaryPanelDismissed) return;
+  const wasPanelVisible = isSummaryPanelVisible();
   activeSummaryTone = 'danger';
   panel.style.display = 'block';
+  panel.style.visibility = 'visible';
   updateSummaryUI();
+  if (!wasPanelVisible) {
+    getFDSMotion()?.animatePanelOpen?.(panel);
+  }
   if (isSummaryPanelDockedToToolbar && isToolbarCollapsed) {
     dockCollapsedToolbarAndPanel();
   }
@@ -624,7 +734,7 @@ function showSummaryPanel() {
 function openSummaryPanelForActiveFilter({ forceExpanded = true } = {}) {
   if (forceExpanded) {
     setToolbarCollapsed(false);
-    restoreExpandedToolbarAndPanelPosition();
+    restoreExpandedToolbarAndPanelPosition({ preserveSummaryPanelPosition: Boolean(customSummaryPanelPosition) });
   }
   isSummaryPanelDismissed = false;
   updateToolbarIndicators();
@@ -648,6 +758,58 @@ function isSummaryPanelVisible() {
   return panel?.style.display === 'block';
 }
 
+function measureNaturalSummaryPanelHeight(panel) {
+  if (!panel) return 0;
+  return Math.ceil(
+    panel.scrollHeight
+    || panel.getBoundingClientRect?.().height
+    || panel.offsetHeight
+    || 0
+  );
+}
+
+function toPixelNumber(value, fallback = 0) {
+  const parsed = Number.parseFloat(value);
+  return Number.isFinite(parsed) ? parsed : fallback;
+}
+
+function getRenderedHeight(element) {
+  if (!element) return 0;
+  return Math.ceil(
+    element.getBoundingClientRect?.().height
+    || element.offsetHeight
+    || element.scrollHeight
+    || 0
+  );
+}
+
+function measureSummaryPanelTargetHeight(panel, { listHeight = 0 } = {}) {
+  if (!panel) return 0;
+  const style = globalThis.getComputedStyle?.(panel);
+  const paddingTop = toPixelNumber(style?.paddingTop, 16);
+  const paddingBottom = toPixelNumber(style?.paddingBottom, 16);
+  const head = panel.querySelector?.('.fds-panel-head');
+  const section = panel.querySelector?.('.fds-summary-section');
+  const sectionStyle = section ? globalThis.getComputedStyle?.(section) : null;
+  const sectionMarginTop = toPixelNumber(sectionStyle?.marginTop, 16);
+  const sectionGap = toPixelNumber(sectionStyle?.rowGap || sectionStyle?.gap, 8);
+  const sectionChildren = Array.from(section?.children || []);
+  const sectionHeight = sectionChildren.reduce((sum, child, index) => {
+    const childHeight = child.classList?.contains('fds-summary-list')
+      ? listHeight
+      : getRenderedHeight(child);
+    return sum + childHeight + (index > 0 ? sectionGap : 0);
+  }, 0);
+
+  return Math.ceil(
+    paddingTop
+    + getRenderedHeight(head)
+    + sectionMarginTop
+    + sectionHeight
+    + paddingBottom
+  );
+}
+
 function getViolationPinLayer() {
   return document.getElementById('fds-issue-pin-layer');
 }
@@ -665,35 +827,20 @@ function clearHoveredInspectionTarget() {
 
 function clearActiveViolationPin() {
   activePinnedIssueKey = null;
-  activePinnedIssueNumber = null;
   lockedPinnedIssueKey = null;
-  lockedPinnedIssueNumber = null;
+  clearHoveredInspectionTarget();
+  hideInspectorCard();
   clearViolationPins();
 }
 
-function getVisibleIssueEntries() {
-  if (!activeFilter) return [];
-  const entries = scanData.issueEntries.filter((entry) => entry.category === activeFilter);
-  if (activeFilter !== 'color') return entries;
-
-  return getColorEntriesForActiveSubtab().filter((entry) => entry.tone === activeSummaryTone);
+function clearInspectorCardHideTimer() {
+  if (!inspectorCardHideTimer) return;
+  clearTimeout(inspectorCardHideTimer);
+  inspectorCardHideTimer = null;
 }
 
-function getColorEntriesForActiveSubtab() {
-  return scanData.issueEntries.filter((entry) => {
-    if (entry.category !== 'color') return false;
-    if (activeSummarySubtab === 'bg') return entry.colorPart === 'bg';
-    if (activeSummarySubtab === 'text') return entry.colorPart === 'text';
-    return entry.colorPart === 'border';
-  });
-}
-
-function getColorToneCountsForActiveSubtab() {
-  return getColorEntriesForActiveSubtab().reduce((acc, entry) => {
-    if (entry.tone === 'danger') acc.danger += 1;
-    if (entry.tone === 'warning') acc.warning += 1;
-    return acc;
-  }, { danger: 0, warning: 0 });
+function clearExpandedIssueGroups() {
+  expandedIssueGroupKeys = new Set();
 }
 
 function applyVisibleIssueHighlights(entries = getVisibleIssueEntries()) {
@@ -745,7 +892,7 @@ function getHoveredInspectionTarget(event) {
     .find((element) => visibleElements.has(element) && element.classList.contains('fds-inspected')) || null;
 }
 
-function showInspectorCardForEntries(target, issueEntries) {
+function showInspectorCardForEntries(target, issueEntries, anchorElement = target) {
   const card = document.getElementById('fds-inspector-card');
   if (!target?.isConnected || !card || !issueEntries?.length) {
     clearHoveredInspectionTarget();
@@ -753,15 +900,15 @@ function showInspectorCardForEntries(target, issueEntries) {
     return;
   }
 
+  clearInspectorCardHideTimer();
   clearHoveredInspectionTarget();
   target.classList.add('fds-hover-target');
 
-  const issues = issueEntries.map((entry) => entry.message);
   const hasDanger = issueEntries.some((entry) => entry.tone === 'danger');
   const hasWarning = issueEntries.some((entry) => entry.tone === 'warning');
   const toneClass = hasDanger ? 'danger' : hasWarning ? 'warning' : 'success';
   const toneLabel = hasDanger ? '위험 감지' : hasWarning ? '경고 감지' : '정상';
-  const previewItems = issues.slice(0, 4);
+  const previewEntries = issueEntries.slice(0, 4);
   card.className = `fds-card ${toneClass}`;
   card.innerHTML = `
     <div class="fds-card-head">
@@ -772,28 +919,142 @@ function showInspectorCardForEntries(target, issueEntries) {
       <div class="fds-card-tone ${toneClass}">${toneLabel}</div>
     </div>
     <div class="fds-card-body">
-      ${previewItems.map((item) => `<div class="fds-issue-item">${item}</div>`).join('')}
-      ${issues.length > 4 ? `<div class="fds-card-more">외 ${issues.length - 4}건</div>` : ''}
+      ${previewEntries.map((entry) => {
+        const suggestedTokens = getSuggestedTokensForIssue(entry);
+        return `
+          <div class="fds-issue-item">
+            <div class="fds-issue-message">${escapeHtml(entry.message)}</div>
+            ${suggestedTokens.length
+              ? `<div class="fds-issue-replacement">
+                  <span>대체 토큰</span>
+                  <strong title="${escapeHtml(suggestedTokens.join(', '))}">${escapeHtml(suggestedTokens.join(', '))}</strong>
+                  <button class="fds-token-copy" type="button" data-copy-token="${escapeHtml(suggestedTokens[0])}" title="${escapeHtml(`토큰명 복사: ${suggestedTokens[0]}`)}">토큰명 복사</button>
+                </div>`
+              : ''}
+          </div>
+        `;
+      }).join('')}
+      ${issueEntries.length > 4 ? `<div class="fds-card-more">외 ${issueEntries.length - 4}건</div>` : ''}
     </div>
   `;
-  const rect = target.getBoundingClientRect();
+  card.querySelectorAll('.fds-token-copy').forEach((button) => {
+    button.onclick = async (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const tokenName = button.dataset.copyToken || '';
+      if (!tokenName) return;
+      try {
+        await navigator.clipboard?.writeText?.(tokenName);
+        button.textContent = '복사됨';
+        getFDSMotion()?.animateCopySuccess?.(button);
+      } catch (error) {
+        button.textContent = '복사 실패';
+      }
+    };
+  });
+  card.onmouseenter = clearInspectorCardHideTimer;
+  card.onpointerenter = clearInspectorCardHideTimer;
+  card.onfocusin = clearInspectorCardHideTimer;
+  card.onmouseleave = () => scheduleTransientInspectorPreviewClear();
+  card.onfocusout = (event) => {
+    if (event.relatedTarget?.closest?.('#fds-inspector-card')) return;
+    scheduleTransientInspectorPreviewClear();
+  };
+  const anchorRect = (anchorElement || target).getBoundingClientRect();
   card.style.display = 'block';
-  placeFloatingElement(card, window.scrollX + rect.left, window.scrollY + rect.bottom + 8);
+  placeFloatingElement(card, window.scrollX + anchorRect.left, window.scrollY + anchorRect.bottom + 8);
+  positionViolationPin(issueEntries.find((entry) => entry.key === activePinnedIssueKey) || issueEntries[0], { avoidElement: card });
+  getFDSMotion()?.animateInspectorCard?.(card);
 }
 
-function renderViolationPin(entry, number) {
+function getViolationPinLabel(entry) {
+  const element = entry?.element;
+  const tagName = element?.tagName?.toLowerCase?.() || 'element';
+  const idPart = element?.id ? `#${element.id}` : '';
+  const classPart = typeof element?.className === 'string' && element.className.trim()
+    ? `.${element.className.trim().split(/\s+/).slice(0, 1).join('.')}`
+    : '';
+  return `${tagName}${idPart}${classPart}`;
+}
+
+function renderViolationPin(entry) {
   const layer = getViolationPinLayer();
-  if (!layer || !isSummaryPanelVisible() || !entry?.element?.isConnected || !number) {
+  if (!layer || !isSummaryPanelVisible() || !entry?.element?.isConnected) {
     clearViolationPins();
     return;
   }
 
   const tone = entry.tone === 'warning' ? 'warning' : 'danger';
-  layer.innerHTML = `<span class="fds-issue-pin ${tone}" data-issue-key="${escapeHtml(entry.key)}">${number}</span>`;
+  const label = getViolationPinLabel(entry);
+  layer.innerHTML = `<span class="fds-issue-pin ${tone}" data-issue-key="${escapeHtml(entry.key)}" title="${escapeHtml(label)}">${escapeHtml(label)}</span>`;
   positionViolationPin(entry);
+  const pin = layer.querySelector('.fds-issue-pin');
+  getFDSMotion()?.animatePin?.(pin);
 }
 
-function getBestPinPosition(rect, pinWidth, pinHeight) {
+function isViolationPinTargetVisible(rect) {
+  return Boolean(rect)
+    && rect.width >= 1
+    && rect.height >= 1
+    && rect.bottom >= 0
+    && rect.right >= 0
+    && rect.top <= window.innerHeight
+    && rect.left <= window.innerWidth;
+}
+
+function getRectOverlapArea(rectA, rectB) {
+  if (!rectA || !rectB) return 0;
+  const width = Math.max(0, Math.min(rectA.right, rectB.right) - Math.max(rectA.left, rectB.left));
+  const height = Math.max(0, Math.min(rectA.bottom, rectB.bottom) - Math.max(rectA.top, rectB.top));
+  return width * height;
+}
+
+function getPinPositionCandidate(rect, pinWidth, pinHeight, pinPosition) {
+  if (pinPosition === 'pin_LT') {
+    return {
+      position: pinPosition,
+      left: rect.left - pinWidth + 2,
+      top: rect.top - pinHeight + 2,
+    };
+  }
+  if (pinPosition === 'pin_RT') {
+    return {
+      position: pinPosition,
+      left: rect.right - 2,
+      top: rect.top - pinHeight + 2,
+    };
+  }
+  if (pinPosition === 'pin_LB') {
+    return {
+      position: pinPosition,
+      left: rect.left - pinWidth + 2,
+      top: rect.bottom - 2,
+    };
+  }
+  return {
+    position: 'pin_RB',
+    left: rect.right - 2,
+    top: rect.bottom - 2,
+  };
+}
+
+function getClampedPinCandidate(candidate, pinWidth, pinHeight) {
+  const left = clampPosition(candidate.left, 4, Math.max(4, window.innerWidth - pinWidth - 4));
+  const top = clampPosition(candidate.top, 4, Math.max(4, window.innerHeight - pinHeight - 4));
+  return {
+    ...candidate,
+    left,
+    top,
+    rect: {
+      left,
+      top,
+      right: left + pinWidth,
+      bottom: top + pinHeight,
+    },
+  };
+}
+
+function getBestPinPosition(rect, pinWidth, pinHeight, avoidRect = null) {
   const margin = 4;
   const hasTopSpace = rect.top >= pinHeight + margin;
   const hasBottomSpace = window.innerHeight - rect.bottom >= pinHeight + margin;
@@ -801,93 +1062,136 @@ function getBestPinPosition(rect, pinWidth, pinHeight) {
   const hasRightSpace = window.innerWidth - rect.right >= pinWidth + margin;
   const vertical = hasTopSpace || !hasBottomSpace ? 'T' : 'B';
   const horizontal = hasLeftSpace || !hasRightSpace ? 'L' : 'R';
-  return `pin_${horizontal}${vertical}`;
+  const preferredPosition = `pin_${horizontal}${vertical}`;
+  const candidates = ['pin_LT', 'pin_RT', 'pin_LB', 'pin_RB']
+    .map((position) => getClampedPinCandidate(getPinPositionCandidate(rect, pinWidth, pinHeight, position), pinWidth, pinHeight))
+    .map((candidate, index) => ({
+      ...candidate,
+      order: candidate.position === preferredPosition ? -1 : index,
+      overlapArea: getRectOverlapArea(candidate.rect, avoidRect),
+    }))
+    .sort((a, b) => a.overlapArea - b.overlapArea || a.order - b.order);
+
+  return candidates[0]?.position || preferredPosition;
 }
 
-function positionViolationPin(entry = getVisibleIssueEntries().find((item) => item.key === activePinnedIssueKey)) {
+function positionViolationPin(
+  entry = getVisibleIssueEntries().find((item) => item.key === activePinnedIssueKey),
+  { avoidElement = null } = {}
+) {
   const layer = getViolationPinLayer();
-  if (!layer || !isSummaryPanelVisible()) return;
+  if (!layer) return;
+  if (!isSummaryPanelVisible()) {
+    clearViolationPins();
+    return;
+  }
   const pin = layer.querySelector('.fds-issue-pin');
-  if (!pin || !entry?.element?.isConnected) return;
-
-  const rect = entry.element.getBoundingClientRect();
-  const isVisible =
-    rect.width >= 1 &&
-    rect.height >= 1 &&
-    rect.bottom >= 0 &&
-    rect.right >= 0 &&
-    rect.top <= window.innerHeight &&
-    rect.left <= window.innerWidth;
-
-  pin.style.display = isVisible ? 'inline-flex' : 'none';
-  const pinWidth = pin.offsetWidth || 28;
-  const pinHeight = pin.offsetHeight || 24;
-  const pinPosition = getBestPinPosition(rect, pinWidth, pinHeight);
-  pin.dataset.position = pinPosition;
-
-  let preferredLeft = rect.left + 4;
-  let preferredTop = rect.top + 4;
-  if (pinPosition === 'pin_LT') {
-    preferredLeft = rect.left - pinWidth + 2;
-    preferredTop = rect.top - pinHeight + 2;
-  } else if (pinPosition === 'pin_RT') {
-    preferredLeft = rect.right - 2;
-    preferredTop = rect.top - pinHeight + 2;
-  } else if (pinPosition === 'pin_LB') {
-    preferredLeft = rect.left - pinWidth + 2;
-    preferredTop = rect.bottom - 2;
-  } else if (pinPosition === 'pin_RB') {
-    preferredLeft = rect.right - 2;
-    preferredTop = rect.bottom - 2;
+  if (!pin || !entry?.element?.isConnected) {
+    clearActiveViolationPin();
+    return;
   }
 
-  const pinLeft = clampPosition(preferredLeft, 4, Math.max(4, window.innerWidth - pinWidth - 4));
-  const pinTop = clampPosition(preferredTop, 4, Math.max(4, window.innerHeight - pinHeight - 4));
-  pin.style.left = `${Math.round(pinLeft)}px`;
-  pin.style.top = `${Math.round(pinTop)}px`;
+  const rect = entry.element.getBoundingClientRect();
+  if (!isViolationPinTargetVisible(rect)) {
+    clearActiveViolationPin();
+    return;
+  }
+
+  pin.style.display = 'inline-flex';
+  const pinWidth = pin.offsetWidth || 28;
+  const pinHeight = pin.offsetHeight || 24;
+  const avoidRect = avoidElement?.style?.display !== 'none' ? avoidElement?.getBoundingClientRect?.() : null;
+  const pinPosition = getBestPinPosition(rect, pinWidth, pinHeight, avoidRect);
+  pin.dataset.position = pinPosition;
+  const candidate = getClampedPinCandidate(
+    getPinPositionCandidate(rect, pinWidth, pinHeight, pinPosition),
+    pinWidth,
+    pinHeight
+  );
+  pin.style.left = `${Math.round(candidate.left)}px`;
+  pin.style.top = `${Math.round(candidate.top)}px`;
 }
 
-function setActiveViolationPin(entry, number, { locked = false } = {}) {
+function scheduleViolationPinPositionUpdate() {
+  if (violationPinPositionFrame !== null) return;
+
+  const updatePinPosition = () => {
+    violationPinPositionFrame = null;
+    if (!isExtensionVisible || isDismissedByUser) return;
+    positionViolationPin();
+  };
+
+  if (typeof window.requestAnimationFrame === 'function') {
+    violationPinPositionFrame = window.requestAnimationFrame(updatePinPosition);
+    return;
+  }
+
+  violationPinPositionFrame = window.setTimeout(updatePinPosition, 16);
+}
+
+function setActiveViolationPin(entry, { locked = false } = {}) {
   if (!entry) {
     clearActiveViolationPin();
     return;
   }
   activePinnedIssueKey = entry.key;
-  activePinnedIssueNumber = number;
   if (locked) {
     lockedPinnedIssueKey = entry.key;
-    lockedPinnedIssueNumber = number;
   }
-  renderViolationPin(entry, number);
+  renderViolationPin(entry);
+}
+
+function scheduleIssuePreviewAfterScroll(entry) {
+  const updateIssuePreview = () => {
+    if (!entry?.element?.isConnected) return;
+    positionViolationPin(entry);
+    showInspectorCardForEntries(entry.element, [entry]);
+  };
+
+  window.requestAnimationFrame?.(updateIssuePreview);
+  window.setTimeout?.(updateIssuePreview, 240);
 }
 
 function scrollToIssueElement(entry) {
-  if (!entry?.element?.isConnected || typeof window.scrollTo !== 'function') return;
+  if (!entry?.element?.isConnected) return;
+  const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
+  const behavior = prefersReducedMotion ? 'auto' : 'smooth';
+
+  if (typeof entry.element.scrollIntoView === 'function') {
+    try {
+      entry.element.scrollIntoView({
+        block: 'center',
+        inline: 'center',
+        behavior,
+      });
+      scheduleIssuePreviewAfterScroll(entry);
+      return;
+    } catch (error) {
+      // Fall back to the document scroll path for older scrollIntoView implementations.
+    }
+  }
+
+  if (typeof window.scrollTo !== 'function') return;
   const rect = entry.element.getBoundingClientRect();
   const target = computeElementScrollTarget({
     rect,
     scroll: { x: window.scrollX, y: window.scrollY },
     viewport: { width: window.innerWidth, height: window.innerHeight },
   });
-  const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
 
   window.scrollTo({
     left: target.left,
     top: target.top,
-    behavior: prefersReducedMotion ? 'auto' : 'smooth',
+    behavior,
   });
 
-  window.requestAnimationFrame?.(() => {
-    positionViolationPin(entry);
-    showInspectorCardForEntries(entry.element, [entry]);
-  });
+  scheduleIssuePreviewAfterScroll(entry);
 }
 
 function restoreLockedViolationPin(visibleEntries) {
   if (!lockedPinnedIssueKey) {
     clearViolationPins();
     activePinnedIssueKey = null;
-    activePinnedIssueNumber = null;
     return;
   }
   const lockedEntry = visibleEntries.find((entry) => entry.key === lockedPinnedIssueKey);
@@ -895,21 +1199,67 @@ function restoreLockedViolationPin(visibleEntries) {
     clearActiveViolationPin();
     return;
   }
-  setActiveViolationPin(lockedEntry, lockedPinnedIssueNumber || visibleEntries.indexOf(lockedEntry) + 1, { locked: true });
+  setActiveViolationPin(lockedEntry, { locked: true });
 }
 
 function hideInspectorCard() {
+  clearInspectorCardHideTimer();
   const card = document.getElementById('fds-inspector-card');
   if (card) card.style.display = 'none';
 }
 
+function isInspectorCardVisible() {
+  const card = document.getElementById('fds-inspector-card');
+  return card?.style.display === 'block';
+}
+
+function deferInspectorCardClear() {
+  if (isInspectorCardVisible()) {
+    scheduleTransientInspectorPreviewClear();
+    return;
+  }
+  clearHoveredInspectionTarget();
+  hideInspectorCard();
+}
+
+function clearTransientInspectorPreview() {
+  if (lockedPinnedIssueKey) {
+    restoreLockedViolationPin(getVisibleIssueEntries());
+    return;
+  }
+
+  clearViolationPins();
+  activePinnedIssueKey = null;
+  clearHoveredInspectionTarget();
+  hideInspectorCard();
+  document.querySelectorAll('.fds-list-item.is-pin-active').forEach((activeItem) => {
+    activeItem.classList.remove('is-pin-active');
+  });
+}
+
+function scheduleTransientInspectorPreviewClear() {
+  clearInspectorCardHideTimer();
+  inspectorCardHideTimer = setTimeout(() => {
+    inspectorCardHideTimer = null;
+    clearTransientInspectorPreview();
+  }, INSPECTOR_CARD_HIDE_DELAY_MS);
+}
+
+function isMovingIntoInspectorCard(event) {
+  return Boolean(event?.relatedTarget?.closest?.('#fds-inspector-card'));
+}
+
 function stopSummaryPanelDrag() {
+  const didMovePanel = Boolean(panelDragState?.hasMoved);
   panelDragState = null;
   const panel = document.getElementById('fds-summary-panel');
   if (panel) {
     panel.classList.remove('is-dragging');
   }
   document.body.classList.remove('fds-panel-dragging');
+  if (didMovePanel) {
+    saveCustomSummaryPanelPosition();
+  }
 }
 
 function beginSummaryPanelDrag(event) {
@@ -925,6 +1275,7 @@ function beginSummaryPanelDrag(event) {
     pointerId: event.pointerId,
     startPointer: { x: event.clientX, y: event.clientY },
     startRect: { left: rect.left, top: rect.top, width: rect.width, height: rect.height },
+    hasMoved: false,
   };
 
   panel.style.left = `${rect.left}px`;
@@ -956,6 +1307,7 @@ function moveSummaryPanelDrag(event) {
     margin: 12,
   });
 
+  panelDragState.hasMoved = true;
   panel.style.left = `${nextPosition.left}px`;
   panel.style.top = `${nextPosition.top}px`;
 }
@@ -978,9 +1330,30 @@ function resetSummaryPanelFloatingPosition() {
   panel.style.right = '';
 }
 
-function restoreExpandedToolbarAndPanelPosition() {
+function saveCustomSummaryPanelPosition() {
+  const panel = document.getElementById('fds-summary-panel');
+  if (!panel) return;
+  const rect = panel.getBoundingClientRect();
+  customSummaryPanelPosition = {
+    left: Math.round(rect.left),
+    top: Math.round(rect.top),
+  };
+}
+
+function applyCustomSummaryPanelPosition() {
+  const panel = document.getElementById('fds-summary-panel');
+  if (!panel || !customSummaryPanelPosition) return false;
+  panel.style.left = `${customSummaryPanelPosition.left}px`;
+  panel.style.top = `${customSummaryPanelPosition.top}px`;
+  panel.style.bottom = 'auto';
+  panel.style.right = '';
+  return true;
+}
+
+function restoreExpandedToolbarAndPanelPosition({ preserveSummaryPanelPosition = false } = {}) {
   isSummaryPanelDockedToToolbar = false;
   resetToolbarFloatingPosition();
+  if (preserveSummaryPanelPosition && applyCustomSummaryPanelPosition()) return;
   resetSummaryPanelFloatingPosition();
 }
 
@@ -988,7 +1361,7 @@ function positionDockedSummaryPanel(toolbarRect) {
   const panel = document.getElementById('fds-summary-panel');
   if (!panel || panel.style.display !== 'block') return;
 
-  const gap = 12;
+  const gap = 16;
   const margin = 12;
   const panelRect = panel.getBoundingClientRect();
   const left = clampPosition(
@@ -1235,25 +1608,10 @@ function updateToolbarIndicators() {
 }
 
 function clearScan() {
-  document.querySelectorAll('.fds-inspected, .fds-violation').forEach((el) => {
-    el.classList.remove('fds-inspected', 'fds-violation', 'fds-violation-danger', 'fds-violation-warning');
-    el.removeAttribute('data-fds-msg');
-    el.removeAttribute('data-fds-type');
-  });
-  clearViolationPins();
+  clearInspectionMarks();
   scanData = createEmptyScanData();
   setScanningState(false);
   updateToolbarIndicators();
-}
-
-function rgbToHex(rgb) {
-  if (!rgb || rgb === 'transparent' || rgb.includes('rgba(0, 0, 0, 0)')) return null;
-  const match = rgb.match(/^rgba?\((\d+),\s*(\d+),\s*(\d+)(?:,\s*([\d.]+))?\)$/);
-  if (!match) return null;
-  const r = Number.parseInt(match[1], 10);
-  const g = Number.parseInt(match[2], 10);
-  const b = Number.parseInt(match[3], 10);
-  return `#${((1 << 24) + (r << 16) + (g << 8) + b).toString(16).slice(1).toLowerCase()}`;
 }
 
 async function checkBridgeConnection() {
@@ -1329,7 +1687,11 @@ function updateConnectionUI() {
   if (!root || !isExtensionVisible || isDismissedByUser) return;
 
   clearConnectedMessageTimer();
-  toolbarMode = getNextToolbarMode({ isFigmaConnected, previousConnectionState });
+  toolbarMode = getNextToolbarMode({
+    isFigmaConnected,
+    previousConnectionState,
+    hasTokenSource: hasSnapshotTokenSource || Boolean(activeTokenSource?.registry?.meta?.colorTokenCount),
+  });
 
   if (toolbarMode === TOOLBAR_MODES.CONNECTED_MESSAGE) {
     connectedMessageTimer = setTimeout(() => {
@@ -1391,7 +1753,6 @@ function bindToolbarEvents() {
       if (activeFilter === nextFilter) {
         if (!isSummaryPanelVisible() || isSummaryPanelDismissed) {
           openSummaryPanelForActiveFilter();
-          updateSummaryUI();
           hideTooltip();
           return;
         }
@@ -1408,7 +1769,7 @@ function bindToolbarEvents() {
         if (isToolbarCollapsed) {
           dockCollapsedToolbarAndPanel();
         } else {
-          restoreExpandedToolbarAndPanelPosition();
+          restoreExpandedToolbarAndPanelPosition({ preserveSummaryPanelPosition: Boolean(customSummaryPanelPosition) });
         }
         hideTooltip();
         return;
@@ -1416,7 +1777,6 @@ function bindToolbarEvents() {
 
       setActiveFilter(nextFilter);
       openSummaryPanelForActiveFilter();
-      updateSummaryUI();
       hideTooltip();
     };
   });
@@ -1428,7 +1788,6 @@ function bindToolbarEvents() {
       if (isScanning) return;
       if (!isExtensionVisible || isDismissedByUser) return;
       void scan('페이지 위반 수를 다시 계산하는 중입니다.');
-      checkBridgeConnection();
       if (!isSummaryPanelDismissed) {
         showSummaryPanel();
       }
@@ -1469,10 +1828,16 @@ function createUI() {
     <div id="fds-summary-panel" class="fds-summary-card" style="display:none;"></div>
     <div id="fds-inspector-card" class="fds-card" style="display:none;"></div>
   `;
-  document.body.appendChild(root);
+  const mountPoint = document.body || document.documentElement;
+  if (!mountPoint) return;
+  mountPoint.appendChild(root);
 
   bindViewportEvents();
   void loadTokenSourceFromStorage();
+  void refreshSnapshotInspectorSpecs().then(() => {
+    updateConnectionUI();
+    if (isSummaryPanelVisible()) updateSummaryUI();
+  });
   syncToolbar();
   resetToolbarFloatingPosition();
 }
@@ -1494,15 +1859,22 @@ function bindViewportEvents() {
     if (isSummaryPanelVisible()) {
       updateSummaryUI();
     }
-    positionViolationPin();
+    scheduleViolationPinPositionUpdate();
   });
 
   window.addEventListener('scroll', () => {
     if (!isExtensionVisible || isDismissedByUser) return;
     hideTooltip();
     hideInspectorCard();
-    positionViolationPin();
+    scheduleViolationPinPositionUpdate();
   }, { passive: true });
+
+  document.addEventListener('scroll', () => {
+    if (!isExtensionVisible || isDismissedByUser) return;
+    hideTooltip();
+    hideInspectorCard();
+    scheduleViolationPinPositionUpdate();
+  }, { passive: true, capture: true });
 
   document.addEventListener('keydown', (event) => {
     if (!isExtensionVisible || isDismissedByUser) return;
@@ -1521,29 +1893,97 @@ function bindViewportEvents() {
   window.addEventListener('pointercancel', stopSummaryPanelDrag);
 }
 
-function runSingleScanPass() {
+function getPageScanElements() {
+  return Array.from(document.body.querySelectorAll('*')).filter((element) => !element.closest('#fds-root'));
+}
+
+function isScannableElement(element) {
+  if (!element || IGNORED_SCAN_TAGS.has(element.tagName)) return false;
+  if (typeof HTMLElement !== 'undefined' && !(element instanceof HTMLElement)) return false;
+  const rect = element.getBoundingClientRect();
+  return rect.width >= 1 && rect.height >= 1;
+}
+
+function markElementScanResult({ element, issues, suggestions, entries }) {
+  const elementEntries = entries.filter((entry) => entry.element === element);
+  if (elementEntries.length > 0) {
+    const issueKeys = elementEntries.map((entry) => entry.key);
+    element.setAttribute('data-fds-issue-keys', JSON.stringify(issueKeys));
+  } else {
+    element.removeAttribute('data-fds-issue-keys');
+  }
+
+  if (issues.length > 0 || suggestions.length > 0) {
+    const hasDanger = elementEntries.some((entry) => entry.tone === 'danger');
+    const hasWarning = elementEntries.some((entry) => entry.tone === 'warning');
+    element.classList.add('fds-inspected');
+    if (issues.length > 0) {
+      element.classList.add('fds-violation');
+      element.classList.toggle('fds-violation-danger', hasDanger);
+      element.classList.toggle('fds-violation-warning', !hasDanger && hasWarning);
+    }
+    element.setAttribute('data-fds-msg', JSON.stringify([...issues, ...suggestions]));
+    element.setAttribute('data-fds-type', hasDanger ? 'danger' : issues.length > 0 ? 'warning' : 'success');
+  } else {
+    element.classList.remove('fds-inspected', 'fds-violation', 'fds-violation-danger', 'fds-violation-warning');
+    element.removeAttribute('data-fds-msg');
+    element.removeAttribute('data-fds-type');
+  }
+}
+
+function markScannedElementsFromEntries() {
+  const groupedEntries = new Map();
+  scanData.issueEntries.forEach((entry) => {
+    if (!entry.element) return;
+    if (!groupedEntries.has(entry.element)) groupedEntries.set(entry.element, []);
+    groupedEntries.get(entry.element).push(entry);
+  });
+
+  groupedEntries.forEach((entries, element) => {
+    markElementScanResult({
+      element,
+      issues: entries.map((entry) => entry.message),
+      suggestions: [],
+      entries,
+    });
+  });
+}
+
+async function runSingleScanPass() {
   ensureValidActiveFilter();
   scanData = createEmptyScanData();
   clearInspectionMarks();
-  scanData.counts = collectViolationCounts();
 
-  if (!activeFilter) {
-    const nextAutoFilter = getPreferredViolationFilter(scanData.counts);
-    if (nextAutoFilter) {
-      setActiveFilter(nextAutoFilter);
-    }
+  if (shouldForceScanErrorForVerification()) {
+    throw new Error('Forced scan error for local verification');
   }
 
-  if (!activeFilter) {
-    updateToolbarIndicators();
-    if (isSummaryPanelVisible()) {
-      updateSummaryUI();
-    }
+  const runner = createContentScanRunner({
+    batchSize: SCAN_BATCH_SIZE,
+    batchBudgetMs: SCAN_BATCH_BUDGET_MS,
+    maxElements: MAX_SCAN_ELEMENTS,
+    now: () => performance.now(),
+    getElements: getPageScanElements,
+    isElementVisible: isScannableElement,
+    getStyles: (element) => window.getComputedStyle(element),
+    inspectElement: ({ filterKey, styles, element }) => getInspectionForFilter(filterKey, styles, element),
+    addIssueEntry,
+    markElement: () => {},
+    yieldToBrowser,
+  });
+  scanData = await runner.run({ filters: FILTER_KEYS, activeFilter, collectAllEntries: !activeFilter });
+  if (!isExtensionVisible || isDismissedByUser) {
+    clearInspectionMarks();
     return scanData;
   }
 
-  document.querySelectorAll('body *:not(#fds-root *)').forEach((element) => validate(element, { incrementCounts: false }));
+  const nextActiveFilter = activeFilter || getPreferredViolationFilter(scanData.counts);
+  if (nextActiveFilter && nextActiveFilter !== activeFilter) {
+    setActiveFilter(nextActiveFilter);
+  }
+
   refreshActiveScanBreakdown();
+  markScannedElementsFromEntries();
   updateToolbarIndicators();
   if (isSummaryPanelVisible()) {
     updateSummaryUI();
@@ -1558,43 +1998,50 @@ async function scan(reason = '') {
   }
 
   activeScanPromise = (async () => {
+    const scanStartedAt = performance.now();
     const nextReason = queuedScanReason;
     queuedScanReason = '';
+    scanErrorText = '';
     setScanningState(true, nextReason);
     updateToolbarIndicators();
     if (isSummaryPanelVisible()) {
       updateSummaryUI();
     }
 
-    runSingleScanPass();
-    let previousSignature = getScanSignature();
-
-    for (const delayMs of SCAN_SETTLE_DELAYS_MS) {
-      if (!isExtensionVisible || isDismissedByUser) break;
-      await waitForScanSettle(delayMs);
-      runSingleScanPass();
-      const signature = getScanSignature();
-      if (signature && signature === previousSignature) {
-        break;
+    try {
+      await runSingleScanPass();
+      const scanDurationMs = Math.round(performance.now() - scanStartedAt);
+      lastScanMetrics = {
+        durationMs: scanDurationMs,
+        scannedElementCount: Number(scanData?.meta?.scannedElementCount || 0),
+        skippedElementCount: Number(scanData?.meta?.skippedElementCount || 0),
+        batchYieldCount: Number(scanData?.meta?.batchYieldCount || 0),
+        totalElementCount: Number(scanData?.meta?.totalElementCount || 0),
+        truncated: Boolean(scanData?.meta?.truncated),
+        issueCount: Number(scanData?.issueEntries?.length || 0),
+        activeFilter: activeFilter || null,
+      };
+      console.info('[FDS Inspector] scan metrics', lastScanMetrics);
+      return scanData;
+    } catch (error) {
+      scanErrorText = '검사 중 오류가 발생했습니다. 새로고침 버튼으로 다시 검사해 주세요.';
+      console.error('[FDS Inspector] scan failed', error);
+      return scanData;
+    } finally {
+      setScanningState(false);
+      updateToolbarIndicators();
+      if (isSummaryPanelVisible()) {
+        updateSummaryUI();
       }
-      previousSignature = signature;
+
+      activeScanPromise = null;
+
+      if (queuedScanReason && isExtensionVisible && !isDismissedByUser) {
+        const rerunReason = queuedScanReason;
+        queuedScanReason = '';
+        void scan(rerunReason);
+      }
     }
-
-    setScanningState(false);
-    updateToolbarIndicators();
-    if (isSummaryPanelVisible()) {
-      updateSummaryUI();
-    }
-
-    activeScanPromise = null;
-
-    if (queuedScanReason && isExtensionVisible && !isDismissedByUser) {
-      const rerunReason = queuedScanReason;
-      queuedScanReason = '';
-      void scan(rerunReason);
-    }
-
-    return scanData;
   })();
 
   return activeScanPromise;
@@ -1627,322 +2074,15 @@ function getPreferredViolationFilter(counts = {}) {
   return FILTER_KEYS.find((filterKey) => Number(counts[filterKey] || 0) > 0) || DEFAULT_FILTER;
 }
 
-function getInspectionForFilter(filter, styles, element = null) {
-  const issues = [];
-  const suggestions = [];
-  const activeSpecs = getActiveInspectorSpecs();
+  function updateSummaryUI() {
+    const panel = document.getElementById('fds-summary-panel');
+    if (!panel) return;
+    const summaryMotion = pendingSummaryMotion;
+    pendingSummaryMotion = null;
+    const shouldRevealListItems = !['group-toggle', 'tab'].includes(summaryMotion?.kind);
 
-  if (filter === 'color') {
-    const bg = rgbToHex(styles.backgroundColor);
-    const text = hasDirectTextContent(element) ? rgbToHex(styles.color) : null;
-    const borderWidth = Number.parseFloat(styles.borderTopWidth || '0');
-    const borderColor = rgbToHex(styles.borderTopColor);
-    const bgUsesToken = hasAuthoredTokenReference(element, ['background-color', 'background']);
-    const textUsesToken = hasAuthoredTokenReference(element, ['color']);
-    const borderUsesToken = hasAuthoredTokenReference(element, [
-      'border-color',
-      'border-top-color',
-      'border',
-      'border-top',
-    ]);
-
-    if (bg && !bgUsesToken) {
-      if (!getKnownColorTokens(bg).length) {
-        issues.push(`배경색 ${bg} (미등록)`);
-      } else {
-        issues.push(`배경색 ${bg} (원시값 직접 사용)`);
-      }
-    }
-
-    if (text && !textUsesToken) {
-      if (!getKnownColorTokens(text).length) {
-        issues.push(`글자색 ${text} (미등록)`);
-      } else {
-        issues.push(`글자색 ${text} (원시값 직접 사용)`);
-      }
-    }
-
-    if (borderWidth > 0 && borderColor && !borderUsesToken) {
-      if (!getKnownColorTokens(borderColor).length) {
-        issues.push(`보더색 ${borderColor} (미등록)`);
-      } else {
-        issues.push(`보더색 ${borderColor} (원시값 직접 사용)`);
-      }
-    }
-  } else if (filter === 'font') {
-    if (!hasDirectTextContent(element)) return { issues, suggestions };
-    const font = styles.fontFamily.split(',')[0].replace(/"/g, '');
-    if (!activeSpecs.fonts.some((item) => font.includes(item))) {
-      issues.push(`서체 '${font}' (차단)`);
-    }
-  } else if (filter === 'spacing') {
-    const pt = Number.parseInt(styles.paddingTop, 10);
-    if (pt > 0 && !activeSpecs.spacing.includes(pt)) {
-      issues.push(`상단 패딩 ${pt}px (비규격)`);
-    }
-  } else if (filter === 'radius') {
-    const radius = styles.borderRadius;
-    if (radius !== '0px' && !activeSpecs.radius.includes(radius)) {
-      issues.push(`라운드 ${radius} (미준수)`);
-    }
-  }
-
-  return { issues, suggestions };
-}
-
-function collectViolationCounts() {
-  const counts = createEmptyScanData().counts;
-
-  document.querySelectorAll('body *:not(#fds-root *)').forEach((el) => {
-    const styles = window.getComputedStyle(el);
-    const rect = el.getBoundingClientRect();
-    if (rect.width < 1 || rect.height < 1) return;
-
-    FILTER_KEYS.forEach((filterKey) => {
-      const inspection = getInspectionForFilter(filterKey, styles, el);
-      if (inspection.issues.length > 0) {
-        counts[filterKey] += inspection.issues.length;
-      }
-    });
-  });
-
-  return counts;
-}
-
-function validate(el, { incrementCounts = true } = {}) {
-  const styles = window.getComputedStyle(el);
-  const rect = el.getBoundingClientRect();
-  if (rect.width < 1 || rect.height < 1) return;
-
-  const inspection = getInspectionForFilter(activeFilter, styles, el);
-  const issues = inspection.issues;
-  const suggestions = inspection.suggestions;
-
-  if (incrementCounts && issues.length > 0 && activeFilter) {
-    scanData.counts[activeFilter] += issues.length;
-    if (activeFilter === 'color') {
-      issues.forEach((issue) => {
-        if (issue.includes('(미등록)')) {
-          scanData.colorBreakdown.missing += 1;
-        } else if (issue.includes('(원시값 직접 사용)')) {
-          scanData.colorBreakdown.primitiveRaw += 1;
-        }
-      });
-    }
-  }
-
-  const issueEntries = issues
-    .map((issue) => addIssueEntry({ category: activeFilter, message: issue, element: el }))
-    .filter(Boolean);
-  issueEntries.forEach((entry) => scanData.violations.push(entry.message));
-  suggestions.forEach((suggestion) => scanData.suggestions.push(suggestion));
-
-  if (issues.length > 0 || suggestions.length > 0) {
-    const hasDanger = issueEntries.some((entry) => entry.tone === 'danger');
-    const hasWarning = issueEntries.some((entry) => entry.tone === 'warning');
-    el.classList.add('fds-inspected');
-    if (issues.length > 0) {
-      el.classList.add('fds-violation');
-      el.classList.toggle('fds-violation-danger', hasDanger);
-      el.classList.toggle('fds-violation-warning', !hasDanger && hasWarning);
-    }
-    el.setAttribute('data-fds-msg', JSON.stringify([...issues, ...suggestions]));
-    el.setAttribute('data-fds-type', hasDanger ? 'danger' : issues.length > 0 ? 'warning' : 'success');
-  } else {
-    el.classList.remove('fds-inspected', 'fds-violation', 'fds-violation-danger', 'fds-violation-warning');
-  }
-}
-
-function getColorSummaryTabs() {
-  const counts = {
-    bg: scanData.issueEntries.filter((item) => item.category === 'color' && item.colorPart === 'bg').length,
-    border: scanData.issueEntries.filter((item) => item.category === 'color' && item.colorPart === 'border').length,
-    text: scanData.issueEntries.filter((item) => item.category === 'color' && item.colorPart === 'text').length,
-  };
-
-  const tabs = [
-    { key: 'bg', label: 'BG', count: counts.bg },
-    { key: 'border', label: 'Border', count: counts.border },
-    { key: 'text', label: 'Text', count: counts.text },
-  ];
-
-  const currentTabExists = tabs.some((tab) => tab.key === activeSummarySubtab);
-  const preferredTab = tabs.find((tab) => tab.count > 0)?.key || 'bg';
-
-  if (!currentTabExists || !tabs.find((tab) => tab.key === activeSummarySubtab)?.count) {
-    activeSummarySubtab = preferredTab;
-  }
-
-  return tabs;
-}
-
-function escapeHtml(text) {
-  return String(text ?? '')
-    .replaceAll('&', '&amp;')
-    .replaceAll('<', '&lt;')
-    .replaceAll('>', '&gt;')
-    .replaceAll('"', '&quot;')
-    .replaceAll("'", '&#39;');
-}
-
-function parseViolationItem(item) {
-  const text = String(item || '');
-  const patterns = [
-    {
-      regex: /^배경색\s+(.+?)\s+\((미등록)\)$/,
-      chip: '배경색',
-      tone: 'danger',
-      valueLabel: '값',
-    },
-    {
-      regex: /^배경색\s+(.+?)\s+\((원시값 직접 사용)\)$/,
-      chip: '배경색',
-      tone: 'warning',
-      valueLabel: '값',
-    },
-    {
-      regex: /^글자색\s+(.+?)\s+\((미등록)\)$/,
-      chip: '글자색',
-      tone: 'danger',
-      valueLabel: '값',
-    },
-    {
-      regex: /^글자색\s+(.+?)\s+\((원시값 직접 사용)\)$/,
-      chip: '글자색',
-      tone: 'warning',
-      valueLabel: '값',
-    },
-    {
-      regex: /^보더색\s+(.+?)\s+\((미등록)\)$/,
-      chip: '보더색',
-      tone: 'danger',
-      valueLabel: '값',
-    },
-    {
-      regex: /^보더색\s+(.+?)\s+\((원시값 직접 사용)\)$/,
-      chip: '보더색',
-      tone: 'warning',
-      valueLabel: '값',
-    },
-    {
-      regex: /^서체\s+'(.+?)'\s+\((.+?)\)$/,
-      chip: '서체',
-      tone: 'success',
-      valueLabel: '글꼴',
-    },
-    {
-      regex: /^상단 패딩\s+(.+?)\s+\((.+?)\)$/,
-      chip: '상단 패딩',
-      tone: 'warning',
-      valueLabel: '크기',
-    },
-    {
-      regex: /^라운드\s+(.+?)\s+\((.+?)\)$/,
-      chip: '라운드',
-      tone: 'warning',
-      valueLabel: '크기',
-    },
-  ];
-
-  for (const pattern of patterns) {
-    const match = text.match(pattern.regex);
-    if (match) {
-      return {
-        chip: pattern.chip,
-        tone: pattern.tone,
-        value: match[1],
-        suffix: match[2],
-        tag: match[2],
-        valueLabel: pattern.valueLabel,
-      };
-    }
-  }
-
-  return {
-    chip: '위반',
-    tone: 'danger',
-    value: text,
-    suffix: '',
-    tag: '위반',
-    valueLabel: '내용',
-  };
-}
-
-function getIssueElementLabel(item, parsed) {
-  const element = typeof item === 'object' ? item?.element : null;
-  const tagName = element?.tagName?.toLowerCase?.() || 'element';
-  const idPart = element?.id ? `#${element.id}` : '';
-  const classPart = typeof element?.className === 'string' && element.className.trim()
-    ? `.${element.className.trim().split(/\s+/).slice(0, 1).join('.')}`
-    : '';
-  return `${tagName}${idPart}${classPart} · ${parsed.chip}`;
-}
-
-function renderSummaryMetricCard({ tone, label, value, caption, icon = 'warning', isToggle = false, isActive = false }) {
-  const tagName = isToggle ? 'button' : 'article';
-  const typeAttr = isToggle ? ' type="button"' : '';
-  const dataAttr = isToggle ? ` data-summary-tone="${escapeHtml(tone)}"` : '';
-  const pressedAttr = isToggle ? ` aria-pressed="${isActive ? 'true' : 'false'}"` : '';
-  const displayValue = Number(value) > 0 ? String(value) : '';
-  return `
-    <${tagName}${typeAttr}${dataAttr}${pressedAttr} class="fds-stat-box ${tone}${isToggle ? ' is-toggle' : ''}${isActive ? ' is-active' : ''}" aria-label="${escapeHtml(label)}: ${escapeHtml(value)}">
-      <div class="fds-stat-topline" aria-hidden="true">
-        <span class="fds-stat-icon">${renderAssetIcon(icon, icon)}</span>
-        <span class="fds-stat-heading">${escapeHtml(label)}</span>
-      </div>
-      <div class="fds-stat-num">${escapeHtml(displayValue)}</div>
-    </${tagName}>
-  `;
-}
-
-function renderSummaryListItem(item, index) {
-  const message = typeof item === 'string' ? item : item?.message;
-  const parsed = parseViolationItem(message);
-  const tone = typeof item === 'object' && item?.tone ? item.tone : parsed.tone;
-  const issueKey = typeof item === 'object' && item?.key ? item.key : '';
-  const badgeLabel = parsed.tag || parsed.chip;
-  const elementLabel = getIssueElementLabel(item, parsed);
-  return `
-    <button class="fds-list-item ${tone}" type="button" role="listitem" data-issue-key="${escapeHtml(issueKey)}" data-issue-number="${index + 1}" title="${escapeHtml(message)}">
-      <span class="fds-list-index">${index + 1}</span>
-      <span class="fds-list-label">
-        <span class="fds-list-label-icon" aria-hidden="true">${renderAssetIcon('warning', 'warning')}</span>
-        <span class="fds-list-label-text">
-          <span class="fds-list-element">${escapeHtml(elementLabel)}</span>
-          <span class="fds-list-status">${escapeHtml(badgeLabel)}</span>
-        </span>
-      </span>
-      <span class="fds-list-value">${escapeHtml(parsed.value)}</span>
-    </button>
-  `;
-}
-
-function getSummaryListRenderKey(visibleItems) {
-  return [
-    activeFilter || 'idle',
-    activeFilter === 'color' ? activeSummarySubtab : 'all',
-    activeFilter === 'color' ? activeSummaryTone : 'all',
-    visibleItems.map((item) => item.key).join('|'),
-  ].join('::');
-}
-
-function updateSummaryUI() {
-  const panel = document.getElementById('fds-summary-panel');
-  if (!panel) return;
-
-  const vCount = scanData.violations.length;
   const sCount = scanData.suggestions.length;
-  const activeColorToneCounts = activeFilter === 'color'
-    ? getColorToneCountsForActiveSubtab()
-    : { danger: scanData.colorBreakdown.missing, warning: scanData.colorBreakdown.primitiveRaw };
-  const missingColorCount = activeColorToneCounts.danger;
-  const primitiveColorCount = activeColorToneCounts.warning;
-  const filterStats = [
-    ['컬러', getViolationCountByFilter('color')],
-    ['폰트', getViolationCountByFilter('font')],
-    ['간격', getViolationCountByFilter('spacing')],
-    ['라운드', getViolationCountByFilter('radius')],
-  ];
+  const colorTabs = activeFilter === 'color' ? getColorSummaryTabs() : [];
   const filterLabelMap = {
     color: '컬러',
     font: '폰트',
@@ -1953,129 +2093,168 @@ function updateSummaryUI() {
   const activeIssueEntries = activeFilter
     ? scanData.issueEntries.filter((entry) => entry.category === activeFilter)
     : scanData.issueEntries;
+  if (activeFilter && activeFilter !== 'color') {
+    normalizeActiveSummaryToneForCounts(getToneCountsForEntries(activeIssueEntries));
+  }
   const isIdle = !activeFilter;
   const hasViolations = activeIssueEntries.length > 0;
   const summaryTitle = isIdle ? '검사 정보' : `${activeFilterLabel} 위반 정보`;
-  const bridgeTokenContext = getBridgeTokenContextLabel();
-  const loadingNoticeMarkup = isScanning
+  const scanStatusMarkup = isScanning
     ? `<div class="fds-summary-loading" role="status" aria-live="polite">${escapeHtml(scanStatusText || getScanStatusMessage())}</div>`
+    : scanErrorText
+    ? `<div class="fds-summary-loading danger" role="alert">${escapeHtml(scanErrorText)}</div>`
     : '';
-  const colorTabs = activeFilter === 'color' ? getColorSummaryTabs() : [];
-  const activeTabCount = activeFilter === 'color' ? colorTabs.length : filterStats.length;
-  const activeTabIndex = activeFilter === 'color'
-    ? Math.max(0, colorTabs.findIndex((tab) => tab.key === activeSummarySubtab))
-    : Math.max(0, FILTER_KEYS.findIndex((key) => key === activeFilter));
-  const hasActiveTab = activeFilter === 'color'
-    ? colorTabs.some((tab) => tab.key === activeSummarySubtab)
-    : FILTER_KEYS.includes(activeFilter);
   const visibleViolations = getVisibleIssueEntries();
+  const visibleIssueGroups = groupIssueEntries(visibleViolations);
   const visibleListItems = visibleViolations;
-  const hasScrollableList = visibleViolations.length > 10;
+  const activeToneCounts = activeFilter === 'color'
+    ? getColorToneCountsForActiveSubtab()
+    : getToneCountsForEntries(activeIssueEntries);
+  const activeTonePatternCounts = activeFilter === 'color'
+    ? getColorTonePatternCountsForActiveSubtab()
+    : getTonePatternCountsForGroups(groupIssueEntries(activeIssueEntries));
+  const missingColorCount = activeToneCounts.danger;
+  const primitiveColorCount = activeToneCounts.warning;
+  const missingColorPatternCount = activeTonePatternCounts.danger;
+  const primitiveColorPatternCount = activeTonePatternCounts.warning;
+  const activeIssueCount = getViolationCountByFilter(activeFilter);
+  const renderedListItemCount = visibleIssueGroups.reduce(
+    (sum, group) => sum + 1 + (group.expanded ? group.entries.length : 0),
+    0
+  );
+  const hasScrollableList = renderedListItemCount > 10;
   const previousList = panel.querySelector('.fds-summary-list');
+  const previousListSnapshot = previousList ? previousList.innerHTML : '';
   const previousListKey = panel.dataset.summaryListKey || '';
   const previousScrollTop = previousList ? previousList.scrollTop : 0;
+  const previousListRenderedHeight = previousList
+    ? previousList.getBoundingClientRect?.().height
+      || previousList.clientHeight
+      || previousList.scrollHeight
+      || 0
+    : 0;
+  const previousListHeight = previousList ? Math.min(previousListRenderedHeight, SUMMARY_LIST_MAX_HEIGHT) : 0;
+  const previousPanelHeight = panel.offsetHeight || 0;
+  const shouldAnimateListHeight = previousList !== null;
   const nextListKey = getSummaryListRenderKey(visibleListItems);
-  const listMarkup = !hasViolations
-    ? ''
+  const isListContentChanged = previousListKey !== nextListKey;
+  const hasScanError = Boolean(scanErrorText);
+  const listMarkup = hasScanError
+    ? '<div class="fds-list-empty danger" role="note">오류로 인해 결과를 표시할 수 없습니다. 새로고침 버튼으로 다시 검사해 주세요.</div>'
     : isIdle
-    ? `<div class="fds-list-empty" role="note">툴바에서 컬러, 폰트, 간격, 라운드 중 하나를 선택하면 검사 결과가 여기에 표시됩니다.</div>`
+    ? renderSummaryEmptyState({ isIdle: true })
     : visibleViolations.length > 0
-      ? visibleListItems.map((item, index) => renderSummaryListItem(item, index)).join('')
-      : `<div class="fds-list-empty" role="note">현재 위반 항목이 없습니다.</div>`;
-  const cardRowMarkup = !hasViolations
-    ? renderSummaryMetricCard({
-        tone: 'success',
-        label: '위반 없음',
-        value: '0',
-        caption: '검사 완료',
-        icon: 'success',
-      })
-    : `
-        ${activeFilter === 'color'
-          ? renderSummaryMetricCard({
-              tone: 'danger',
-              label: '미등록 컬러',
-              value: missingColorCount,
-              caption: 'primitive 없음',
-              isToggle: true,
-              isActive: activeSummaryTone === 'danger',
-            })
-          : renderSummaryMetricCard({
-              tone: 'danger',
-              label: '위반 요소',
-              value: vCount,
-              caption: '현재 페이지',
-            })}
-        ${activeFilter === 'color'
-          ? renderSummaryMetricCard({
-              tone: 'warning',
-              label: '원시값 직접 사용',
-              value: primitiveColorCount,
-              caption: 'primitive 동일값',
-              isToggle: true,
-              isActive: activeSummaryTone === 'warning',
-            })
-          : renderSummaryMetricCard({
-              tone: 'success',
-              label: '토큰 적용',
-              value: sCount,
-              caption: '토큰 기준',
-              icon: 'success',
-            })}
-      `;
-  const tabBarMarkup = activeFilter === 'color'
-    ? colorTabs.map((tab) => `
-        <button
-          class="fds-summary-tab${activeSummarySubtab === tab.key ? ' active' : ''}${tab.count > 0 ? ' has-value' : ''}"
-          type="button"
-          data-summary-tab="${tab.key}"
-        >
-          <span>${tab.label}</span>
-        </button>
-      `).join('')
-    : filterStats.map(([label, count], index) => {
-        const filterKey = FILTER_KEYS[index];
-        const isCurrent = activeFilter === filterKey;
-        return `
-          <button
-            class="fds-summary-tab${isCurrent ? ' active' : ''}${count > 0 ? ' has-value' : ''}"
-            type="button"
-            data-filter="${filterKey}"
-          >
-            <span>${label}</span>
-          </button>
-        `;
-      }).join('');
+      ? visibleIssueGroups.map((group) => `
+          ${renderSummaryGroupItem(group)}
+          ${group.expanded
+            ? `<div class="fds-list-group-details" role="group" aria-label="${escapeHtml(`${group.chip} ${group.value} 상세 항목`)}">
+                ${group.entries.map((item) => renderSummaryListItem(item)).join('')}
+              </div>`
+            : ''}
+        `).join('')
+      : renderSummaryEmptyState({ activeFilterLabel });
+  const summaryCards = hasScanError
+    ? [{
+      tone: 'danger',
+      label: '검사 실패',
+      value: '!',
+      caption: '다시 검사 필요',
+      icon: 'warning',
+    }]
+    : createSummaryMetricCards({
+      hasViolations,
+      activeFilter,
+      activePatternCount: visibleIssueGroups.length,
+      activeIssueCount,
+      suggestionCount: sCount,
+      missingColorCount,
+      primitiveColorCount,
+      missingColorPatternCount,
+      primitiveColorPatternCount,
+      activeSummaryTone,
+    });
+  const cardRowMarkup = summaryCards.map((card) => renderSummaryMetricCard(card)).join('');
+  const tabBarMarkup = renderSummaryTabBar({
+    activeFilter,
+    colorTabs,
+    activeSummarySubtab,
+  });
+
+  if (previousPanelHeight > 0) {
+    panel.style.height = `${previousPanelHeight}px`;
+    panel.style.overflow = 'hidden';
+  }
 
   panel.innerHTML = `
     <div class="fds-panel-head">
       <div class="fds-panel-title-wrap">
-        <span class="fds-panel-title">${summaryTitle}</span>
-        ${bridgeTokenContext ? `<span class="fds-panel-meta">${escapeHtml(bridgeTokenContext)}</span>` : ''}
+        <span class="fds-panel-title">${escapeHtml(summaryTitle)}</span>
       </div>
-      <button class="fds-panel-close" type="button">${renderAssetIcon('close', 'close')}</button>
+      <button class="fds-panel-close" type="button" aria-label="패널 닫기" title="패널 닫기">${renderAssetIcon('close', 'close')}</button>
     </div>
     <section class="fds-summary-section" aria-label="요약 및 탐색">
-      ${loadingNoticeMarkup}
-      <div
-        class="fds-summary-tabbar"
-        style="--fds-summary-tab-count:${activeTabCount};--fds-summary-tab-index:${activeTabIndex};--fds-summary-tab-indicator-opacity:${hasActiveTab ? 1 : 0};"
-      >
-        <span class="fds-summary-tab-indicator" aria-hidden="true"></span>
-        ${tabBarMarkup}
-      </div>
-      <div class="fds-summary-card-row${!hasViolations ? ' is-single' : ''}">
+      ${scanStatusMarkup}
+      ${tabBarMarkup}
+      <div class="fds-summary-card-row${!hasViolations || hasScanError ? ' is-single' : ''}">
         ${cardRowMarkup}
       </div>
-      ${hasViolations ? `
-        <div class="fds-summary-list${hasScrollableList ? ' is-scrollable' : ''}" role="list" aria-label="위반 목록">
-          ${listMarkup}
-        </div>
-      ` : ''}
+      <div class="fds-summary-list${hasScrollableList ? ' is-scrollable' : ''}" role="list" aria-label="위반 목록">
+        ${listMarkup}
+      </div>
     </section>
   `;
   panel.dataset.summaryListKey = nextListKey;
   const nextList = panel.querySelector('.fds-summary-list');
+  const nextListHeight = nextList ? Math.min(nextList.scrollHeight, SUMMARY_LIST_MAX_HEIGHT) : 0;
+  const isListGrowing = nextListHeight > previousListHeight;
+  const directContentPanelHeight = measureSummaryPanelTargetHeight(panel, { listHeight: nextListHeight });
+  const naturalPanelHeight = measureNaturalSummaryPanelHeight(panel);
+  const listDerivedPanelHeight = Math.max(
+    0,
+    previousPanelHeight - previousListHeight + nextListHeight,
+  );
+  const nextPanelHeight = directContentPanelHeight || naturalPanelHeight || listDerivedPanelHeight || previousPanelHeight;
+  panel.querySelectorAll?.('.fds-summary-list-transition-ghost')?.forEach((ghostNode) => {
+    ghostNode.remove();
+  });
+  let listTransitionGhost = null;
+  const hasListTransitionGhost = shouldRevealListItems && isListContentChanged && previousList !== null && previousListSnapshot;
+  if (nextList && hasListTransitionGhost) {
+    listTransitionGhost = previousList.cloneNode(true);
+    listTransitionGhost.classList.add('fds-summary-list-transition-ghost');
+    listTransitionGhost.removeAttribute('aria-label');
+    listTransitionGhost.setAttribute('aria-hidden', 'true');
+    listTransitionGhost.style.position = 'absolute';
+    listTransitionGhost.style.top = `${Math.max(0, nextList.offsetTop || 0)}px`;
+    listTransitionGhost.style.left = '0';
+    listTransitionGhost.style.right = '0';
+    listTransitionGhost.style.bottom = 'auto';
+    listTransitionGhost.style.height = `${previousListHeight}px`;
+    listTransitionGhost.style.pointerEvents = 'none';
+    listTransitionGhost.style.width = '100%';
+    listTransitionGhost.style.maxWidth = '100%';
+    listTransitionGhost.style.opacity = '1';
+    listTransitionGhost.style.zIndex = '1';
+    listTransitionGhost.style.willChange = 'transform,opacity';
+
+    const listParent = nextList.parentElement;
+    if (listParent) {
+      listParent.style.position = listParent.style.position || 'relative';
+      listParent.appendChild(listTransitionGhost);
+    }
+
+    nextList.style.position = 'relative';
+    nextList.style.zIndex = '2';
+  }
+  if (shouldAnimateListHeight && nextList && previousListHeight >= 0) {
+    nextList.style.height = `${previousListHeight}px`;
+    nextList.style.opacity = shouldRevealListItems && isListContentChanged ? (isListGrowing ? '0.16' : '0.92') : '';
+    nextList.style.transform = shouldRevealListItems && isListContentChanged ? (isListGrowing ? 'translateY(2px)' : 'translateY(-1px)') : '';
+  }
+  if (!isListContentChanged) {
+    nextList.style.opacity = '';
+    nextList.style.transform = '';
+  }
   if (nextList && previousListKey === nextListKey) {
     nextList.scrollTop = Math.min(previousScrollTop, Math.max(0, nextList.scrollHeight - nextList.clientHeight));
   }
@@ -2090,29 +2269,59 @@ function updateSummaryUI() {
   }
 
   panel.querySelectorAll('.fds-summary-tab[data-filter]').forEach((tab) => {
-    tab.onclick = () => {
-      const nextFilter = normalizeActiveFilter(tab.dataset.filter);
-      if (!nextFilter) return;
-      setActiveFilter(nextFilter);
+      tab.onclick = () => {
+        const nextFilter = normalizeActiveFilter(tab.dataset.filter);
+        if (!nextFilter) return;
+        setActiveFilter(nextFilter);
+      clearExpandedIssueGroups();
+      requestSummaryMotion('tab');
       openSummaryPanelForActiveFilter();
-      updateSummaryUI();
     };
   });
 
   panel.querySelectorAll('.fds-summary-tab[data-summary-tab]').forEach((tab) => {
-    tab.onclick = () => {
-      if (isScanning) return;
-      activeSummarySubtab = tab.dataset.summaryTab || 'bg';
-      clearActiveViolationPin();
-      updateSummaryUI();
-    };
-  });
+      tab.onclick = () => {
+        if (isScanning) return;
+        const nextSummarySubtab = tab.dataset.summaryTab || 'bg';
+        if (nextSummarySubtab === activeSummarySubtab) return;
+        const previousSummarySubtab = activeSummarySubtab;
+        activeSummarySubtab = nextSummarySubtab;
+        requestSummaryMotion('tab', {
+          fromSummaryTab: previousSummarySubtab,
+          toSummaryTab: nextSummarySubtab,
+        });
+        clearActiveViolationPin();
+        clearExpandedIssueGroups();
+        updateSummaryUI();
+      };
+    });
 
   panel.querySelectorAll('.fds-stat-box[data-summary-tone]').forEach((card) => {
     card.onclick = () => {
       if (isScanning) return;
       activeSummaryTone = card.dataset.summaryTone === 'warning' ? 'warning' : 'danger';
       clearActiveViolationPin();
+      clearExpandedIssueGroups();
+      requestSummaryMotion('tab');
+      updateSummaryUI();
+    };
+  });
+
+  panel.querySelectorAll('.fds-list-group[data-group-key]').forEach((item) => {
+    item.onclick = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const groupKey = item.dataset.groupKey;
+      if (!groupKey) return;
+      const nextExpandedKeys = new Set(expandedIssueGroupKeys);
+      if (nextExpandedKeys.has(groupKey)) {
+        nextExpandedKeys.delete(groupKey);
+      } else {
+        nextExpandedKeys.add(groupKey);
+      }
+      expandedIssueGroupKeys = nextExpandedKeys;
+      clearActiveViolationPin();
+      requestSummaryMotion('group-toggle');
       updateSummaryUI();
     };
   });
@@ -2124,37 +2333,34 @@ function updateSummaryUI() {
 
     const showPin = ({ locked = false } = {}) => {
       const issueKey = item.dataset.issueKey;
-      const issueNumber = Number.parseInt(item.dataset.issueNumber || '0', 10);
       const entry = visibleListItems.find((candidate) => candidate.key === issueKey);
-      if (!entry) return;
-      setActiveViolationPin(entry, issueNumber, { locked });
+      if (!entry) return null;
+      setActiveViolationPin(entry, { locked });
       showInspectorCardForEntries(entry.element, [entry]);
       panel.querySelectorAll('.fds-list-item.is-pin-active').forEach((activeItem) => {
         activeItem.classList.remove('is-pin-active');
       });
       item.classList.add('is-pin-active');
+      return entry;
     };
 
     item.onmouseenter = () => showPin();
     item.onfocus = () => showPin();
-    item.onclick = () => {
-      showPin({ locked: true });
-      const entry = visibleListItems.find((candidate) => candidate.key === item.dataset.issueKey);
+    item.onclick = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      const entry = showPin({ locked: true });
       scrollToIssueElement(entry);
     };
-    item.onmouseleave = () => {
+    item.onmouseleave = (event) => {
+      if (isMovingIntoInspectorCard(event)) return;
       if (lockedPinnedIssueKey) {
         restoreLockedViolationPin(visibleListItems);
         panel.querySelectorAll('.fds-list-item.is-pin-active').forEach((activeItem) => {
           activeItem.classList.toggle('is-pin-active', activeItem.dataset.issueKey === activePinnedIssueKey);
         });
       } else {
-        clearViolationPins();
-        activePinnedIssueKey = null;
-        activePinnedIssueNumber = null;
-        clearHoveredInspectionTarget();
-        hideInspectorCard();
-        item.classList.remove('is-pin-active');
+        scheduleTransientInspectorPreviewClear();
       }
     };
   });
@@ -2166,21 +2372,52 @@ function updateSummaryUI() {
   panel.onpointermove = moveSummaryPanelDrag;
   panel.onpointerup = stopSummaryPanelDrag;
   panel.onpointercancel = stopSummaryPanelDrag;
+  if (summaryMotion?.kind === 'tab') {
+    const motionKind = summaryMotion.kind || summaryMotion;
+    if (motionKind === 'tab') {
+      const tabSwitchMotionOptions = summaryMotion?.details || {};
+      getFDSMotion()?.animateTabSwitch?.(panel, tabSwitchMotionOptions);
+    }
+  }
+  const didAnimateSummaryRefresh = Boolean(getFDSMotion()?.animateSummaryRefresh?.(panel, {
+    listChanged: isListContentChanged,
+    fromPanelHeight: previousPanelHeight,
+    toPanelHeight: nextPanelHeight,
+    fromListHeight: previousListHeight,
+    toListHeight: nextListHeight,
+    shouldAnimateListHeight,
+    force: false,
+    listTransitionElement: listTransitionGhost,
+    revealListItems: shouldRevealListItems,
+  }));
+  if (!didAnimateSummaryRefresh) {
+    panel.style.height = '';
+    panel.style.overflow = '';
+    if (nextList) {
+      nextList.style.height = '';
+      nextList.style.opacity = '';
+      nextList.style.overflow = '';
+      nextList.style.transform = '';
+      nextList.style.willChange = '';
+    }
+  }
+  if (!didAnimateSummaryRefresh && listTransitionGhost) {
+    listTransitionGhost.remove();
+    listTransitionGhost = null;
+  }
 }
 
 document.addEventListener('mouseover', (event) => {
   if (event.target?.closest?.('#fds-root')) return;
   const target = getHoveredInspectionTarget(event);
   if (!target) {
-    clearHoveredInspectionTarget();
-    hideInspectorCard();
+    deferInspectorCardClear();
     return;
   }
 
   const issueEntries = getVisibleIssueEntriesForElement(target);
   if (!issueEntries.length) {
-    clearHoveredInspectionTarget();
-    hideInspectorCard();
+    deferInspectorCardClear();
     return;
   }
 
@@ -2191,22 +2428,37 @@ document.addEventListener('mouseout', (event) => {
   const relatedTarget = event.relatedTarget;
   if (event.target?.closest?.('#fds-root') || relatedTarget?.closest?.('#fds-root')) return;
   if (relatedTarget?.closest?.('.fds-inspected')) return;
+  if (event.target?.closest?.('.fds-inspected')) {
+    scheduleTransientInspectorPreviewClear();
+    return;
+  }
   clearHoveredInspectionTarget();
   hideInspectorCard();
 });
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
   if (request.action === 'PING') {
-    sendResponse({ status: 'alive' });
+    sendResponse({
+      status: 'alive',
+      visible: isInspectorUIVisible(),
+      dismissed: isDismissedByUser,
+      scanMetrics: lastScanMetrics,
+    });
+    return false;
+  }
+
+  if (request.action === 'GET_SCAN_METRICS') {
+    sendResponse({ status: 'success', scanMetrics: lastScanMetrics });
     return false;
   }
 
   if (request.action === 'RESCAN') {
     void loadTokenSourceFromStorage().then(() => {
-      void refreshBridgeInspectorSpecs().catch(() => {
-        bridgeInspectorSpecOverrides = null;
+      void refreshSnapshotInspectorSpecs().catch(() => {
+        snapshotInspectorSpecOverrides = null;
       }).finally(() => {
         void scan('페이지 위반 수를 다시 계산하는 중입니다.');
+        if (isSummaryPanelVisible()) updateSummaryUI();
       });
       sendResponse({ status: 'success' });
     });
@@ -2215,12 +2467,16 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
 
   if (request.action === 'TOKEN_SOURCE_UPDATED') {
     void loadTokenSourceFromStorage().then(() => {
-      if (isExtensionVisible && !isDismissedByUser) {
-        void scan('토큰 정보를 반영해 위반 수를 다시 계산하는 중입니다.');
-        if (isSummaryPanelVisible()) {
-          updateSummaryUI();
+      void refreshSnapshotInspectorSpecs().catch(() => {
+        snapshotInspectorSpecOverrides = null;
+      }).finally(() => {
+        if (isExtensionVisible && !isDismissedByUser) {
+          void scan('토큰 정보를 반영해 위반 수를 다시 계산하는 중입니다.');
+          if (isSummaryPanelVisible()) {
+            updateSummaryUI();
+          }
         }
-      }
+      });
       sendResponse({ status: 'success' });
     });
     return true;
@@ -2240,12 +2496,9 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       root = null;
     }
 
-    if (!root && isVisible) {
-      createUI();
-      root = document.getElementById('fds-root');
-    }
+    if (isVisible) root = ensureVisibleInspectorUI();
 
-    if (root) {
+    if (root && !isVisible) {
       setRootVisibility(isVisible && !isDismissedByUser);
     }
 
@@ -2258,25 +2511,25 @@ chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
       isToolbarCollapsed = false;
       isSummaryPanelDismissed = false;
     } else {
-      startBridgePolling();
-      void scan('초기 검사 결과를 계산하는 중입니다.');
       void loadTokenSourceFromStorage().then(() => {
         if (!isExtensionVisible || isDismissedByUser) return;
-        void checkBridgeConnection().catch(() => {});
-        void refreshBridgeInspectorSpecs()
-          .catch(() => {
-            bridgeInspectorSpecOverrides = null;
-            return { changed: false, connected: false };
-          })
-          .then(() => {
-            if (isSummaryPanelVisible()) {
-              updateSummaryUI();
-            }
-          });
+        void refreshSnapshotInspectorSpecs().catch(() => {
+          snapshotInspectorSpecOverrides = null;
+        }).finally(() => {
+          updateConnectionUI();
+          void scan('초기 검사 결과를 계산하는 중입니다.');
+          if (isSummaryPanelVisible()) {
+            updateSummaryUI();
+          }
+        });
       });
     }
 
-    sendResponse({ status: 'success' });
+    sendResponse({
+      status: 'success',
+      visible: isInspectorUIVisible(),
+      dismissed: isDismissedByUser,
+    });
   }
   return true;
 });

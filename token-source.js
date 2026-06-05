@@ -40,24 +40,28 @@
     const map = {};
     if (!payload || typeof payload !== 'object') return map;
 
-    if (payload.colors && typeof payload.colors === 'object') {
-      Object.entries(payload.colors).forEach(([tokenName, value]) => {
-        const hex = normalizeHexColor(value?.hex || value?.value || value?.$value || value);
-        appendToken(map, hex, tokenName);
-      });
-    }
+    Object.entries(payload).forEach(([key, value]) => {
+      if (key === 'colors' && value && typeof value === 'object') {
+        Object.entries(value).forEach(([tokenName, tokenValue]) => {
+          const hex = normalizeHexColor(tokenValue?.hex || tokenValue?.value || tokenValue?.$value || tokenValue);
+          appendToken(map, hex, tokenName);
+        });
+        return;
+      }
 
-    const nestedPayload = { ...payload };
-    delete nestedPayload.colors;
-    visitTokenTree(nestedPayload, [], map);
+      if (!value || typeof value !== 'object') return;
+      visitTokenTree(value, [key], map);
+    });
+
     return map;
   }
 
   function buildTokenRegistry(payload) {
+    const colors = extractColorTokenMap(payload);
     return {
-      colors: extractColorTokenMap(payload),
+      colors,
       meta: {
-        colorTokenCount: Object.values(extractColorTokenMap(payload)).reduce((sum, items) => sum + items.length, 0),
+        colorTokenCount: Object.values(colors).reduce((sum, items) => sum + items.length, 0),
       },
     };
   }

@@ -58,3 +58,20 @@ test('buildTokenRegistry deduplicates token names per resolved hex', () => {
     'Color/bg/secondary',
   ]);
 });
+
+test('buildTokenRegistry reads the token tree once', () => {
+  let colorsReadCount = 0;
+  const payload = {
+    get colors() {
+      colorsReadCount += 1;
+      return {
+        'Color/bg/secondary': { hex: '#f6f8fa' },
+      };
+    },
+  };
+
+  const registry = buildTokenRegistry(payload);
+
+  assert.equal(colorsReadCount, 1);
+  assert.equal(registry.meta.colorTokenCount, 1);
+});

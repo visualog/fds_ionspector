@@ -10,17 +10,8 @@
     "type": "module"
   },
   "host_permissions": [
-    "http://*/*",
-    "https://*/*",
     "http://localhost:3846/*",
     "http://127.0.0.1:3846/*"
-  ],
-  "content_scripts": [
-    {
-      "matches": ["<all_urls>"],
-      "js": ["toolbar-state.js", "toolbar-drag.js", "style-token-detection.js", "token-source.js", "bridge-token-source.js", "design-variables.js", "content.js"],
-      "css": ["overlay.css"]
-    }
   ],
   "web_accessible_resources": [
     {

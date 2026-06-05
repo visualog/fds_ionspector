@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>FDS Inspector Large DOM Fixture</title>
+  <style>
+    body {
+      margin: 0;
+      font-family: Arial, sans-serif;
+      background: #ffffff;
+      color: #252d38;
+    }
+
+    main {
+      display: grid;
+      grid-template-columns: repeat(5, minmax(0, 1fr));
+      gap: 11px;
+      padding: 24px;
+    }
+
+    .fixture-card {
+      min-height: 64px;
+      padding: 13px;
+      border: 1px solid #d1d6db;
+      border-radius: 7px;
+      background: #f6f8fa;
+    }
+
+    .fixture-card strong {
+      display: block;
+      margin-bottom: 5px;
+      color: #3182f6;
+    }
+  </style>
+</head>
+<body>
+  <main id="fixture-root" aria-label="Large DOM fixture"></main>
+  <script>
+    const root = document.getElementById('fixture-root');
+    for (let index = 0; index < 2500; index += 1) {
+      const card = document.createElement('section');
+      card.className = 'fixture-card';
+      card.innerHTML = `<strong>Item ${index + 1}</strong><span>Token scan target</span>`;
+      root.appendChild(card);
+    }
+  </script>
+</body>
+</html>

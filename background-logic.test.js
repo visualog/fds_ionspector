@@ -1,11 +1,16 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
+const path = require('node:path');
 
 const {
   deriveBridgeHealth,
   isBridgeHealthy,
   getBadgeText,
   shouldIgnoreToggleError,
+  canInjectIntoUrl,
+  CONTENT_SCRIPT_FILES,
+  CONTENT_CSS_FILES,
 } = require('./background-logic.js');
 
 test('deriveBridgeHealth prefers activePlugins over stale reported plugin ids', () => {
@@ -98,4 +103,46 @@ test('shouldIgnoreToggleError ignores missing receiver errors from unsupported t
 test('shouldIgnoreToggleError keeps unexpected toggle failures visible', () => {
   assert.equal(shouldIgnoreToggleError(new Error('Permission denied')), false);
   assert.equal(shouldIgnoreToggleError(null), false);
+});
+
+test('canInjectIntoUrl allows ordinary web pages and blocks browser internals', () => {
+  assert.equal(canInjectIntoUrl('https://example.com/page'), true);
+  assert.equal(canInjectIntoUrl('http://localhost:3000/page'), true);
+  assert.equal(canInjectIntoUrl('chrome://extensions'), false);
+  assert.equal(canInjectIntoUrl('about:blank'), false);
+  assert.equal(canInjectIntoUrl('file:///tmp/index.html'), false);
+});
+
+test('content injection file lists preserve dependency order', () => {
+  assert.deepEqual(CONTENT_CSS_FILES, ['overlay.css']);
+  assert.deepEqual(CONTENT_SCRIPT_FILES, [
+    'vendor/gsap.min.js',
+    'toolbar-state.js',
+    'toolbar-drag.js',
+    'style-token-detection.js',
+    'token-source.js',
+    'bridge-token-source.js',
+    'snapshot-token-source.js',
+    'design-variables.js',
+    'html-utils.js',
+    'content-render.js',
+    'content-scan-utils.js',
+    'content-theme.js',
+    'content-state-utils.js',
+    'content-inspection.js',
+    'content-summary-model.js',
+    'content-scan-runner.js',
+    'content-motion.js',
+    'content.js',
+  ]);
+});
+
+test('browser action toggles from the content script visible state', () => {
+  const backgroundSource = fs.readFileSync(path.join(__dirname, 'background.js'), 'utf8');
+  const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
+
+  assert.match(contentSource, /if \(request\.action === 'PING'\)[\s\S]*visible:\s*isInspectorUIVisible\(\)/);
+  assert.match(backgroundSource, /function\s+getContentScriptState\(tabId\)[\s\S]*visible:\s*Boolean\(response\.visible\)/);
+  assert.match(backgroundSource, /nextState\s*=\s*contentState\.ready\s*\?\s*!contentState\.visible\s*:\s*true/);
+  assert.doesNotMatch(backgroundSource, /const\s+nextState\s*=\s*!getActiveState\(tab\.id\)/);
 });

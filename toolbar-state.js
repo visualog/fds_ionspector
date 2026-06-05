@@ -153,24 +153,42 @@
     radius: 'contract',
   });
 
+  function formatBadgeCount(count) {
+    const numericCount = Number(count || 0);
+    if (!Number.isFinite(numericCount) || numericCount <= 0) return '';
+    return String(Math.trunc(numericCount));
+  }
+
+  function formatFullBadgeCount(count) {
+    const numericCount = Number(count || 0);
+    if (!Number.isFinite(numericCount) || numericCount <= 0) return '';
+    return numericCount.toLocaleString('ko-KR');
+  }
+
   function getViolationBadgeText({ count, hovered, active }) {
     if (count <= 0) return '';
-    return hovered || active ? String(count) : '•';
+    return hovered || active ? formatBadgeCount(count) : '•';
   }
 
   function buildViolationButtonState({ key, activeFilter, hoveredFilter, count, indicator }) {
     const active = activeFilter === key;
     const hovered = hoveredFilter === key;
     const isHighlighted = active || hovered;
-    const badgeCount = count > 0 ? String(count) : '';
+    const badgeCount = formatBadgeCount(count);
+    const badgeFullCount = formatFullBadgeCount(count);
     const badge = getViolationBadgeText({ count, hovered, active });
     const usesBadgeIndicator = indicator === 'badge';
+    const badgeLabel = badgeFullCount
+      ? `${BUTTON_META[key]?.title || key} ${badgeFullCount}개 위반 요소`
+      : '';
 
     return {
       active,
       hovered,
       badge: usesBadgeIndicator ? badge : '',
       badgeCount,
+      badgeFullCount,
+      badgeLabel,
       badgeCountVisible: count > 0 && isHighlighted,
       badgeMarker: usesBadgeIndicator && count > 0,
       dot: indicator === 'dot' ? count > 0 : false,
@@ -369,7 +387,8 @@
     };
   }
 
-  function getNextToolbarMode({ isFigmaConnected, previousConnectionState }) {
+  function getNextToolbarMode({ isFigmaConnected, previousConnectionState, hasTokenSource = false }) {
+    if (!isFigmaConnected && hasTokenSource) return TOOLBAR_MODES.DEFAULT;
     if (!isFigmaConnected) return TOOLBAR_MODES.DISCONNECTED_MESSAGE;
     if (previousConnectionState === false) return TOOLBAR_MODES.CONNECTED_MESSAGE;
     return TOOLBAR_MODES.DEFAULT;

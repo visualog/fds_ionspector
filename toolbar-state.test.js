@@ -153,6 +153,24 @@ test('getToolbarVariantState shows badge marker in idle and count on hover or ac
   assert.equal(activeState.color.active, true);
 });
 
+test('getToolbarVariantState keeps large badge counts numeric and preserves full count labels', () => {
+  const state = getToolbarVariantState({
+    activeFilter: 'color',
+    hoveredFilter: null,
+    isFigmaConnected: true,
+    scanData: {
+      violations: ['배경색 #fff (미등록)'],
+      suggestions: [],
+      counts: { color: 2003, font: 0, spacing: 0, radius: 0 },
+    },
+  });
+
+  assert.equal(state.color.badge, '2003');
+  assert.equal(state.color.badgeCount, '2003');
+  assert.equal(state.color.badgeFullCount, '2,003');
+  assert.equal(state.color.badgeLabel, '컬러 검사 2,003개 위반 요소');
+});
+
 test('getToolbarVariantState keeps refresh clear even when disconnected without violations', () => {
   const state = getToolbarVariantState({
     activeFilter: null,
@@ -167,6 +185,13 @@ test('getToolbarVariantState keeps refresh clear even when disconnected without 
 test('getNextToolbarMode resolves disconnected and stable connected states', () => {
   assert.equal(getNextToolbarMode({ isFigmaConnected: false, previousConnectionState: true }), 'disconnected-message');
   assert.equal(getNextToolbarMode({ isFigmaConnected: true, previousConnectionState: true }), 'connected-default');
+});
+
+test('getNextToolbarMode uses default tools when a snapshot token source is available', () => {
+  assert.equal(
+    getNextToolbarMode({ isFigmaConnected: false, previousConnectionState: false, hasTokenSource: true }),
+    'connected-default'
+  );
 });
 
 test('getNextToolbarMode emits connected-message on reconnect from disconnected', () => {

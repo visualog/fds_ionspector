@@ -32,6 +32,9 @@ test('buildInspectorSpecOverrides extracts spacing and radius specs from bridge 
 
   assert.deepEqual(overrides.spacing, [0, 2, 6, 144]);
   assert.deepEqual(overrides.radius, ['0px', '6px', '12px', '9999px']);
+  assert.deepEqual(overrides.spacingTokens[6], ['spacing/6']);
+  assert.deepEqual(overrides.radiusTokens['12px'], ['radius/12']);
+  assert.deepEqual(overrides.radiusTokens['9999px'], ['radius/circle']);
 });
 
 test('buildInspectorSpecOverrides tolerates direct match payloads and invalid names', () => {

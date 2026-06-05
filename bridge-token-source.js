@@ -47,6 +47,25 @@
     )].sort((a, b) => a - b);
   }
 
+  function appendTokenName(map, key, tokenName) {
+    if (key == null || !tokenName) return;
+    if (!map[key]) map[key] = [];
+    if (!map[key].includes(tokenName)) {
+      map[key].push(tokenName);
+      map[key].sort((a, b) => a.localeCompare(b));
+    }
+  }
+
+  function extractNumericTokenMap(matches, prefix) {
+    return matches.reduce((acc, match) => {
+      const value = extractSlashNumber(match.name, prefix);
+      if (Number.isFinite(value)) {
+        appendTokenName(acc, value, match.name);
+      }
+      return acc;
+    }, {});
+  }
+
   function extractRadiusScale(matches) {
     const numericRadius = matches
       .map((match) => {
@@ -63,6 +82,20 @@
       };
       return rank(a) - rank(b);
     });
+  }
+
+  function extractRadiusTokenMap(matches) {
+    return matches.reduce((acc, match) => {
+      if (match?.name === 'radius/circle') {
+        appendTokenName(acc, '9999px', match.name);
+        return acc;
+      }
+      const value = extractSlashNumber(match?.name, 'radius');
+      if (Number.isFinite(value)) {
+        appendTokenName(acc, `${value}px`, match.name);
+      }
+      return acc;
+    }, {});
   }
 
   function normalizeVariableDefs(payload) {
@@ -173,6 +206,8 @@
     return {
       spacing,
       radius,
+      spacingTokens: extractNumericTokenMap(spacingMatches, 'spacing'),
+      radiusTokens: extractRadiusTokenMap(radiusMatches),
       meta: {
         spacingTokenCount: spacingMatches.length,
         radiusTokenCount: radiusMatches.length,

@@ -1,4 +1,26 @@
 (function initBackgroundLogic(globalScope) {
+  const CONTENT_SCRIPT_FILES = Object.freeze([
+    'vendor/gsap.min.js',
+    'toolbar-state.js',
+    'toolbar-drag.js',
+    'style-token-detection.js',
+    'token-source.js',
+    'bridge-token-source.js',
+    'snapshot-token-source.js',
+    'design-variables.js',
+    'html-utils.js',
+    'content-render.js',
+    'content-scan-utils.js',
+    'content-theme.js',
+    'content-state-utils.js',
+    'content-inspection.js',
+    'content-summary-model.js',
+    'content-scan-runner.js',
+    'content-motion.js',
+    'content.js',
+  ]);
+  const CONTENT_CSS_FILES = Object.freeze(['overlay.css']);
+
   function normalizeString(value) {
     if (typeof value !== 'string') {
       return null;
@@ -172,11 +194,18 @@
     );
   }
 
+  function canInjectIntoUrl(url) {
+    return typeof url === 'string' && /^https?:\/\//i.test(url);
+  }
+
   const api = {
+    CONTENT_SCRIPT_FILES,
+    CONTENT_CSS_FILES,
     deriveBridgeHealth,
     isBridgeHealthy,
     getBadgeText,
     shouldIgnoreToggleError,
+    canInjectIntoUrl,
   };
 
   globalScope.FDSBackgroundLogic = api;
