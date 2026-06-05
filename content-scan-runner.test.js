@@ -325,9 +325,10 @@ test('page mouseover gaps do not immediately close a visible inspector card', ()
 
 test('violation pin placement avoids overlapping the inspector card', () => {
   const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
+  const floatingInspectorSource = fs.readFileSync(path.join(__dirname, 'content-floating-inspector.js'), 'utf8');
 
-  assert.match(contentSource, /function\s+getBestPinPosition\(rect,\s*pinWidth,\s*pinHeight,\s*avoidRect\s*=\s*null\)/);
-  assert.match(contentSource, /getRectOverlapArea\(candidate\.rect,\s*avoidRect\)/);
+  assert.match(floatingInspectorSource, /function\s+getBestPinPosition\(rect,\s*pinWidth,\s*pinHeight,\s*avoidRect\s*=\s*null\)/);
+  assert.match(floatingInspectorSource, /getRectOverlapArea\(candidate\.rect,\s*avoidRect\)/);
   assert.match(contentSource, /positionViolationPin\([\s\S]*\{\s*avoidElement:\s*card\s*\}\)/);
 });
 
@@ -576,8 +577,9 @@ test('content does not repaint inspection marks after being toggled off mid-scan
 
 test('content repairs stale inspector shell before visible toggle scans', () => {
   const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
+  const toolbarUiSource = fs.readFileSync(path.join(__dirname, 'content-toolbar-ui.js'), 'utf8');
 
-  assert.match(contentSource, /function\s+isInspectorUIShellComplete\(/);
+  assert.match(toolbarUiSource, /function\s+isInspectorUIShellComplete\(/);
   assert.match(contentSource, /function\s+ensureVisibleInspectorUI\(\)/);
   assert.match(contentSource, /if \(root && !isInspectorUIShellComplete\(root\)\) \{[\s\S]*root\.remove\(\);[\s\S]*root = null;[\s\S]*\}/);
   assert.match(contentSource, /if \(!root\) \{[\s\S]*createUI\(\);[\s\S]*root = document\.getElementById\('fds-root'\);[\s\S]*\}/);

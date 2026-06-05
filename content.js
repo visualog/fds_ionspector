@@ -26,6 +26,10 @@ const { createContentTheme } = globalThis.FDSContentTheme;
 const { createContentStateUtils } = globalThis.FDSContentStateUtils;
 const { createContentInspector } = globalThis.FDSContentInspection;
 const { createContentSummaryModel } = globalThis.FDSContentSummaryModel;
+const { createContentToolbarUI } = globalThis.FDSContentToolbarUI;
+const { createContentBridgeSpecs } = globalThis.FDSContentBridgeSpecs;
+const { createContentTokenSuggestions } = globalThis.FDSContentTokenSuggestions;
+const { createContentFloatingInspector } = globalThis.FDSContentFloatingInspector;
 const { createContentScanRunner } = globalThis.FDSContentScanRunner;
 const FDS_DESIGN_VARIABLES = globalThis.FDSDesignVariables;
 
@@ -67,6 +71,16 @@ const {
   iconPaths: ICON_PATHS,
   getUrl: safeRuntimeGetUrl,
   escapeHtml,
+});
+const {
+  getToolbarButtonTooltip,
+  setRootVisibility,
+  isInspectorUIShellComplete,
+  resetToolbarFloatingPosition,
+  resetSummaryPanelFloatingPosition,
+  applyToolbarSyncState,
+} = createContentToolbarUI({
+  documentRef: document,
 });
 const {
   recordIssue,
@@ -158,7 +172,6 @@ let scanErrorText = '';
 let activeScanPromise = null;
 let queuedScanReason = '';
 let lastScanMetrics = null;
-let inspectorCardHideTimer = null;
 let pendingSummaryMotion = null;
 let violationPinPositionFrame = null;
 
@@ -301,57 +314,6 @@ function getKnownColorTokens(hex) {
   return [...new Set([...bridgeTokens, ...snapshotTokens, ...sourceTokens, ...builtInToken])];
 }
 
-function rankSuggestedTokens(tokens = []) {
-  return [...new Set(tokens.filter(Boolean))]
-    .sort((a, b) => {
-      const score = (token) => {
-        const text = String(token);
-        let value = 0;
-        if (/^Color\./.test(text)) value += 40;
-        if (/^(spacing|radius)\./.test(text)) value += 35;
-        if (/\b(text|bg|background|border|surface)\b/i.test(text)) value += 10;
-        if (!/^(light|dark|Unit)\./i.test(text)) value += 5;
-        return value;
-      };
-      return score(b) - score(a) || String(a).localeCompare(String(b));
-    });
-}
-
-function extractTokenNamesFromTag(tag) {
-  const match = String(tag || '').match(/:\s*(.+)$/);
-  if (!match) return [];
-  return match[1]
-    .split(',')
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function getSuggestedTokensForIssue(entry) {
-  const message = String(entry?.message || '');
-  if (!message.includes('원시값 직접 사용')) return [];
-
-  const parsed = parseViolationItem(message);
-  const activeSpecs = getActiveInspectorSpecs();
-  if (entry?.category === 'color') {
-    return rankSuggestedTokens(getKnownColorTokens(parsed.value)).slice(0, 3);
-  }
-
-  if (entry?.category === 'spacing') {
-    const numericValue = Number.parseFloat(parsed.value);
-    const mappedTokens = Number.isFinite(numericValue)
-      ? activeSpecs.spacingTokens?.[numericValue] || activeSpecs.spacingTokens?.[String(numericValue)] || []
-      : [];
-    return rankSuggestedTokens([...mappedTokens, ...extractTokenNamesFromTag(parsed.tag)]).slice(0, 3);
-  }
-
-  if (entry?.category === 'radius') {
-    const mappedTokens = activeSpecs.radiusTokens?.[parsed.value] || [];
-    return rankSuggestedTokens([...mappedTokens, ...extractTokenNamesFromTag(parsed.tag)]).slice(0, 3);
-  }
-
-  return extractTokenNamesFromTag(parsed.tag).slice(0, 3);
-}
-
 function getActiveInspectorSpecs() {
   const activeOverrides = bridgeInspectorSpecOverrides || snapshotInspectorSpecOverrides;
   return {
@@ -366,78 +328,52 @@ function getActiveInspectorSpecs() {
     radiusTokens: activeOverrides?.radiusTokens || {},
   };
 }
+const { getSuggestedTokensForIssue } = createContentTokenSuggestions({
+  getActiveInspectorSpecs,
+  getKnownColorTokens,
+  parseViolationItem,
+});
+const {
+  createBridgeInspectorSpecsRefreshState,
+  createSnapshotInspectorSpecsRefreshState,
+  getBridgeSpecStateSignature: getBridgeSpecStateSignatureBase,
+  getBridgeTokenContextLabel: getBridgeTokenContextLabelBase,
+} = createContentBridgeSpecs({
+  formatTokenContextLabel,
+});
 
-function getBridgeSpecStateSignature({
-  pluginId = activeBridgePluginId,
-  fileName = bridgeTokenFileName,
-  pageName = bridgeTokenPageName,
-  overrides = bridgeInspectorSpecOverrides,
-  colorRegistry = bridgeColorTokenRegistry,
-} = {}) {
-  const spacing = Array.isArray(overrides?.spacing) ? [...overrides.spacing] : [];
-  const radius = Array.isArray(overrides?.radius) ? [...overrides.radius] : [];
-  const spacingTokens = overrides?.spacingTokens && typeof overrides.spacingTokens === 'object'
-    ? Object.entries(overrides.spacingTokens).sort()
-    : [];
-  const radiusTokens = overrides?.radiusTokens && typeof overrides.radiusTokens === 'object'
-    ? Object.entries(overrides.radiusTokens).sort()
-    : [];
-  const colors = colorRegistry?.colors && typeof colorRegistry.colors === 'object'
-    ? Object.keys(colorRegistry.colors)
-      .sort()
-      .map((hex) => [hex, [...new Set(colorRegistry.colors[hex] || [])].sort()])
-    : [];
-
-  return JSON.stringify({
-    pluginId: pluginId || null,
-    fileName: fileName || null,
-    pageName: pageName || null,
-    spacing,
-    radius,
-    spacingTokens,
-    radiusTokens,
-    colors,
+function getBridgeSpecStateSignature(overrides = {}) {
+  return getBridgeSpecStateSignatureBase({
+    pluginId: activeBridgePluginId,
+    fileName: bridgeTokenFileName,
+    pageName: bridgeTokenPageName,
+    overrides: bridgeInspectorSpecOverrides,
+    colorRegistry: bridgeColorTokenRegistry,
+    ...overrides,
   });
 }
 
 async function refreshBridgeInspectorSpecs() {
   const previousSignature = getBridgeSpecStateSignature();
   const response = await safeRuntimeSendMessage({ action: 'BRIDGE_TOKEN_SPECS' });
-  if (!response || response.status === 'error' || !response.connected) {
-    bridgeInspectorSpecOverrides = null;
-    bridgeColorTokenRegistry = buildTokenRegistry({});
-    bridgeTokenFileName = null;
-    bridgeTokenPageName = null;
-    if (!response?.connected) {
-      activeBridgePluginId = null;
-    }
+  const nextState = createBridgeInspectorSpecsRefreshState(response, {
+    activePluginId: activeBridgePluginId,
+    emptyColorRegistry: buildTokenRegistry({}),
+  });
+
+  activeBridgePluginId = nextState.activePluginId;
+  bridgeTokenFileName = nextState.fileName;
+  bridgeTokenPageName = nextState.pageName;
+  bridgeColorTokenRegistry = nextState.colorRegistry;
+  bridgeInspectorSpecOverrides = nextState.overrides;
+
+  if (!nextState.connected) {
     return {
       changed: previousSignature !== getBridgeSpecStateSignature(),
       connected: false,
     };
   }
 
-  activeBridgePluginId = response.pluginId || activeBridgePluginId;
-  bridgeTokenFileName = typeof response.fileName === 'string' ? response.fileName : null;
-  bridgeTokenPageName = typeof response.pageName === 'string' ? response.pageName : null;
-  const nextOverrides = {
-    spacing: Array.isArray(response?.specs?.spacing) ? response.specs.spacing : [],
-    radius: Array.isArray(response?.specs?.radius) ? response.specs.radius : [],
-    spacingTokens: response?.specs?.spacingTokens && typeof response.specs.spacingTokens === 'object' ? response.specs.spacingTokens : {},
-    radiusTokens: response?.specs?.radiusTokens && typeof response.specs.radiusTokens === 'object' ? response.specs.radiusTokens : {},
-    meta: response?.specs?.meta || null,
-  };
-  bridgeColorTokenRegistry = {
-    colors: response?.specs?.colors && typeof response.specs.colors === 'object' ? response.specs.colors : {},
-    meta: {
-      colorTokenCount: Number(response?.specs?.meta?.colorTokenCount || 0),
-      colorVariableCount: Number(response?.specs?.meta?.colorVariableCount || 0),
-    },
-  };
-  bridgeInspectorSpecOverrides =
-    (nextOverrides.spacing?.length || nextOverrides.radius?.length)
-      ? nextOverrides
-      : null;
   return {
     changed: previousSignature !== getBridgeSpecStateSignature(),
     connected: true,
@@ -447,59 +383,29 @@ async function refreshBridgeInspectorSpecs() {
 
 async function refreshSnapshotInspectorSpecs() {
   const response = await safeRuntimeSendMessage({ action: 'SNAPSHOT_TOKEN_SPECS' });
-  if (!response || response.status === 'error' || !response.specs) {
-    snapshotInspectorSpecOverrides = null;
-    snapshotColorTokenRegistry = { colors: {}, meta: { colorTokenCount: 0 } };
-    snapshotTokenFileName = null;
-    hasSnapshotTokenSource = false;
+  const nextState = createSnapshotInspectorSpecsRefreshState(response);
+  snapshotTokenFileName = nextState.fileName;
+  hasSnapshotTokenSource = nextState.hasSnapshotTokenSource;
+  snapshotInspectorSpecOverrides = nextState.overrides;
+  snapshotColorTokenRegistry = nextState.colorRegistry;
+
+  if (!nextState.hasSpecs) {
     return { changed: false, source: 'snapshot' };
   }
-
-  snapshotTokenFileName = typeof response.fileName === 'string' ? response.fileName : 'tokens/*.json';
-  hasSnapshotTokenSource = true;
-  snapshotInspectorSpecOverrides = {
-    spacing: Array.isArray(response?.specs?.spacing) ? response.specs.spacing : [],
-    radius: Array.isArray(response?.specs?.radius) ? response.specs.radius : [],
-    spacingTokens: response?.specs?.spacingTokens && typeof response.specs.spacingTokens === 'object' ? response.specs.spacingTokens : {},
-    radiusTokens: response?.specs?.radiusTokens && typeof response.specs.radiusTokens === 'object' ? response.specs.radiusTokens : {},
-    meta: response?.specs?.meta || null,
-  };
-  snapshotColorTokenRegistry = {
-    colors: response?.specs?.colors && typeof response.specs.colors === 'object' ? response.specs.colors : {},
-    meta: {
-      colorTokenCount: Number(response?.specs?.meta?.colorTokenCount || 0),
-    },
-  };
 
   return { changed: true, source: 'snapshot', overrides: snapshotInspectorSpecOverrides };
 }
 
 function getBridgeTokenContextLabel() {
-  if (!isFigmaConnected && snapshotInspectorSpecOverrides) {
-    const sourceName = snapshotTokenFileName || '저장된 토큰 스냅샷';
-    const spacingCount = Number(snapshotInspectorSpecOverrides?.spacing?.length || 0);
-    const radiusCount = Number(snapshotInspectorSpecOverrides?.radius?.length || 0);
-    const colorCount = Number(snapshotColorTokenRegistry?.meta?.colorTokenCount || 0);
-    return formatTokenContextLabel({
-      sourceName,
-      colorCount,
-      spacingCount,
-      radiusCount,
-      fallbackLabel: '저장된 토큰 기준',
-    });
-  }
-  if (!isFigmaConnected) return '';
-  const sourceName = bridgeTokenFileName || '현재 연결 파일';
-  const spacingCount = Number(bridgeInspectorSpecOverrides?.spacing?.length || 0);
-  const radiusCount = Number(bridgeInspectorSpecOverrides?.radius?.length || 0);
-  const colorCount = Number(bridgeColorTokenRegistry?.meta?.colorTokenCount || 0);
-  return formatTokenContextLabel({
-    sourceName,
-    pageName: bridgeTokenPageName || '',
-    colorCount,
-    spacingCount,
-    radiusCount,
-    fallbackLabel: '브리지 토큰 기준',
+  return getBridgeTokenContextLabelBase({
+    isFigmaConnected,
+    snapshotOverrides: snapshotInspectorSpecOverrides,
+    snapshotColorRegistry: snapshotColorTokenRegistry,
+    snapshotFileName: snapshotTokenFileName,
+    bridgeOverrides: bridgeInspectorSpecOverrides,
+    bridgeColorRegistry: bridgeColorTokenRegistry,
+    bridgeFileName: bridgeTokenFileName,
+    bridgePageName: bridgeTokenPageName,
   });
 }
 
@@ -607,6 +513,22 @@ function clampPosition(value, min, max) {
   return Math.min(Math.max(value, min), max);
 }
 
+const {
+  createInspectorCardHideTimer,
+  getViolationPinLabel,
+  isViolationPinTargetVisible,
+  getRectOverlapArea,
+  getPinPositionCandidate,
+  getClampedPinCandidate,
+  getBestPinPosition,
+} = createContentFloatingInspector({
+  clampPosition,
+});
+const inspectorCardHideTimer = createInspectorCardHideTimer({
+  hideDelayMs: INSPECTOR_CARD_HIDE_DELAY_MS,
+  onClear: () => clearTransientInspectorPreview(),
+});
+
 function placeFloatingElement(element, preferredLeft, preferredTop, { margin = 12 } = {}) {
   const width = element.offsetWidth || 0;
   const height = element.offsetHeight || 0;
@@ -620,11 +542,6 @@ function placeFloatingElement(element, preferredLeft, preferredTop, { margin = 1
 
   element.style.left = `${clampedLeft}px`;
   element.style.top = `${clampedTop}px`;
-}
-
-function getToolbarButtonTooltip(button) {
-  if (!button) return '';
-  return button.dataset.tooltip || button.getAttribute('title') || '';
 }
 
 function showToolbarButtonTooltip(button) {
@@ -644,22 +561,6 @@ function showToolbarButtonTooltip(button) {
     window.scrollX + rect.left + rect.width / 2,
     window.scrollY + rect.top - tooltipHeight - 18
   );
-}
-
-function setRootVisibility(visible) {
-  const root = document.getElementById('fds-root');
-  if (!root) return;
-  root.dataset.visible = visible ? 'true' : 'false';
-  root.style.display = visible ? 'block' : 'none';
-  document.body.classList.toggle('fds-hide-all', !visible);
-}
-
-function isInspectorUIShellComplete(root = document.getElementById('fds-root')) {
-  return Boolean(root)
-    && Boolean(root.querySelector('#fds-issue-pin-layer'))
-    && Boolean(root.querySelector('#fds-toolbar'))
-    && Boolean(root.querySelector('#fds-summary-panel'))
-    && Boolean(root.querySelector('#fds-inspector-card'));
 }
 
 function isInspectorUIVisible() {
@@ -834,9 +735,7 @@ function clearActiveViolationPin() {
 }
 
 function clearInspectorCardHideTimer() {
-  if (!inspectorCardHideTimer) return;
-  clearTimeout(inspectorCardHideTimer);
-  inspectorCardHideTimer = null;
+  inspectorCardHideTimer.clear();
 }
 
 function clearExpandedIssueGroups() {
@@ -967,16 +866,6 @@ function showInspectorCardForEntries(target, issueEntries, anchorElement = targe
   getFDSMotion()?.animateInspectorCard?.(card);
 }
 
-function getViolationPinLabel(entry) {
-  const element = entry?.element;
-  const tagName = element?.tagName?.toLowerCase?.() || 'element';
-  const idPart = element?.id ? `#${element.id}` : '';
-  const classPart = typeof element?.className === 'string' && element.className.trim()
-    ? `.${element.className.trim().split(/\s+/).slice(0, 1).join('.')}`
-    : '';
-  return `${tagName}${idPart}${classPart}`;
-}
-
 function renderViolationPin(entry) {
   const layer = getViolationPinLayer();
   if (!layer || !isSummaryPanelVisible() || !entry?.element?.isConnected) {
@@ -990,89 +879,6 @@ function renderViolationPin(entry) {
   positionViolationPin(entry);
   const pin = layer.querySelector('.fds-issue-pin');
   getFDSMotion()?.animatePin?.(pin);
-}
-
-function isViolationPinTargetVisible(rect) {
-  return Boolean(rect)
-    && rect.width >= 1
-    && rect.height >= 1
-    && rect.bottom >= 0
-    && rect.right >= 0
-    && rect.top <= window.innerHeight
-    && rect.left <= window.innerWidth;
-}
-
-function getRectOverlapArea(rectA, rectB) {
-  if (!rectA || !rectB) return 0;
-  const width = Math.max(0, Math.min(rectA.right, rectB.right) - Math.max(rectA.left, rectB.left));
-  const height = Math.max(0, Math.min(rectA.bottom, rectB.bottom) - Math.max(rectA.top, rectB.top));
-  return width * height;
-}
-
-function getPinPositionCandidate(rect, pinWidth, pinHeight, pinPosition) {
-  if (pinPosition === 'pin_LT') {
-    return {
-      position: pinPosition,
-      left: rect.left - pinWidth + 2,
-      top: rect.top - pinHeight + 2,
-    };
-  }
-  if (pinPosition === 'pin_RT') {
-    return {
-      position: pinPosition,
-      left: rect.right - 2,
-      top: rect.top - pinHeight + 2,
-    };
-  }
-  if (pinPosition === 'pin_LB') {
-    return {
-      position: pinPosition,
-      left: rect.left - pinWidth + 2,
-      top: rect.bottom - 2,
-    };
-  }
-  return {
-    position: 'pin_RB',
-    left: rect.right - 2,
-    top: rect.bottom - 2,
-  };
-}
-
-function getClampedPinCandidate(candidate, pinWidth, pinHeight) {
-  const left = clampPosition(candidate.left, 4, Math.max(4, window.innerWidth - pinWidth - 4));
-  const top = clampPosition(candidate.top, 4, Math.max(4, window.innerHeight - pinHeight - 4));
-  return {
-    ...candidate,
-    left,
-    top,
-    rect: {
-      left,
-      top,
-      right: left + pinWidth,
-      bottom: top + pinHeight,
-    },
-  };
-}
-
-function getBestPinPosition(rect, pinWidth, pinHeight, avoidRect = null) {
-  const margin = 4;
-  const hasTopSpace = rect.top >= pinHeight + margin;
-  const hasBottomSpace = window.innerHeight - rect.bottom >= pinHeight + margin;
-  const hasLeftSpace = rect.left >= pinWidth + margin;
-  const hasRightSpace = window.innerWidth - rect.right >= pinWidth + margin;
-  const vertical = hasTopSpace || !hasBottomSpace ? 'T' : 'B';
-  const horizontal = hasLeftSpace || !hasRightSpace ? 'L' : 'R';
-  const preferredPosition = `pin_${horizontal}${vertical}`;
-  const candidates = ['pin_LT', 'pin_RT', 'pin_LB', 'pin_RB']
-    .map((position) => getClampedPinCandidate(getPinPositionCandidate(rect, pinWidth, pinHeight, position), pinWidth, pinHeight))
-    .map((candidate, index) => ({
-      ...candidate,
-      order: candidate.position === preferredPosition ? -1 : index,
-      overlapArea: getRectOverlapArea(candidate.rect, avoidRect),
-    }))
-    .sort((a, b) => a.overlapArea - b.overlapArea || a.order - b.order);
-
-  return candidates[0]?.position || preferredPosition;
 }
 
 function positionViolationPin(
@@ -1238,11 +1044,7 @@ function clearTransientInspectorPreview() {
 }
 
 function scheduleTransientInspectorPreviewClear() {
-  clearInspectorCardHideTimer();
-  inspectorCardHideTimer = setTimeout(() => {
-    inspectorCardHideTimer = null;
-    clearTransientInspectorPreview();
-  }, INSPECTOR_CARD_HIDE_DELAY_MS);
+  inspectorCardHideTimer.schedule();
 }
 
 function isMovingIntoInspectorCard(event) {
@@ -1310,24 +1112,6 @@ function moveSummaryPanelDrag(event) {
   panelDragState.hasMoved = true;
   panel.style.left = `${nextPosition.left}px`;
   panel.style.top = `${nextPosition.top}px`;
-}
-
-function resetToolbarFloatingPosition() {
-  const toolbar = document.getElementById('fds-toolbar');
-  if (!toolbar) return;
-  toolbar.style.left = '';
-  toolbar.style.top = '';
-  toolbar.style.bottom = '';
-  toolbar.style.transform = '';
-}
-
-function resetSummaryPanelFloatingPosition() {
-  const panel = document.getElementById('fds-summary-panel');
-  if (!panel) return;
-  panel.style.left = '';
-  panel.style.top = '';
-  panel.style.bottom = '';
-  panel.style.right = '';
 }
 
 function saveCustomSummaryPanelPosition() {
@@ -1574,16 +1358,15 @@ function syncToolbar() {
 
   const model = getToolbarModel();
   const markup = renderToolbarMarkup(model).trim();
-  root.dataset.toolbarMode = model.mode;
-  root.dataset.toolbarCollapsed = isToolbarCollapsed ? 'true' : 'false';
-  root.dataset.scanState = isScanning ? 'scanning' : 'idle';
-  toolbar.dataset.variant = model.mode;
-  toolbar.dataset.collapsed = isToolbarCollapsed ? 'true' : 'false';
-  toolbar.dataset.scanState = isScanning ? 'scanning' : 'idle';
-  toolbar.dataset.scanStatus = scanStatusText;
-  applyToolbarSpecVariables(root);
-  toolbar.style.setProperty('--fds-toolbar-width', `${model.width}px`);
-  toolbar.style.setProperty('--fds-toolbar-status-width', model.statusWidth ? `${model.statusWidth}px` : 'auto');
+  applyToolbarSyncState({
+    root,
+    toolbar,
+    model,
+    isCollapsed: isToolbarCollapsed,
+    isScanning,
+    scanStatusText,
+    applyToolbarSpecVariables,
+  });
 
   if (toolbar.innerHTML.trim() !== markup) {
     hideTooltip();
