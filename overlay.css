@@ -37,6 +37,11 @@ body.fds-panel-dragging {
   user-select: none !important;
 }
 
+body.fds-inspector-card-dragging {
+  user-select: none !important;
+  cursor: grabbing !important;
+}
+
 body.fds-panel-resizing {
   user-select: none !important;
   cursor: ns-resize !important;
@@ -526,10 +531,62 @@ body.fds-panel-resizing {
   outline-color: #ffbb3d !important;
 }
 
+.fds-violation[data-fds-category="spacing"] {
+  outline-color: #f59e0b !important;
+  --fds-spacing-marker-color: #f59e0b;
+  --fds-spacing-marker-fill: rgba(245, 158, 11, 0.28);
+  --fds-spacing-label-bg: rgba(20, 12, 2, 0.92);
+}
+
+.fds-violation[data-fds-category="spacing"][data-fds-type="danger"] {
+  --fds-spacing-marker-color: #ff5b5b;
+  --fds-spacing-marker-fill: rgba(255, 91, 91, 0.24);
+}
+
+.fds-violation[data-fds-category="spacing"]::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 2147483641;
+  pointer-events: none;
+  box-sizing: border-box;
+  border: 1px solid color-mix(in srgb, var(--fds-spacing-marker-color) 72%, transparent);
+  background:
+    linear-gradient(var(--fds-spacing-marker-fill), var(--fds-spacing-marker-fill)) top / 100% var(--fds-spacing-area-top, 0px) no-repeat,
+    linear-gradient(var(--fds-spacing-marker-fill), var(--fds-spacing-marker-fill)) right / var(--fds-spacing-area-right, 0px) 100% no-repeat,
+    linear-gradient(var(--fds-spacing-marker-fill), var(--fds-spacing-marker-fill)) bottom / 100% var(--fds-spacing-area-bottom, 0px) no-repeat,
+    linear-gradient(var(--fds-spacing-marker-fill), var(--fds-spacing-marker-fill)) left / var(--fds-spacing-area-left, 0px) 100% no-repeat;
+}
+
+.fds-violation[data-fds-category="spacing"][data-fds-spacing-kind="padding"]::before {
+  inset: 0;
+}
+
+.fds-violation[data-fds-category="spacing"][data-fds-spacing-kind="margin"]::before {
+  inset:
+    calc(var(--fds-spacing-area-top, 0px) * -1)
+    calc(var(--fds-spacing-area-right, 0px) * -1)
+    calc(var(--fds-spacing-area-bottom, 0px) * -1)
+    calc(var(--fds-spacing-area-left, 0px) * -1);
+  border-style: dashed;
+}
+
 .fds-inspected.fds-hover-target {
-  outline: 2px solid #3182f6 !important;
+  outline: 2px dashed #ff5b5b !important;
   outline-offset: -2px !important;
   cursor: help;
+}
+
+.fds-inspected.fds-hover-target.fds-violation-warning {
+  outline-color: #ffbb3d !important;
+}
+
+.fds-inspected.fds-hover-target[data-fds-category="spacing"] {
+  outline-color: #f59e0b !important;
+}
+
+.fds-inspected.fds-hover-target[data-fds-category="spacing"][data-fds-type="danger"] {
+  outline-color: #ff5b5b !important;
 }
 
 .fds-issue-pin-layer {
@@ -542,21 +599,20 @@ body.fds-panel-resizing {
 .fds-issue-pin {
   position: fixed;
   width: auto;
-  min-width: 28px;
-  max-width: 160px;
-  height: 24px;
-  padding: 4px 8px;
-  border-radius: 12px 12px 0 12px;
+  min-width: 16px;
+  max-width: 48px;
+  padding: 4px;
+  border-radius: 24px 24px 0 24px;
   align-items: center;
   justify-content: center;
   color: rgba(255, 255, 255, 0.98);
-  font-size: 12px;
+  font-size: 11px;
   line-height: 12px;
   font-family: Inter, Pretendard, sans-serif;
-  font-weight: 600;
+  font-weight: 800;
   letter-spacing: 0;
   overflow: hidden;
-  text-overflow: ellipsis;
+  text-overflow: clip;
   white-space: nowrap;
   box-shadow:
     0 0 0 1px rgba(0, 0, 0, 0.8),
@@ -582,11 +638,13 @@ body.fds-panel-resizing {
 }
 
 .fds-issue-pin.danger {
-  background: #D84936;
+  --fds-issue-pin-bg: #D84936;
+  background: var(--fds-issue-pin-bg);
 }
 
 .fds-issue-pin.warning {
-  background: #D49C13;
+  --fds-issue-pin-bg: #D49C13;
+  background: var(--fds-issue-pin-bg);
   color: rgba(255, 255, 255, 0.98);
 }
 
@@ -604,14 +662,14 @@ body.fds-panel-resizing {
 /* Inspector Card */
 .fds-card {
   position: absolute;
-  background: rgba(15, 19, 26, 0.98);
-  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: #0F131A;
+  border: none;
   border-radius: var(--fds-radius-card, 12px);
-  padding: 10px;
+  padding: 12px;
   box-shadow: 0 12px 32px rgba(0, 0, 0, 0.5);
   z-index: 2147483646;
   width: 240px;
-  min-height: 84px;
+  min-height: 24px;
   color: white;
   pointer-events: auto;
   font-size: 11px;
@@ -625,6 +683,12 @@ body.fds-panel-resizing {
   display: flex;
   align-items: flex-start;
   margin-bottom: 0;
+  cursor: grab;
+  user-select: none;
+}
+
+.fds-card.is-dragging .fds-card-head {
+  cursor: grabbing;
 }
 
 .fds-card-title-wrap {
@@ -655,8 +719,8 @@ body.fds-panel-resizing {
   min-height: 28px;
   padding: 6px 8px;
   border-radius: 8px;
-  background: rgba(255, 255, 255, 0.04);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: transparent;
+  border: none;
   color: rgba(255, 255, 255, 0.88);
 }
 
@@ -690,7 +754,7 @@ body.fds-panel-resizing {
   gap: 4px;
   margin-top: 4px;
   padding-top: 6px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  *border-top: 1px solid rgba(255, 255, 255, 0.08);*
   font-size: 10px;
   line-height: 14px;
   font-weight: 700;
@@ -705,11 +769,11 @@ body.fds-panel-resizing {
 
 .fds-issue-replacement {
   display: flex;
-  flex-direction: column;
-  gap: 2px;
+  align-items: center;
+  gap: 6px;
   margin-top: 6px;
   padding-top: 6px;
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
+  border-top: none;
 }
 
 .fds-issue-replacement span {
@@ -721,6 +785,7 @@ body.fds-panel-resizing {
 
 .fds-issue-replacement strong {
   min-width: 0;
+  flex: 1 1 auto;
   overflow-wrap: anywhere;
   white-space: normal;
   font-size: 11px;
@@ -731,43 +796,75 @@ body.fds-panel-resizing {
 
 .fds-token-copy {
   appearance: none;
-  align-self: flex-start;
+  flex: 0 0 auto;
+  width: 22px;
+  height: 22px;
   min-height: 22px;
-  padding: 3px 8px;
-  border: 1px solid rgba(255, 255, 255, 0.12);
-  border-radius: 999px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
   background: rgba(255, 255, 255, 0.06);
   color: rgba(255, 255, 255, 0.82);
-  font: inherit;
-  font-size: 10px;
-  line-height: 14px;
-  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
   cursor: pointer;
+}
+
+.fds-token-copy-icon {
+  width: 14px;
+  height: 14px;
+  display: block;
+  pointer-events: none;
+}
+
+.fds-token-copy[data-state="copied"] {
+  background: rgba(67, 201, 113, 0.16);
+  color: #43C971;
 }
 
 .fds-token-copy:hover,
 .fds-token-copy:focus-visible {
   outline: none;
   background: rgba(255, 255, 255, 0.12);
-  border-color: rgba(255, 255, 255, 0.22);
   color: rgba(255, 255, 255, 0.96);
 }
 
+.fds-copy-toast {
+  position: fixed;
+  left: 50%;
+  bottom: calc(var(--fds-toolbar-bottom, 24px) + 76px);
+  z-index: 2147483647;
+  transform: translate(-50%, 8px);
+  opacity: 0;
+  pointer-events: none;
+  padding: 7px 10px;
+  border-radius: 999px;
+  background: #0F131A;
+  color: rgba(255, 255, 255, 0.94);
+  box-shadow: 0 10px 28px rgba(0, 0, 0, 0.42);
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 700;
+  transition:
+    opacity 160ms cubic-bezier(0.22, 1, 0.36, 1),
+    transform 160ms cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.fds-copy-toast[data-visible="true"] {
+  opacity: 1;
+  transform: translate(-50%, 0);
+}
+
 .fds-card.danger .fds-issue-item {
-  background: rgba(255, 84, 84, 0.08);
-  border-color: rgba(255, 84, 84, 0.14);
   color: rgba(255, 225, 225, 0.92);
 }
 
 .fds-card.success .fds-issue-item {
-  background: rgba(67, 201, 113, 0.1);
-  border-color: rgba(67, 201, 113, 0.18);
   color: rgba(196, 248, 212, 0.94);
 }
 
 .fds-card.warning .fds-issue-item {
-  background: rgba(255, 187, 61, 0.08);
-  border-color: rgba(255, 187, 61, 0.14);
   color: rgba(255, 232, 188, 0.94);
 }
 
@@ -1169,7 +1266,7 @@ body.fds-panel-resizing {
   padding: 8px;
   border-radius: 8px;
   text-align: left;
-  border: 1px solid transparent;
+  border: none;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
@@ -1179,17 +1276,14 @@ body.fds-panel-resizing {
 
 .fds-stat-box.danger {
   background: transparent;
-  border-color: rgba(255, 91, 91, 0.18);
 }
 
 .fds-stat-box.success {
   background: rgba(26, 49, 40, 0.42);
-  border-color: rgba(94, 156, 126, 0.22);
 }
 
 .fds-stat-box.warning {
   background: transparent;
-  border-color: rgba(255, 187, 61, 0.2);
 }
 
 .fds-stat-box.is-toggle {
@@ -1201,22 +1295,18 @@ body.fds-panel-resizing {
 
 .fds-stat-box.danger.is-toggle:hover {
   background: rgba(68, 35, 28, 0.48);
-  border-color: rgba(168, 103, 84, 0.24);
 }
 
 .fds-stat-box.warning.is-toggle:hover {
   background: rgba(74, 58, 22, 0.48);
-  border-color: rgba(188, 151, 63, 0.24);
 }
 
 .fds-stat-box.danger.is-active {
   background: rgba(68, 35, 28, 0.48);
-  border-color: rgba(168, 103, 84, 0.24);
 }
 
 .fds-stat-box.warning.is-active {
   background: rgba(74, 58, 22, 0.48);
-  border-color: rgba(188, 151, 63, 0.24);
 }
 
 @keyframes fds-loading-dot {
@@ -1411,13 +1501,14 @@ body.fds-panel-resizing {
 }
 
 .fds-list-item {
+  --fds-list-pin-bg: rgba(255, 255, 255, 0.28);
   appearance: none;
   font: inherit;
   font-size: 11px;
   line-height: 16px;
   color: rgba(255, 229, 229, 0.92);
   background: rgba(255, 255, 255, 0.028);
-  border: 1px solid rgba(255, 255, 255, 0.06);
+  border: none;
   border-radius: 8px;
   height: 32px;
   min-height: 32px;
@@ -1445,7 +1536,7 @@ body.fds-panel-resizing {
   line-height: 16px;
   color: rgba(255, 255, 255, 0.9);
   background: rgba(255, 255, 255, 0.045);
-  border: 1px solid rgba(255, 255, 255, 0.08);
+  border: none;
   border-radius: 8px;
   min-height: 32px;
   padding: 0 8px;
@@ -1467,22 +1558,19 @@ body.fds-panel-resizing {
 .fds-list-group:hover,
 .fds-list-group:focus-visible {
   outline: none;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  box-shadow: none;
 }
 
 .fds-list-group.danger {
   background: rgba(255, 91, 91, 0.075);
-  border-color: rgba(255, 91, 91, 0.14);
 }
 
 .fds-list-group.warning {
   background: rgba(255, 187, 61, 0.08);
-  border-color: rgba(255, 187, 61, 0.15);
 }
 
 .fds-list-group.success {
   background: rgba(67, 201, 113, 0.075);
-  border-color: rgba(67, 201, 113, 0.14);
 }
 
 .fds-group-caret {
@@ -1539,7 +1627,7 @@ body.fds-panel-resizing {
   gap: 2px;
   margin: -1px 0 4px 8px;
   padding-left: 8px;
-  border-left: 1px solid rgba(255, 255, 255, 0.1);
+  border-left: none;
 }
 
 .fds-list-group-details .fds-list-item {
@@ -1552,36 +1640,50 @@ body.fds-panel-resizing {
 .fds-list-item:focus-visible,
 .fds-list-item.is-pin-active {
   outline: none;
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.08);
+  box-shadow: none;
+}
+
+.fds-list-item.is-pin-active {
+  background: var(--fds-list-pin-bg);
+  color: rgba(255, 255, 255, 0.98);
+  box-shadow: none;
 }
 
 .fds-list-item.danger {
+  --fds-list-pin-bg: #D84936;
   background: rgba(255, 91, 91, 0.05);
-  border-color: rgba(255, 91, 91, 0.09);
 }
 
 .fds-list-item.warning {
+  --fds-list-pin-bg: #D49C13;
   background: rgba(255, 187, 61, 0.055);
-  border-color: rgba(255, 187, 61, 0.1);
 }
 
 .fds-list-item.danger:hover,
-.fds-list-item.danger:focus-visible,
-.fds-list-item.danger.is-pin-active {
+.fds-list-item.danger:focus-visible {
   background: rgba(255, 91, 91, 0.09);
-  border-color: rgba(255, 91, 91, 0.18);
+}
+
+.fds-list-item.danger.is-pin-active,
+.fds-list-item.danger.is-pin-active:hover,
+.fds-list-item.danger.is-pin-active:focus-visible {
+  background: #D84936;
 }
 
 .fds-list-item.warning:hover,
-.fds-list-item.warning:focus-visible,
-.fds-list-item.warning.is-pin-active {
+.fds-list-item.warning:focus-visible {
   background: rgba(255, 187, 61, 0.095);
-  border-color: rgba(255, 187, 61, 0.18);
+}
+
+.fds-list-item.warning.is-pin-active,
+.fds-list-item.warning.is-pin-active:hover,
+.fds-list-item.warning.is-pin-active:focus-visible {
+  background: #D49C13;
 }
 
 .fds-list-item.success {
+  --fds-list-pin-bg: #43C971;
   background: rgba(67, 201, 113, 0.055);
-  border-color: rgba(67, 201, 113, 0.1);
 }
 
 .fds-list-label {
@@ -1691,4 +1793,6 @@ body.fds-panel-resizing {
 /* Hide on Toggle */
 body.fds-hide-all #fds-root { display: none !important; }
 body.fds-hide-all .fds-violation { outline: none !important; }
+body.fds-hide-all .fds-violation::before,
+body.fds-hide-all .fds-violation::after { display: none !important; }
 body.fds-hide-all .fds-issue-pin { display: none !important; }

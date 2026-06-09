@@ -86,13 +86,23 @@ test('content summary groups toggle details while child rows navigate issues on 
   assert.doesNotMatch(contentSource, /\.fds-list-group\[data-group-key\]'[\s\S]*?showInspectorCardForEntries\(entry\.element, \[entry\]\)[\s\S]*?panel\.querySelectorAll\('\.fds-list-item\[data-issue-key\]'\)/);
   assert.match(contentSource, /item\.onclick = \(event\) => \{[\s\S]*event\.preventDefault\(\);[\s\S]*event\.stopPropagation\(\);[\s\S]*expandedIssueGroupKeys = nextExpandedKeys;[\s\S]*updateSummaryUI\(\);/);
   assert.match(contentSource, /querySelectorAll\('\.fds-list-item\[data-issue-key\]'\)/);
-  assert.match(contentSource, /const showPin = \(\{ locked = false \} = \{\}\) =>/);
+  assert.match(contentSource, /const showPin = \(\{ locked = false,\s*isolate = false \} = \{\}\) =>/);
+  assert.match(contentSource, /const issueKeys = parseIssueKeysDataset\(item\.dataset\.issueKeys\);/);
+  assert.match(contentSource, /const isolatedEntries = getVisibleIssueEntriesByKeys\(issueKeys\);/);
+  assert.match(contentSource, /applyVisibleIssueHighlights\(isolatedEntries\.length \? isolatedEntries : \[entry\]\);/);
+  assert.match(contentSource, /function\s+renderViolationPins\(entries = \[\]\)/);
+  assert.match(contentSource, /function\s+getOrderedViolationPinEntries\(entries = \[\]\)/);
+  assert.match(contentSource, /\.sort\(\(a, b\) => a\.top - b\.top \|\| a\.left - b\.left \|\| a\.index - b\.index\)/);
+  assert.match(contentSource, /const label = String\(index \+ 1\);/);
+  assert.match(contentSource, /const title = `위반 요소 \$\{label\}`;/);
+  assert.match(contentSource, /setActiveViolationPins\(isolatedEntries\.length \? isolatedEntries : \[entry\], \{ locked \}\);/);
+  assert.match(contentSource, /if \(activeIsolatedIssueKey === issueKey\) \{[\s\S]*applyVisibleIssueHighlights\(\);[\s\S]*return;/);
   assert.match(contentSource, /item\.onmouseenter = \(\) => showToolbarButtonTooltip\(item\);/);
   assert.match(contentSource, /item\.onfocus = \(\) => showToolbarButtonTooltip\(item\);/);
   assert.match(contentSource, /item\.onmouseleave = hideTooltip;/);
   assert.doesNotMatch(contentSource, /item\.onmouseenter = \(\) => \{[\s\S]*showPin\(\)/);
   assert.doesNotMatch(contentSource, /const showPin = \(\{ locked = false \} = \{\}\) => \{[\s\S]*?showInspectorCardForEntries\(entry\.element, \[entry\]\)[\s\S]*?return entry;/);
-  assert.match(contentSource, /const entry = showPin\(\{ locked: true \}\);/);
+  assert.match(contentSource, /const entry = showPin\(\{ locked: true,\s*isolate: true \}\);/);
   assert.match(contentSource, /scrollToIssueElement\(entry\)/);
 });
 
@@ -116,6 +126,31 @@ test('overlay exposes visible keyboard focus states for summary controls', () =>
   assert.match(styleSource, /outline: 2px solid/);
 });
 
+test('spacing violations expose directional padding and margin markers', () => {
+  const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
+  const styleSource = fs.readFileSync(path.join(__dirname, 'overlay.css'), 'utf8');
+
+  assert.match(contentSource, /function\s+getSpacingIssueMetadata\(entries = \[\]\)/);
+  assert.match(contentSource, /data-fds-spacing-kind/);
+  assert.match(contentSource, /data-fds-spacing-sides/);
+  assert.match(contentSource, /data-fds-spacing-label/);
+  assert.match(contentSource, /function\s+applyElementSpacingAreaVariables\(element, spacingMetadata\)/);
+  assert.match(contentSource, /--fds-spacing-area-\$\{side\}/);
+  assert.match(contentSource, /element\.style\.position = 'relative'/);
+  assert.match(styleSource, /\.fds-violation\[data-fds-category="spacing"\]::before/);
+  assert.match(styleSource, /\[data-fds-spacing-kind="padding"\]::before/);
+  assert.match(styleSource, /\[data-fds-spacing-kind="margin"\]::before/);
+  assert.match(styleSource, /\.fds-inspected\.fds-hover-target\s*\{[\s\S]*outline:\s*2px dashed #ff5b5b !important/);
+  assert.match(styleSource, /\.fds-inspected\.fds-hover-target\.fds-violation-warning\s*\{[\s\S]*outline-color:\s*#ffbb3d !important/);
+  assert.match(styleSource, /\.fds-inspected\.fds-hover-target\[data-fds-category="spacing"\]\s*\{[\s\S]*outline-color:\s*#f59e0b !important/);
+  assert.doesNotMatch(styleSource, /\.fds-inspected\.fds-hover-target\s*\{[^}]*#3182f6/);
+  assert.doesNotMatch(styleSource, /\.fds-inspected\.fds-hover-target\s*\{[^}]*outline:\s*2px solid/);
+  assert.match(styleSource, /top \/ 100% var\(--fds-spacing-area-top, 0px\) no-repeat/);
+  assert.match(styleSource, /right \/ var\(--fds-spacing-area-right, 0px\) 100% no-repeat/);
+  assert.match(styleSource, /calc\(var\(--fds-spacing-area-top, 0px\) \* -1\)/);
+  assert.doesNotMatch(styleSource, /\.fds-violation\[data-fds-category="spacing"\][^{]*::after/);
+});
+
 test('overlay shields the page from hover and click interactions while inspecting results', () => {
   const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
   const toolbarUiSource = fs.readFileSync(path.join(__dirname, 'content-toolbar-ui.js'), 'utf8');
@@ -123,6 +158,11 @@ test('overlay shields the page from hover and click interactions while inspectin
 
   assert.match(contentSource, /<div id="fds-page-interaction-shield" class="fds-page-interaction-shield" aria-hidden="true"><\/div>/);
   assert.match(contentSource, /function\s+bindPageInteractionShieldEvents\(root = document\.getElementById\('fds-root'\)\)/);
+  assert.match(contentSource, /shield\.addEventListener\('wheel', handlePageInteractionShieldWheel, \{ capture: true, passive: false \}\)/);
+  assert.match(contentSource, /function\s+getElementUnderShield\(shield, clientX, clientY\)/);
+  assert.match(contentSource, /function\s+getScrollableAncestor\(element, deltaX = 0, deltaY = 0\)/);
+  assert.match(contentSource, /function\s+handlePageInteractionShieldWheel\(event\)/);
+  assert.match(contentSource, /scrollTarget\.scrollBy\(\{[\s\S]*left: event\.deltaX,[\s\S]*top: event\.deltaY/);
   assert.match(contentSource, /'pointerover'[\s\S]*'pointermove'[\s\S]*'mouseover'[\s\S]*'mousemove'[\s\S]*'click'[\s\S]*'contextmenu'/);
   assert.match(contentSource, /event\.stopPropagation\(\);[\s\S]*eventName === 'click'[\s\S]*event\.preventDefault\(\)/);
   assert.match(contentSource, /mountPoint\.appendChild\(root\);[\s\S]*bindPageInteractionShieldEvents\(root\);/);
@@ -137,6 +177,37 @@ test('overlay shields the page from hover and click interactions while inspectin
   assert.match(styleSource, /\.fds-summary-card\s*\{[\s\S]*z-index:\s*2147483645/);
   assert.match(styleSource, /\.fds-card\s*\{[\s\S]*z-index:\s*2147483646/);
   assert.match(styleSource, /#fds-root \.fds-toolbar\s*\{[\s\S]*z-index:\s*2147483647/);
+});
+
+test('active summary detail items use the same background color as violation pins', () => {
+  const styleSource = fs.readFileSync(path.join(__dirname, 'overlay.css'), 'utf8');
+
+  assert.match(styleSource, /\.fds-issue-pin\.danger\s*\{[\s\S]*--fds-issue-pin-bg:\s*#D84936;[\s\S]*background:\s*var\(--fds-issue-pin-bg\)/);
+  assert.match(styleSource, /\.fds-issue-pin\.warning\s*\{[\s\S]*--fds-issue-pin-bg:\s*#D49C13;[\s\S]*background:\s*var\(--fds-issue-pin-bg\)/);
+  assert.doesNotMatch(styleSource, /\.fds-list-group\.danger\s*\{[^}]*--fds-list-pin-bg:\s*#D84936/);
+  assert.doesNotMatch(styleSource, /\.fds-list-group\.warning\s*\{[^}]*--fds-list-pin-bg:\s*#D49C13/);
+  assert.doesNotMatch(styleSource, /\.fds-list-group\.is-expanded\s*\{[^}]*background:\s*#D84936/);
+  assert.doesNotMatch(styleSource, /\.fds-list-group\.is-expanded\s*\{[^}]*background:\s*#D49C13/);
+  assert.match(styleSource, /\.fds-list-item\.danger\s*\{[\s\S]*--fds-list-pin-bg:\s*#D84936/);
+  assert.match(styleSource, /\.fds-list-item\.warning\s*\{[\s\S]*--fds-list-pin-bg:\s*#D49C13/);
+  assert.match(styleSource, /\.fds-list-item\.is-pin-active\s*\{[\s\S]*background:\s*var\(--fds-list-pin-bg\)/);
+  assert.match(styleSource, /\.fds-list-item\.danger\.is-pin-active,[\s\S]*?\.fds-list-item\.danger\.is-pin-active:hover,[\s\S]*?\.fds-list-item\.danger\.is-pin-active:focus-visible\s*\{[\s\S]*background:\s*#D84936/);
+  assert.match(styleSource, /\.fds-list-item\.warning\.is-pin-active,[\s\S]*?\.fds-list-item\.warning\.is-pin-active:hover,[\s\S]*?\.fds-list-item\.warning\.is-pin-active:focus-visible\s*\{[\s\S]*background:\s*#D49C13/);
+  assert.doesNotMatch(styleSource, /\.fds-list-item\.danger:hover,[\s\S]*?\.fds-list-item\.danger\.is-pin-active\s*\{/);
+  assert.doesNotMatch(styleSource, /\.fds-list-item\.warning:hover,[\s\S]*?\.fds-list-item\.warning\.is-pin-active\s*\{/);
+});
+
+test('summary panel cards and lists render without borders', () => {
+  const styleSource = fs.readFileSync(path.join(__dirname, 'overlay.css'), 'utf8');
+
+  assert.match(styleSource, /\.fds-summary-card\s*\{[\s\S]*border:\s*none/);
+  assert.match(styleSource, /\.fds-stat-box\s*\{[\s\S]*border:\s*none/);
+  assert.doesNotMatch(styleSource, /\.fds-stat-box\.(danger|success|warning)(?:\.[^{\s]+)?\s*\{[^}]*border-color:/);
+  assert.match(styleSource, /\.fds-list-group\s*\{[\s\S]*border:\s*none/);
+  assert.match(styleSource, /\.fds-list-item\s*\{[\s\S]*border:\s*none/);
+  assert.match(styleSource, /\.fds-list-group-details\s*\{[\s\S]*border-left:\s*none/);
+  assert.doesNotMatch(styleSource, /\.fds-list-group\.(danger|success|warning)\s*\{[^}]*border-color:/);
+  assert.doesNotMatch(styleSource, /\.fds-list-item\.(danger|success|warning)(?:\.[^{\s]+)?\s*\{[^}]*border-color:/);
 });
 
 test('overlay keeps group rows focused on value and count', () => {
@@ -219,6 +290,14 @@ test('content wires motion feedback into panel, inspector, pin, and copy interac
   assert.match(contentSource, /getFDSMotion\(\)\?\.animateSummaryRefresh\?\.?\(panel/);
   assert.match(contentSource, /getFDSMotion\(\)\?\.animateInspectorCard\?\.?\(card\)/);
   assert.match(contentSource, /getFDSMotion\(\)\?\.animatePin\?\.?\(pin\)/);
+  assert.match(contentSource, /function\s+getLucideIconSvg\(name, className = 'fds-icon-inline'\)/);
+  assert.match(contentSource, /function\s+setTokenCopyButtonState\(button, state = 'copy'\)/);
+  assert.match(contentSource, /function\s+showCopyToast\(message = '토큰이 복사되었습니다\.'\)/);
+  assert.match(contentSource, /function\s+scheduleTokenCopyButtonReset\(button\)/);
+  assert.match(contentSource, /getLucideIconSvg\(isCopied \? 'check' : 'copy', 'fds-token-copy-icon'\)/);
+  assert.match(contentSource, /showCopyToast\('토큰이 복사되었습니다\.'\)/);
+  assert.match(contentSource, /setTokenCopyButtonState\(button, 'copied'\)/);
+  assert.match(contentSource, /scheduleTokenCopyButtonReset\(button\)/);
   assert.match(contentSource, /getFDSMotion\(\)\?\.animateCopySuccess\?\.?\(button\)/);
 });
 
@@ -425,12 +504,20 @@ test('inspector hover card uses the violation type as its title', () => {
   assert.doesNotMatch(contentSource, /경고 감지/);
   assert.doesNotMatch(contentSource, /const targetLabel = getViolationPinLabel\(\{ element: target \}\)/);
   assert.doesNotMatch(contentSource, /<div class="fds-card-subtitle">\$\{target\.tagName\.toLowerCase\(\)\}<\/div>/);
-  assert.match(styleSource, /\.fds-card\s*\{[\s\S]*padding:\s*10px/);
+  assert.match(styleSource, /\.fds-card\s*\{[\s\S]*background:\s*#0F131A/);
+  assert.doesNotMatch(styleSource, /\.fds-card\s*\{[^}]*background:\s*rgba\(15,\s*19,\s*26,\s*0\.\d+\)/);
+  assert.match(styleSource, /\.fds-card\s*\{[\s\S]*border:\s*none/);
+  assert.match(styleSource, /\.fds-card\s*\{[\s\S]*padding:\s*12px/);
   assert.match(styleSource, /\.fds-card\s*\{[\s\S]*display:\s*flex/);
   assert.match(styleSource, /\.fds-card\s*\{[\s\S]*flex-direction:\s*column/);
   assert.match(styleSource, /\.fds-card\s*\{[\s\S]*gap:\s*8px/);
   assert.match(styleSource, /\.fds-card-head\s*\{[\s\S]*margin-bottom:\s*0/);
   assert.match(styleSource, /\.fds-card-body\s*\{[\s\S]*gap:\s*6px/);
+  assert.match(styleSource, /\.fds-issue-item\s*\{[\s\S]*background:\s*transparent/);
+  assert.match(styleSource, /\.fds-issue-item\s*\{[\s\S]*border:\s*none/);
+  assert.match(styleSource, /\.fds-issue-replacement\s*\{[\s\S]*border-top:\s*none/);
+  assert.doesNotMatch(styleSource, /\.fds-card\.(danger|success|warning)\s+\.fds-issue-item\s*\{[^}]*background:/);
+  assert.doesNotMatch(styleSource, /\.fds-card\.(danger|success|warning)\s+\.fds-issue-item\s*\{[^}]*border-color:/);
   assert.doesNotMatch(styleSource, /\.fds-card-tone/);
   assert.match(styleSource, /\.fds-card-title\s*\{[\s\S]*text-overflow:\s*ellipsis/);
 });
@@ -447,6 +534,9 @@ test('inspector hover card separates issue value from repeated violation type co
   assert.match(contentSource, /<strong class="fds-issue-value">\$\{escapeHtml\(issueDisplay\.value\)\}<\/strong>/);
   assert.match(contentSource, /<span class="fds-issue-description">\$\{escapeHtml\(issueDisplay\.description\)\}<\/span>/);
   assert.match(contentSource, /<span class="fds-issue-tip"><svg class="fds-issue-tip-icon" data-lucide="info"[\s\S]*<span>\$\{escapeHtml\(issueDisplay\.tip\)\}<\/span><\/span>/);
+  assert.match(contentSource, /<button class="fds-token-copy"[\s\S]*data-lucide="\$\{escapeHtml\(name\)\}"/);
+  assert.doesNotMatch(contentSource, />토큰명 복사<\/button>/);
+  assert.doesNotMatch(contentSource, /<span>대체 토큰<\/span>/);
   assert.doesNotMatch(contentSource, /<div class="fds-issue-message">\$\{escapeHtml\(entry\.message\)\}<\/div>/);
   assert.match(styleSource, /\.fds-issue-message\s*\{[\s\S]*flex-direction:\s*column/);
   assert.match(styleSource, /\.fds-issue-value\s*\{[\s\S]*font-weight:\s*800/);
@@ -456,6 +546,15 @@ test('inspector hover card separates issue value from repeated violation type co
   assert.match(styleSource, /\.fds-issue-tip\s*\{[\s\S]*color:\s*#75bef8/);
   assert.match(styleSource, /\.fds-issue-tip-icon\s*\{[\s\S]*width:\s*12px/);
   assert.doesNotMatch(styleSource, /\.fds-issue-tip-icon\s*\{[^}]*margin-top/);
+  assert.match(styleSource, /\.fds-issue-replacement\s*\{[\s\S]*align-items:\s*center/);
+  assert.match(styleSource, /\.fds-issue-replacement strong\s*\{[\s\S]*flex:\s*1 1 auto/);
+  assert.match(styleSource, /\.fds-token-copy\s*\{[\s\S]*width:\s*22px/);
+  assert.match(styleSource, /\.fds-token-copy\s*\{[\s\S]*border:\s*none/);
+  assert.doesNotMatch(styleSource, /\.fds-token-copy(?:\[data-state="copied"\]|:hover|:focus-visible)?\s*\{[^}]*border-color:/);
+  assert.match(styleSource, /\.fds-token-copy-icon\s*\{[\s\S]*width:\s*14px/);
+  assert.match(styleSource, /\.fds-token-copy\[data-state="copied"\]\s*\{[\s\S]*color:\s*#43C971/);
+  assert.match(styleSource, /\.fds-copy-toast\s*\{[\s\S]*position:\s*fixed/);
+  assert.match(styleSource, /\.fds-copy-toast\[data-visible="true"\]\s*\{[\s\S]*opacity:\s*1/);
 });
 
 test('inspector hover card anchors to violation elements instead of summary list rows', () => {
@@ -463,8 +562,34 @@ test('inspector hover card anchors to violation elements instead of summary list
 
   assert.match(contentSource, /function\s+showInspectorCardForEntries\(target,\s*issueEntries,\s*anchorElement\s*=\s*target\)/);
   assert.match(contentSource, /const\s+anchorRect\s*=\s*\(anchorElement\s*\|\|\s*target\)\.getBoundingClientRect\(\)/);
+  assert.match(contentSource, /const cardHead = card\.querySelector\('\.fds-card-head'\)/);
+  assert.match(contentSource, /cardHead\.onpointerdown = beginInspectorCardDrag/);
+  assert.match(contentSource, /if \(!applyCustomInspectorCardPosition\(card\)\) \{[\s\S]*placeFloatingElement\(card/);
+  assert.match(contentSource, /const shouldAnimateCard = card\.style\.display !== 'block' \|\| card\.dataset\.issueKeys !== nextIssueKeys/);
+  assert.match(contentSource, /if \(shouldAnimateCard\) \{[\s\S]*getFDSMotion\(\)\?\.animateInspectorCard\?\.?\(card\)/);
   assert.doesNotMatch(contentSource, /showInspectorCardForEntries\(entry\.element,\s*\[entry\],\s*item\)/);
   assert.match(contentSource, /showInspectorCardForEntries\(entry\.element,\s*\[entry\]\)/);
+});
+
+test('inspector card can be moved by dragging its header', () => {
+  const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
+  const styleSource = fs.readFileSync(path.join(__dirname, 'overlay.css'), 'utf8');
+
+  assert.match(contentSource, /let\s+inspectorCardDragState\s*=\s*null/);
+  assert.match(contentSource, /let\s+customInspectorCardPosition\s*=\s*null/);
+  assert.match(contentSource, /function\s+beginInspectorCardDrag\(event\)/);
+  assert.match(contentSource, /event\.target\?\.closest\?\.\('#fds-inspector-card \.fds-card-head'\)/);
+  assert.match(contentSource, /card\.setPointerCapture\?\.\(event\.pointerId\)/);
+  assert.match(contentSource, /function\s+moveInspectorCardDrag\(event\)/);
+  assert.match(contentSource, /customInspectorCardPosition = nextPosition/);
+  assert.match(contentSource, /function\s+stopInspectorCardDrag\(\)/);
+  assert.match(contentSource, /customInspectorCardPosition = \{ left: Math\.round\(rect\.left\), top: Math\.round\(rect\.top\) \}/);
+  assert.match(contentSource, /window\.addEventListener\('pointermove', moveInspectorCardDrag\)/);
+  assert.match(contentSource, /window\.addEventListener\('pointerup', stopInspectorCardDrag\)/);
+  assert.match(contentSource, /window\.addEventListener\('resize'[\s\S]*applyCustomInspectorCardPosition\(\)/);
+  assert.match(styleSource, /body\.fds-inspector-card-dragging\s*\{[\s\S]*cursor:\s*grabbing/);
+  assert.match(styleSource, /\.fds-card-head\s*\{[\s\S]*cursor:\s*grab/);
+  assert.match(styleSource, /\.fds-card\.is-dragging \.fds-card-head\s*\{[\s\S]*cursor:\s*grabbing/);
 });
 
 test('inspector card moves the summary panel away when they overlap', () => {
@@ -496,17 +621,50 @@ test('violation pin placement avoids overlapping the inspector card', () => {
 
   assert.match(floatingInspectorSource, /function\s+getBestPinPosition\(rect,\s*pinWidth,\s*pinHeight,\s*avoidRect\s*=\s*null\)/);
   assert.match(floatingInspectorSource, /getRectOverlapArea\(candidate\.rect,\s*avoidRect\)/);
-  assert.match(contentSource, /positionViolationPin\([\s\S]*\{\s*avoidElement:\s*card\s*\}\)/);
+  assert.match(contentSource, /const pinnedEntries = getPinnedIssueEntries\(\)/);
+  assert.match(contentSource, /positionViolationPin\(pinnedEntries\.length \? pinnedEntries : issueEntries,\s*\{\s*avoidElement:\s*card\s*\}\)/);
 });
 
 test('active violation pin follows nested app scroll and clears stale targets', () => {
   const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
 
   assert.match(contentSource, /let\s+violationPinPositionFrame\s*=\s*null/);
+  assert.match(contentSource, /let\s+inspectorPreviewPositionFrame\s*=\s*null/);
   assert.match(contentSource, /function\s+scheduleViolationPinPositionUpdate\(\)/);
-  assert.match(contentSource, /document\.addEventListener\('scroll'[\s\S]*scheduleViolationPinPositionUpdate\(\)[\s\S]*\{\s*passive:\s*true,\s*capture:\s*true\s*\}/);
-  assert.match(contentSource, /if \(!pin \|\| !entry\?\.element\?\.isConnected\) \{[\s\S]*clearActiveViolationPin\(\);[\s\S]*return;[\s\S]*\}/);
-  assert.match(contentSource, /if \(!isViolationPinTargetVisible\(rect\)\) \{[\s\S]*clearActiveViolationPin\(\);[\s\S]*return;[\s\S]*\}/);
+  assert.match(contentSource, /function\s+scheduleInspectorPreviewPositionUpdate\(\)/);
+  assert.match(contentSource, /document\.addEventListener\('scroll'[\s\S]*scheduleInspectorPreviewPositionUpdate\(\)[\s\S]*\{\s*passive:\s*true,\s*capture:\s*true\s*\}/);
+  assert.match(contentSource, /window\.addEventListener\('resize'[\s\S]*scheduleInspectorPreviewPositionUpdate\(\)/);
+  assert.doesNotMatch(contentSource, /window\.addEventListener\('resize'[\s\S]*hideInspectorCard\(\)[\s\S]*scheduleInspectorPreviewPositionUpdate\(\)/);
+  assert.doesNotMatch(contentSource, /document\.addEventListener\('scroll'[\s\S]*hideInspectorCard\(\)[\s\S]*scheduleInspectorPreviewPositionUpdate\(\)/);
+  assert.match(contentSource, /function\s+getPinnedIssueEntries\(\)/);
+  assert.match(contentSource, /function\s+getInspectorCardIssueEntries\(\)/);
+  assert.match(contentSource, /const issueKeys = String\(card\?\.dataset\?\.issueKeys \|\| ''\)\.split\('\\n'\)\.filter\(Boolean\)/);
+  assert.match(contentSource, /function\s+refreshActiveInspectorPreviewPosition\(\)[\s\S]*clearInspectorCardHideTimer\(\)/);
+  assert.match(contentSource, /refreshActiveInspectorPreviewPosition\(\)[\s\S]*restoreLockedViolationPin\(getVisibleIssueEntries\(\)\)/);
+  assert.match(contentSource, /refreshActiveInspectorPreviewPosition\(\)[\s\S]*showInspectorCardForEntries\(cardEntries\[0\]\.element,\s*cardEntries\)/);
+  assert.match(contentSource, /const targetEntries = Array\.isArray\(entry\)/);
+  assert.match(contentSource, /let\s+lockedPinnedIssueKeys\s*=\s*\[\]/);
+  assert.match(contentSource, /lockedPinnedIssueKeys\s*=\s*connectedEntries\.map\(\(item\) => item\.key\)/);
+  assert.match(contentSource, /function\s+clearHoveredInspectionTarget\(\) \{[\s\S]*document\.querySelectorAll\('\.fds-hover-target'\)/);
+  assert.match(contentSource, /function\s+clearActiveViolationPin\(\) \{[\s\S]*document\.querySelectorAll\('\.fds-spacing-focus'\)/);
+  assert.match(contentSource, /const lockedKeySet = new Set\(lockedPinnedIssueKeys\.length \? lockedPinnedIssueKeys : \[lockedPinnedIssueKey\]\)/);
+  assert.match(contentSource, /setActiveViolationPins\(lockedEntries,\s*\{\s*locked:\s*true\s*\}\)/);
+  assert.match(contentSource, /showInspectorCardForEntries\(lockedEntries\[0\]\.element,\s*\[lockedEntries\[0\]\]\)/);
+  assert.match(contentSource, /const shouldReplacePins = layer\.dataset\.issueKeys !== nextIssueKeys/);
+  assert.match(contentSource, /if \(shouldReplacePins\) \{[\s\S]*layer\.innerHTML = connectedEntries\.map/);
+  assert.match(contentSource, /if \(shouldReplacePins\) \{[\s\S]*getFDSMotion\(\)\?\.animatePin\?\.?\(pin\)/);
+  assert.match(contentSource, /if \(!targetEntries\.length\) \{[\s\S]*clearActiveViolationPin\(\);[\s\S]*return;[\s\S]*\}/);
+  assert.match(contentSource, /if \(!isViolationPinTargetVisible\(rect\)\) \{[\s\S]*pin\.style\.display = 'none';[\s\S]*return;/);
+  assert.match(contentSource, /if \(!visiblePinCount\) \{[\s\S]*clearActiveViolationPin\(\);[\s\S]*\}/);
+});
+
+test('inspector card hover area is protected from document-level mouse clearing', () => {
+  const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
+
+  assert.match(contentSource, /document\.addEventListener\('mouseover'[\s\S]*event\.target\?\.closest\?\.\('#fds-inspector-card'\)[\s\S]*clearInspectorCardHideTimer\(\)[\s\S]*return/);
+  assert.match(contentSource, /document\.addEventListener\('mouseout'[\s\S]*relatedTarget\?\.closest\?\.\('#fds-inspector-card'\)[\s\S]*return/);
+  assert.match(contentSource, /document\.addEventListener\('mouseout'[\s\S]*event\.target\?\.closest\?\.\('#fds-inspector-card'\)[\s\S]*scheduleTransientInspectorPreviewClear\(\)[\s\S]*return/);
+  assert.match(contentSource, /document\.addEventListener\('mouseout'[\s\S]*if \(isInspectorCardVisible\(\)\) \{[\s\S]*scheduleTransientInspectorPreviewClear\(\);[\s\S]*return;/);
 });
 
 test('inspector token text can wrap instead of hiding long token candidates', () => {
@@ -662,7 +820,7 @@ test('scan runner deduplicates issue entries by key before counting visible resu
     isElementVisible: () => true,
     getStyles: () => ({}),
     inspectElement: () => ({
-      issues: ['패딩 14px (비규격)'],
+      issues: ['패딩 14px (미등록)'],
       suggestions: [],
     }),
     addIssueEntry: ({ category, message }) => ({
@@ -679,7 +837,7 @@ test('scan runner deduplicates issue entries by key before counting visible resu
 
   assert.equal(result.counts.spacing, 1);
   assert.equal(result.issueEntries.length, 1);
-  assert.deepEqual(result.violations, ['패딩 14px (비규격)']);
+  assert.deepEqual(result.violations, ['패딩 14px (미등록)']);
 });
 
 test('scan runner yields when the batch time budget is exceeded', async () => {
