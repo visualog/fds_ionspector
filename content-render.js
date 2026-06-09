@@ -87,6 +87,10 @@
       return model.items.map((item) => renderToolbarModelItem(item, model)).join('');
     }
 
+    function getViolationToneFromSuffix(suffix, fallback = 'warning') {
+      return suffix === '미등록' ? 'danger' : fallback;
+    }
+
     function parseViolationItem(item) {
       const text = String(item || '');
       const patterns = [
@@ -110,12 +114,13 @@
           const chip = typeof pattern.chip === 'function' ? pattern.chip(...match) : pattern.chip;
           const valueIndex = typeof pattern.chip === 'function' ? 2 : 1;
           const tagIndex = typeof pattern.chip === 'function' ? 3 : 2;
+          const suffix = match[tagIndex];
           return {
             chip,
-            tone: pattern.tone,
+            tone: getViolationToneFromSuffix(suffix, pattern.tone),
             value: match[valueIndex],
-            suffix: match[tagIndex],
-            tag: match[tagIndex],
+            suffix,
+            tag: suffix,
             valueLabel: pattern.valueLabel,
           };
         }
@@ -132,6 +137,9 @@
     }
 
     function getIssueElementLabel(item) {
+      if (typeof item === 'object' && typeof item?.elementLabel === 'string' && item.elementLabel.trim()) {
+        return item.elementLabel;
+      }
       const element = typeof item === 'object' ? item?.element : null;
       const tagName = element?.tagName?.toLowerCase?.() || 'element';
       const idPart = element?.id ? `#${element.id}` : '';
@@ -293,16 +301,20 @@
       const parsed = parseViolationItem(message);
       const tone = typeof item === 'object' && item?.tone ? item.tone : parsed.tone;
       const issueKey = typeof item === 'object' && item?.key ? item.key : '';
+      const issueKeys = Array.isArray(item?.issueKeys) && item.issueKeys.length ? item.issueKeys : issueKey ? [issueKey] : [];
       const badgeLabel = parsed.tag || parsed.chip;
       const elementLabel = getIssueElementLabel(item);
-      const itemLabel = `${elementLabel}, ${parsed.chip} ${badgeLabel}, ${parsed.value}. 클릭하면 해당 요소로 이동합니다.`;
+      const elementCount = Number(typeof item === 'object' ? item?.elementCount : 0);
+      const countSuffix = elementCount > 1 ? ` · ${formatDisplayCount(elementCount)}개 요소` : '';
+      const displayElementLabel = `${elementLabel}${countSuffix}`;
+      const itemLabel = `${displayElementLabel}, ${parsed.chip} ${badgeLabel}, ${parsed.value}. 클릭하면 대표 요소로 이동합니다.`;
       const tooltipLabel = '요소로 이동';
       return `
-    <button class="fds-list-item ${tone}" type="button" role="listitem" data-issue-key="${escapeHtml(issueKey)}" data-tooltip="${escapeHtml(tooltipLabel)}" aria-label="${escapeHtml(itemLabel)}">
+    <button class="fds-list-item ${tone}" type="button" role="listitem" data-issue-key="${escapeHtml(issueKey)}" data-issue-keys="${escapeHtml(JSON.stringify(issueKeys))}" data-tooltip="${escapeHtml(tooltipLabel)}" aria-label="${escapeHtml(itemLabel)}">
       <span class="fds-list-label">
         <span class="fds-list-label-icon" aria-hidden="true">${renderAssetIcon('warning', 'warning')}</span>
         <span class="fds-list-label-text">
-          <span class="fds-list-element">${escapeHtml(elementLabel)}</span>
+          <span class="fds-list-element">${escapeHtml(displayElementLabel)}</span>
         </span>
       </span>
     </button>

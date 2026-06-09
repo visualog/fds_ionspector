@@ -77,6 +77,38 @@
       ].join('::');
     }
 
+    function getEntryElementLabel(entry) {
+      const element = entry?.element;
+      const tagName = element?.tagName?.toLowerCase?.() || 'element';
+      const idPart = element?.id ? `#${element.id}` : '';
+      const classPart = typeof element?.className === 'string' && element.className.trim()
+        ? `.${element.className.trim().split(/\s+/).slice(0, 1).join('.')}`
+        : '';
+      return `${tagName}${idPart}${classPart}`;
+    }
+
+    function aggregateIssueDetailEntries(entries = []) {
+      const entriesByElementLabel = new Map();
+
+      entries.forEach((entry) => {
+        const elementLabel = getEntryElementLabel(entry);
+        const key = `${entry?.message || ''}::${elementLabel}`;
+        if (!entriesByElementLabel.has(key)) {
+          entriesByElementLabel.set(key, {
+            ...entry,
+            elementLabel,
+            elementCount: 0,
+            issueKeys: [],
+          });
+        }
+        const aggregatedEntry = entriesByElementLabel.get(key);
+        aggregatedEntry.elementCount += 1;
+        if (entry?.key) aggregatedEntry.issueKeys.push(entry.key);
+      });
+
+      return [...entriesByElementLabel.values()];
+    }
+
     function groupIssueEntries(entries = []) {
       const groupsByKey = new Map();
 
@@ -101,6 +133,7 @@
         .map((group) => ({
           ...group,
           count: group.entries.length,
+          detailEntries: aggregateIssueDetailEntries(group.entries),
           expanded: expandedIssueGroupKeys.has(group.key),
         }))
         .sort((a, b) => b.count - a.count || String(a.value).localeCompare(String(b.value)));
@@ -159,6 +192,7 @@
       getColorSummaryTabs,
       getSummaryListRenderKey,
       getIssueGroupKey,
+      aggregateIssueDetailEntries,
       groupIssueEntries,
     };
   }

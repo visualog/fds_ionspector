@@ -267,11 +267,10 @@ async function injectInspector(cdp, baseUrl) {
             return { status: 'success', state: payload.state };
           }
           if (payload?.action === 'SNAPSHOT_TOKEN_SPECS') {
-            const [mode, fasoo, light, dark] = await Promise.all([
-              fetch('${baseUrl}/tokens/mode.json').then((response) => response.json()),
-              fetch('${baseUrl}/tokens/Fasoo.json').then((response) => response.json()),
-              fetch('${baseUrl}/tokens/Light.json').then((response) => response.json()),
-              fetch('${baseUrl}/tokens/Dark.json').then((response) => response.json()),
+            const [primitives, theme, semantic] = await Promise.all([
+              fetch('${baseUrl}/tokens/0.1.primitives.json').then((response) => response.json()),
+              fetch('${baseUrl}/tokens/0.2.theme.json').then((response) => response.json()),
+              fetch('${baseUrl}/tokens/1.0.semantic.json').then((response) => response.json()),
             ]);
             return {
               status: 'success',
@@ -279,7 +278,7 @@ async function injectInspector(cdp, baseUrl) {
               source: 'snapshot',
               fileName: 'tokens/*.json',
               pageName: null,
-              specs: window.FDSSnapshotTokenSource.buildSnapshotTokenSpecs({ mode, fasoo, light, dark }),
+              specs: window.FDSSnapshotTokenSource.buildSnapshotTokenSpecs({ primitives, theme, semantic }),
             };
           }
           return null;

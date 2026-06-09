@@ -75,3 +75,51 @@ test('summary model groups issue entries and preserves expanded group state in r
   assert.match(renderKey, /bg-danger-1/);
   assert.match(renderKey, /color::bg::danger/);
 });
+
+test('summary model aggregates expanded details by class while preserving affected element count', () => {
+  const repeatedElement = (index) => ({
+    tagName: 'DIV',
+    className: 'css-1jpkuk3 chakra-box',
+    textContent: `menu-${index}`,
+  });
+  const { model } = createModelState({
+    activeFilter: 'spacing',
+    activeSummaryTone: 'warning',
+    scanData: {
+      issueEntries: [
+        {
+          key: 'spacing-1',
+          category: 'spacing',
+          tone: 'warning',
+          message: '오른쪽 패딩 16px (원시값 직접 사용: spacing/16)',
+          element: repeatedElement(1),
+        },
+        {
+          key: 'spacing-2',
+          category: 'spacing',
+          tone: 'warning',
+          message: '오른쪽 패딩 16px (원시값 직접 사용: spacing/16)',
+          element: repeatedElement(2),
+        },
+        {
+          key: 'spacing-3',
+          category: 'spacing',
+          tone: 'warning',
+          message: '오른쪽 패딩 16px (원시값 직접 사용: spacing/16)',
+          element: { tagName: 'INPUT', className: 'chakra-input' },
+        },
+      ],
+    },
+  });
+
+  const [group] = model.groupIssueEntries(model.getVisibleIssueEntries());
+
+  assert.equal(group.count, 3);
+  assert.deepEqual(
+    group.detailEntries.map((entry) => [entry.elementLabel, entry.elementCount, entry.key, entry.issueKeys]),
+    [
+      ['div.css-1jpkuk3', 2, 'spacing-1', ['spacing-1', 'spacing-2']],
+      ['input.chakra-input', 1, 'spacing-3', ['spacing-3']],
+    ]
+  );
+});

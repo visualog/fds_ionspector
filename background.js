@@ -17,10 +17,9 @@ const { buildBridgeColorRegistry, buildInspectorSpecOverrides } = globalThis.FDS
 const { buildSnapshotTokenSpecs } = globalThis.FDSSnapshotTokenSource;
 const BRIDGE_BASE_URL = 'http://127.0.0.1:3846';
 const SNAPSHOT_TOKEN_FILES = Object.freeze({
-  mode: 'tokens/mode.json',
-  fasoo: 'tokens/Fasoo.json',
-  light: 'tokens/Light.json',
-  dark: 'tokens/Dark.json',
+  primitives: 'tokens/0.1.primitives.json',
+  theme: 'tokens/0.2.theme.json',
+  semantic: 'tokens/1.0.semantic.json',
 });
 const activeTabStates = new Map();
 let snapshotTokenSpecsCache = null;

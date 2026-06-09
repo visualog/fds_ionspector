@@ -1144,9 +1144,38 @@ function setTokenCopyButtonState(button, state = 'copy') {
   button.setAttribute('aria-label', isCopied ? '토큰이 복사되었습니다.' : '토큰명 복사');
 }
 
+function positionCopyToastNearInspectorCard(toast, card = document.getElementById('fds-inspector-card')) {
+  if (!toast || !card) return;
+  const cardRect = card.getBoundingClientRect();
+  const toastRect = toast.getBoundingClientRect();
+  const margin = 12;
+  const gap = 8;
+  const toastWidth = toastRect.width || 160;
+  const toastHeight = toastRect.height || 28;
+  const left = clampPosition(
+    cardRect.left + cardRect.width / 2,
+    margin + toastWidth / 2,
+    Math.max(margin + toastWidth / 2, window.innerWidth - margin - toastWidth / 2)
+  );
+  const bottomTop = cardRect.bottom + gap;
+  const topTop = cardRect.top - gap - toastHeight;
+  const hasBottomRoom = bottomTop + toastHeight <= window.innerHeight - margin;
+  const hasTopRoom = topTop >= margin;
+  const top = hasBottomRoom
+    ? bottomTop
+    : hasTopRoom
+      ? topTop
+      : clampPosition(bottomTop, margin, Math.max(margin, window.innerHeight - margin - toastHeight));
+
+  toast.dataset.placement = hasBottomRoom ? 'bottom' : 'top';
+  toast.style.left = `${Math.round(left)}px`;
+  toast.style.top = `${Math.round(top)}px`;
+}
+
 function showCopyToast(message = '토큰이 복사되었습니다.') {
   const root = document.getElementById('fds-root');
-  if (!root) return;
+  const card = document.getElementById('fds-inspector-card');
+  if (!root || !card) return;
   let toast = root.querySelector('#fds-copy-toast');
   if (!toast) {
     toast = document.createElement('div');
@@ -1160,6 +1189,7 @@ function showCopyToast(message = '토큰이 복사되었습니다.') {
     window.clearTimeout(Number(toast.dataset.hideTimer));
   }
   toast.textContent = message;
+  positionCopyToastNearInspectorCard(toast, card);
   toast.dataset.visible = 'true';
   toast.dataset.hideTimer = String(window.setTimeout(() => {
     toast.dataset.visible = 'false';

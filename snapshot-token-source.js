@@ -22,6 +22,23 @@
     return null;
   }
 
+  function normalizeColorObject(value) {
+    if (!value || typeof value !== 'object') return null;
+
+    const hex = normalizeHexColor(value.hex);
+    if (hex) return hex;
+
+    if (Number.isFinite(value.red) && Number.isFinite(value.green) && Number.isFinite(value.blue)) {
+      return normalizeHexColor(
+        `#${[value.red, value.green, value.blue]
+          .map((channel) => Math.max(0, Math.min(255, Math.round(channel))).toString(16).padStart(2, '0'))
+          .join('')}`
+      );
+    }
+
+    return null;
+  }
+
   function appendToken(map, key, tokenName) {
     if (key == null || !tokenName) return;
     const normalizedKey = String(key);
@@ -81,9 +98,15 @@
     const normalized = {
       primitives: [],
       themes: {},
+      collections: [],
     };
 
     Object.entries(source).forEach(([rawKey, payload]) => {
+      if (Array.isArray(payload?.variables) && payload?.collection) {
+        normalized.collections.push(payload);
+        return;
+      }
+
       const key = ROOT_FILE_KEYS[String(rawKey).toLowerCase()] || String(rawKey).toLowerCase();
       if (key === 'light' || key === 'dark') {
         normalized.themes[key] = payload || {};
@@ -137,7 +160,7 @@
 
   function dimensionToPx(value, tokenName = '') {
     if (tokenName === 'radius.circle') return '9999px';
-    const text = String(value || '').trim().toLowerCase();
+    const text = String(value ?? '').trim().toLowerCase();
     if (!text) return null;
 
     if (text.endsWith('px')) {
@@ -195,6 +218,44 @@
       }
     }
 
+    function collectResolvedVariableValue(variable, value) {
+      const type = String(variable?.resolvedType || '').toUpperCase();
+      const tokenName = typeof variable?.name === 'string' ? variable.name : null;
+      if (!tokenName) return;
+
+      if (type === 'COLOR') {
+        appendToken(colors, normalizeColorObject(value) || normalizeHexColor(value), tokenName);
+        return;
+      }
+
+      if (type === 'FLOAT') {
+        const px = dimensionToPx(value, tokenName.replace(/\//g, '.'));
+        if (!px) return;
+        if (tokenName.startsWith('spacing/')) {
+          const numericPx = pxTextToNumber(px);
+          if (Number.isFinite(numericPx)) appendToken(spacingTokens, numericPx, tokenName);
+        } else if (tokenName.startsWith('radius/')) {
+          appendToken(radiusTokens, px, tokenName);
+        }
+      }
+    }
+
+    function collectVariable(variable) {
+      if (!variable || typeof variable !== 'object') return;
+      const resolvedValues = variable.resolvedValuesByMode && typeof variable.resolvedValuesByMode === 'object'
+        ? variable.resolvedValuesByMode
+        : variable.valuesByMode;
+
+      if (resolvedValues && typeof resolvedValues === 'object' && !Array.isArray(resolvedValues)) {
+        Object.values(resolvedValues).forEach((value) => collectResolvedVariableValue(variable, value));
+      }
+    }
+
+    snapshot.collections.forEach((collection) => {
+      if (!Array.isArray(collection?.variables)) return;
+      collection.variables.forEach(collectVariable);
+    });
+
     Object.entries(primitiveTokens).forEach(([path, token]) => collectToken(path, token, null));
     Object.entries(themeTokens).forEach(([themeName, tokens]) => {
       Object.entries(tokens).forEach(([path, token]) => collectToken(path, token, themeName));
@@ -218,6 +279,7 @@
       meta: {
         source: 'snapshot',
         themeCount: Object.keys(themeTokens).length,
+        collectionCount: snapshot.collections.length,
         colorTokenCount: Object.values(colors).reduce((sum, items) => sum + items.length, 0),
         spacingTokenCount: Object.values(spacingTokens).reduce((sum, items) => sum + items.length, 0),
         radiusTokenCount: Object.values(radiusTokens).reduce((sum, items) => sum + items.length, 0),

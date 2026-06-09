@@ -48,7 +48,7 @@ test('spacing inspection flags values outside the token scale', () => {
   const inspector = createInspector();
   const result = inspector.getInspectionForFilter('spacing', { paddingTop: '13px' }, {});
 
-  assert.deepEqual(result.issues, ['상단 패딩 13px (비규격)']);
+  assert.deepEqual(result.issues, ['상단 패딩 13px (미등록)']);
 });
 
 test('spacing inspection labels equal four-side padding as padding', () => {
@@ -60,7 +60,7 @@ test('spacing inspection labels equal four-side padding as padding', () => {
     paddingLeft: '14px',
   }, {});
 
-  assert.deepEqual(result.issues, ['패딩 14px (비규격)']);
+  assert.deepEqual(result.issues, ['패딩 14px (미등록)']);
 });
 
 test('spacing inspection labels directional padding when sides differ', () => {
@@ -72,7 +72,7 @@ test('spacing inspection labels directional padding when sides differ', () => {
     paddingLeft: '0px',
   }, {});
 
-  assert.deepEqual(result.issues, ['오른쪽 패딩 14px (비규격)']);
+  assert.deepEqual(result.issues, ['오른쪽 패딩 14px (미등록)']);
 });
 
 test('spacing inspection labels equal four-side margin as margin', () => {
@@ -84,7 +84,7 @@ test('spacing inspection labels equal four-side margin as margin', () => {
     marginLeft: '14px',
   }, {});
 
-  assert.deepEqual(result.issues, ['마진 14px (비규격)']);
+  assert.deepEqual(result.issues, ['마진 14px (미등록)']);
 });
 
 test('radius inspection warns when a token value is used as a raw value', () => {

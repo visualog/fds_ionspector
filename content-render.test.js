@@ -106,7 +106,7 @@ test('renderSummaryListItem parses and escapes violation messages', () => {
 test('renderSummaryListItem parses all-side padding violations', () => {
   const markup = renderers.renderSummaryListItem({
     key: 'spacing-1',
-    message: '패딩 14px (비규격)',
+    message: '패딩 14px (미등록)',
     tone: 'danger',
     element: {
       tagName: 'DIV',
@@ -116,31 +116,49 @@ test('renderSummaryListItem parses all-side padding violations', () => {
 
   assert.match(markup, /div\.card/);
   assert.doesNotMatch(markup, /<span class="fds-list-element">[^<]*패딩/);
-  assert.match(markup, /비규격/);
+  assert.match(markup, /미등록/);
   assert.match(markup, /14px/);
 });
 
+test('renderSummaryListItem shows aggregated class detail counts', () => {
+  const markup = renderers.renderSummaryListItem({
+    key: 'spacing-1',
+    message: '오른쪽 패딩 16px (원시값 직접 사용: spacing/16)',
+    tone: 'warning',
+    elementLabel: 'div.css-1jpkuk3',
+    elementCount: 7,
+    issueKeys: ['spacing-1', 'spacing-2'],
+  });
+
+  assert.match(markup, /div\.css-1jpkuk3 · 7개 요소/);
+  assert.match(markup, /data-issue-keys="\[&quot;spacing-1&quot;,&quot;spacing-2&quot;\]"/);
+  assert.match(markup, /대표 요소로 이동합니다/);
+});
+
 test('renderSummaryGroupItem can summarize all-side padding violations', () => {
-  const parsed = renderers.parseViolationItem('패딩 14px (비규격)');
+  const parsed = renderers.parseViolationItem('패딩 14px (미등록)');
 
   assert.equal(parsed.chip, '패딩');
-  assert.equal(parsed.tag, '비규격');
+  assert.equal(parsed.tag, '미등록');
+  assert.equal(parsed.tone, 'danger');
   assert.equal(parsed.value, '14px');
 });
 
 test('renderSummaryGroupItem can summarize directional padding violations', () => {
-  const parsed = renderers.parseViolationItem('오른쪽 패딩 14px (비규격)');
+  const parsed = renderers.parseViolationItem('오른쪽 패딩 14px (미등록)');
 
   assert.equal(parsed.chip, '오른쪽 패딩');
-  assert.equal(parsed.tag, '비규격');
+  assert.equal(parsed.tag, '미등록');
+  assert.equal(parsed.tone, 'danger');
   assert.equal(parsed.value, '14px');
 });
 
 test('renderSummaryGroupItem can summarize margin violations', () => {
-  const parsed = renderers.parseViolationItem('마진 14px (비규격)');
+  const parsed = renderers.parseViolationItem('마진 14px (미등록)');
 
   assert.equal(parsed.chip, '마진');
-  assert.equal(parsed.tag, '비규격');
+  assert.equal(parsed.tag, '미등록');
+  assert.equal(parsed.tone, 'danger');
   assert.equal(parsed.value, '14px');
 });
 
@@ -172,9 +190,9 @@ test('renderSummaryGroupItem summarizes and escapes grouped issues', () => {
 test('renderSummaryGroupItem keeps visible group rows focused on value and count', () => {
   const markup = renderers.renderSummaryGroupItem({
     key: 'spacing-right',
-    tone: 'warning',
+    tone: 'danger',
     chip: '오른쪽 패딩',
-    tag: '비규격',
+    tag: '미등록',
     value: '14px',
     count: 1,
   });

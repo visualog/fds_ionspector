@@ -39,7 +39,7 @@
       if (tokens.length) {
         issues.push(`${label} ${value}px (원시값 직접 사용${formatKnownTokenList(tokens)})`);
       } else if (!activeSpecs.spacing.includes(value)) {
-        issues.push(`${label} ${value}px (비규격)`);
+        issues.push(`${label} ${value}px (미등록)`);
       }
     }
 

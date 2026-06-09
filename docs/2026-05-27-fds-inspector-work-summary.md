@@ -9,15 +9,14 @@ FDS Inspector가 Figma xbridge에 의존하지 않고, 저장된 디자인 토�
 ### 1. 저장된 토큰 스냅샷 기반 검수
 
 - `tokens/` 폴더의 토큰 파일을 기준 소스로 사용하도록 구성했다.
-  - `tokens/mode.json`
-  - `tokens/Fasoo.json`
-  - `tokens/Light.json`
-  - `tokens/Dark.json`
+  - `tokens/0.1.primitives.json`
+  - `tokens/0.2.theme.json`
+  - `tokens/1.0.semantic.json`
 - `snapshot-token-source.js`를 추가해 토큰 스냅샷을 검사 가능한 registry/spec 형태로 변환했다.
 - alias resolve를 구현했다.
-  - 예: `Color.text.primary -> {dark.Gray.100} -> #e2e2e2`
-  - 예: `spacing.16 -> {Unit.16} -> 1rem`
-- `Light.json`과 `Dark.json`의 동일 path가 서로 덮어써지지 않도록 theme별 payload를 분리했다.
+  - 예: `Color/text/primary -> light/Blue/100 -> #252d38`
+  - 예: `spacing/16 -> 16px`
+- 원본 Figma 컬렉션 구조인 `0.1. primitives`, `0.2.theme*`, `1.0.semantic`을 보존해 collection/mode 메타를 함께 유지한다.
 - color, spacing, radius 기준을 content script가 사용할 수 있는 형태로 생성했다.
 - `SNAPSHOT_TOKEN_SPECS` runtime message를 추가해 background에서 content script로 스냅샷 spec을 전달하도록 했다.
 
