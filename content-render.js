@@ -22,6 +22,13 @@
       return `<img class="fds-icon-svg" src="${escapeHtml(src)}" alt="${escapeHtml(alt || kind)}" />`;
     }
 
+    function renderLucideChevronIcon(kind) {
+      const isDown = kind === 'chevron-down';
+      const points = isDown ? 'm6 9 6 6 6-6' : 'm9 18 6-6-6-6';
+      const label = isDown ? 'chevron-down' : 'chevron-right';
+      return `<svg class="fds-group-caret-icon" data-lucide="${label}" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><path d="${points}"></path></svg>`;
+    }
+
     function renderDivider(id) {
       return `<div id="${escapeHtml(id)}" class="fds-divider" aria-hidden="true"></div>`;
     }
@@ -289,8 +296,9 @@
       const badgeLabel = parsed.tag || parsed.chip;
       const elementLabel = getIssueElementLabel(item);
       const itemLabel = `${elementLabel}, ${parsed.chip} ${badgeLabel}, ${parsed.value}. 클릭하면 해당 요소로 이동합니다.`;
+      const tooltipLabel = '요소로 이동';
       return `
-    <button class="fds-list-item ${tone}" type="button" role="listitem" data-issue-key="${escapeHtml(issueKey)}" title="${escapeHtml(itemLabel)}" aria-label="${escapeHtml(itemLabel)}">
+    <button class="fds-list-item ${tone}" type="button" role="listitem" data-issue-key="${escapeHtml(issueKey)}" data-tooltip="${escapeHtml(tooltipLabel)}" aria-label="${escapeHtml(itemLabel)}">
       <span class="fds-list-label">
         <span class="fds-list-label-icon" aria-hidden="true">${renderAssetIcon('warning', 'warning')}</span>
         <span class="fds-list-label-text">
@@ -310,13 +318,15 @@
       const value = group?.value || '';
       const groupKey = group?.key || '';
       const countLabel = `${count}개 요소`;
+      const displayCount = formatDisplayCount(count);
       const groupLabel = `${chip} ${value}, ${tag}, ${countLabel}. 클릭하면 상세 목록을 ${expanded ? '접습니다' : '펼칩니다'}.`;
+      const tooltipLabel = expanded ? '목록 접기' : '목록 펼치기';
 
       return `
-    <button class="fds-list-group ${escapeHtml(tone)}${expanded ? ' is-expanded' : ''}" type="button" role="listitem" data-group-key="${escapeHtml(groupKey)}" aria-expanded="${expanded ? 'true' : 'false'}" title="${escapeHtml(groupLabel)}" aria-label="${escapeHtml(groupLabel)}">
-      <span class="fds-group-caret" aria-hidden="true"></span>
-      <span class="fds-group-value" title="${escapeHtml(value)}">${escapeHtml(value)}</span>
-      <span class="fds-group-count">${escapeHtml(countLabel)}</span>
+    <button class="fds-list-group ${escapeHtml(tone)}${expanded ? ' is-expanded' : ''}" type="button" role="listitem" data-group-key="${escapeHtml(groupKey)}" aria-expanded="${expanded ? 'true' : 'false'}" data-tooltip="${escapeHtml(tooltipLabel)}" aria-label="${escapeHtml(groupLabel)}">
+      <span class="fds-group-caret" aria-hidden="true">${renderLucideChevronIcon(expanded ? 'chevron-down' : 'chevron-right')}</span>
+      <span class="fds-group-value">${escapeHtml(value)}</span>
+      <span class="fds-group-count" aria-label="${escapeHtml(countLabel)}">${escapeHtml(displayCount)}</span>
     </button>
   `;
     }

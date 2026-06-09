@@ -111,7 +111,7 @@ test('FDSMotion animates summary refresh with panel and list height transitions'
     gsap,
     matchMedia: () => ({ matches: false }),
   });
-  const summaryList = { className: 'fds-summary-list', scrollHeight: 210, children: [{ id: 'row-1' }, { id: 'row-2' }, { id: 'row-3' }] };
+  const summaryList = { className: 'fds-summary-list is-scrollable', scrollHeight: 210, children: [{ id: 'row-1' }, { id: 'row-2' }, { id: 'row-3' }] };
   const panel = {
     className: 'fds-summary-card',
     querySelector(selector) {

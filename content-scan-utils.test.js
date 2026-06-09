@@ -12,8 +12,14 @@ const utils = createContentScanUtils({ parseViolationItem });
 
 test('rgbToHex normalizes browser rgb strings', () => {
   assert.equal(utils.rgbToHex('rgb(255, 255, 255)'), '#ffffff');
-  assert.equal(utils.rgbToHex('rgba(37, 45, 56, 0.5)'), '#252d38');
+  assert.equal(utils.rgbToHex('rgba(255, 255, 255, 1)'), '#ffffff');
   assert.equal(utils.rgbToHex('#fff'), '#fff');
+});
+
+test('rgbToHex preserves non-opaque rgba colors', () => {
+  assert.equal(utils.rgbToHex('rgba(37, 45, 56, 0.5)'), 'rgba(37, 45, 56, 0.5)');
+  assert.equal(utils.rgbToHex('rgba(0, 0, 0, 0.04)'), 'rgba(0, 0, 0, 0.04)');
+  assert.equal(utils.rgbToHex('rgba(0, 0, 0, 0)'), null);
 });
 
 test('issue helpers classify color violations', () => {
@@ -35,4 +41,25 @@ test('getDirectTextContent reads only direct text nodes', () => {
 
   assert.equal(utils.getDirectTextContent(element), 'Hello World');
   assert.equal(utils.hasDirectTextContent(element), true);
+});
+
+test('issue signatures distinguish repeated card elements with the same classes', () => {
+  const parent = { tagName: 'SECTION', parentElement: null, children: [] };
+  const firstCard = {
+    tagName: 'DIV',
+    className: 'sc-guDLey jqGymV css-0',
+    parentElement: parent,
+    childNodes: [],
+  };
+  const secondCard = {
+    tagName: 'DIV',
+    className: 'sc-guDLey jqGymV css-0',
+    parentElement: parent,
+    childNodes: [],
+  };
+  parent.children = [firstCard, secondCard];
+
+  assert.notEqual(utils.getElementIssueSignature(firstCard), utils.getElementIssueSignature(secondCard));
+  assert.match(utils.getElementIssueSignature(firstCard), /section\[0\]>div\[0\]/);
+  assert.match(utils.getElementIssueSignature(secondCard), /section\[0\]>div\[1\]/);
 });

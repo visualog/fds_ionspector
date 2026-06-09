@@ -45,6 +45,20 @@ test('content summary hides completed scan metrics from the persistent panel UI'
   assert.doesNotMatch(styleSource, /\.fds-panel-info/);
 });
 
+test('content summary explains scan scope without changing badge counts', () => {
+  const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
+  const styleSource = fs.readFileSync(path.join(__dirname, 'overlay.css'), 'utf8');
+  const toolbarStateSource = fs.readFileSync(path.join(__dirname, 'toolbar-state.js'), 'utf8');
+
+  assert.match(contentSource, /function\s+formatScanScopeText\(meta = scanData\?\.meta\)/);
+  assert.match(contentSource, /렌더링 기준 · 검사됨 \$\{scanned\.toLocaleString\('ko-KR'\)\}개 · 제외됨 \$\{skipped\.toLocaleString\('ko-KR'\)\}개/);
+  assert.match(contentSource, /class="fds-panel-meta"[\s\S]*scanScopeText/);
+  assert.match(styleSource, /\.fds-panel-meta\s*\{[\s\S]*color:\s*rgba\(120,\s*166,\s*255,\s*0\.92\)/);
+  assert.match(styleSource, /\.fds-panel-close\s*\{[\s\S]*transform:\s*translateY\(-2px\)/);
+  assert.match(toolbarStateSource, /function\s+formatScanScopeText\(scanData = \{\}\)/);
+  assert.match(toolbarStateSource, /badgeFullCount[\s\S]*scanScopeText[\s\S]*filter\(Boolean\)\.join\(' · '\)/);
+});
+
 test('content summary selects warning color results when danger count is empty', () => {
   const summaryModelSource = fs.readFileSync(path.join(__dirname, 'content-summary-model.js'), 'utf8');
 
@@ -62,16 +76,22 @@ test('content summary filters non-color issue lists by selected missing or raw c
   assert.match(summaryModelSource, /activeFilter \? getActiveSummaryTone\(\) : 'all'/);
 });
 
-test('content summary groups only toggle details while child rows preview and navigate issues', () => {
+test('content summary groups toggle details while child rows navigate issues on click', () => {
   const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
 
   assert.match(contentSource, /querySelectorAll\('\.fds-list-group\[data-group-key\]'\)/);
+  assert.match(contentSource, /const offsetY = button\.closest\?\.\('\.fds-summary-list'\) \? 6 : 18;/);
+  assert.match(contentSource, /window\.scrollY \+ rect\.top - tooltipHeight - offsetY/);
   assert.doesNotMatch(contentSource, /const showGroupPin/);
   assert.doesNotMatch(contentSource, /\.fds-list-group\[data-group-key\]'[\s\S]*?showInspectorCardForEntries\(entry\.element, \[entry\]\)[\s\S]*?panel\.querySelectorAll\('\.fds-list-item\[data-issue-key\]'\)/);
   assert.match(contentSource, /item\.onclick = \(event\) => \{[\s\S]*event\.preventDefault\(\);[\s\S]*event\.stopPropagation\(\);[\s\S]*expandedIssueGroupKeys = nextExpandedKeys;[\s\S]*updateSummaryUI\(\);/);
   assert.match(contentSource, /querySelectorAll\('\.fds-list-item\[data-issue-key\]'\)/);
   assert.match(contentSource, /const showPin = \(\{ locked = false \} = \{\}\) =>/);
-  assert.match(contentSource, /showInspectorCardForEntries\(entry\.element, \[entry\]\)/);
+  assert.match(contentSource, /item\.onmouseenter = \(\) => showToolbarButtonTooltip\(item\);/);
+  assert.match(contentSource, /item\.onfocus = \(\) => showToolbarButtonTooltip\(item\);/);
+  assert.match(contentSource, /item\.onmouseleave = hideTooltip;/);
+  assert.doesNotMatch(contentSource, /item\.onmouseenter = \(\) => \{[\s\S]*showPin\(\)/);
+  assert.doesNotMatch(contentSource, /const showPin = \(\{ locked = false \} = \{\}\) => \{[\s\S]*?showInspectorCardForEntries\(entry\.element, \[entry\]\)[\s\S]*?return entry;/);
   assert.match(contentSource, /const entry = showPin\(\{ locked: true \}\);/);
   assert.match(contentSource, /scrollToIssueElement\(entry\)/);
 });
@@ -82,6 +102,7 @@ test('content scrolls issue elements through nested app containers before window
   assert.match(contentSource, /function\s+scheduleIssuePreviewAfterScroll\(entry\)/);
   assert.match(contentSource, /entry\.element\.scrollIntoView\(\{[\s\S]*block:\s*'center'[\s\S]*inline:\s*'center'[\s\S]*behavior/);
   assert.match(contentSource, /scheduleIssuePreviewAfterScroll\(entry\);[\s\S]*return;[\s\S]*catch \(error\)/);
+  assert.match(contentSource, /function\s+scheduleIssuePreviewAfterScroll\(entry\)[\s\S]*showInspectorCardForEntries\(entry\.element, \[entry\]\)/);
   assert.match(contentSource, /if \(typeof window\.scrollTo !== 'function'\) return;[\s\S]*window\.scrollTo\(\{/);
   assert.match(contentSource, /window\.setTimeout\?\.?\(updateIssuePreview,\s*240\)/);
 });
@@ -95,11 +116,48 @@ test('overlay exposes visible keyboard focus states for summary controls', () =>
   assert.match(styleSource, /outline: 2px solid/);
 });
 
+test('overlay shields the page from hover and click interactions while inspecting results', () => {
+  const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
+  const toolbarUiSource = fs.readFileSync(path.join(__dirname, 'content-toolbar-ui.js'), 'utf8');
+  const styleSource = fs.readFileSync(path.join(__dirname, 'overlay.css'), 'utf8');
+
+  assert.match(contentSource, /<div id="fds-page-interaction-shield" class="fds-page-interaction-shield" aria-hidden="true"><\/div>/);
+  assert.match(contentSource, /function\s+bindPageInteractionShieldEvents\(root = document\.getElementById\('fds-root'\)\)/);
+  assert.match(contentSource, /'pointerover'[\s\S]*'pointermove'[\s\S]*'mouseover'[\s\S]*'mousemove'[\s\S]*'click'[\s\S]*'contextmenu'/);
+  assert.match(contentSource, /event\.stopPropagation\(\);[\s\S]*eventName === 'click'[\s\S]*event\.preventDefault\(\)/);
+  assert.match(contentSource, /mountPoint\.appendChild\(root\);[\s\S]*bindPageInteractionShieldEvents\(root\);/);
+  assert.match(contentSource, /root\.dataset\.pageInteractionShield = activeFilter \|\| isScanning \? 'active' : 'idle';/);
+  assert.match(toolbarUiSource, /root\.querySelector\('#fds-page-interaction-shield'\)/);
+  assert.match(styleSource, /\.fds-page-interaction-shield\s*\{[\s\S]*position:\s*fixed/);
+  assert.match(styleSource, /\.fds-page-interaction-shield\s*\{[\s\S]*inset:\s*0/);
+  assert.match(styleSource, /\.fds-page-interaction-shield\s*\{[\s\S]*z-index:\s*2147483643/);
+  assert.match(styleSource, /\.fds-page-interaction-shield\s*\{[\s\S]*pointer-events:\s*none/);
+  assert.match(styleSource, /#fds-root\[data-page-interaction-shield="active"\]\s+\.fds-page-interaction-shield\s*\{[\s\S]*pointer-events:\s*auto/);
+  assert.match(styleSource, /\.fds-issue-pin-layer\s*\{[\s\S]*z-index:\s*2147483644/);
+  assert.match(styleSource, /\.fds-summary-card\s*\{[\s\S]*z-index:\s*2147483645/);
+  assert.match(styleSource, /\.fds-card\s*\{[\s\S]*z-index:\s*2147483646/);
+  assert.match(styleSource, /#fds-root \.fds-toolbar\s*\{[\s\S]*z-index:\s*2147483647/);
+});
+
 test('overlay keeps group rows focused on value and count', () => {
   const styleSource = fs.readFileSync(path.join(__dirname, 'overlay.css'), 'utf8');
 
   assert.match(styleSource, /\.fds-list-group\s*\{[\s\S]*grid-template-columns:\s*14px minmax\(0, 1fr\) max-content/);
+  assert.match(styleSource, /\.fds-list-group\s*\{[\s\S]*padding:\s*0 8px/);
+  assert.match(styleSource, /\.fds-list-group\s*\{[\s\S]*column-gap:\s*4px/);
+  assert.doesNotMatch(styleSource, /\.fds-list-group\s*\{[\s\S]*column-gap:\s*7px/);
+  assert.match(styleSource, /\.fds-group-caret\s*\{[\s\S]*align-self:\s*center/);
+  assert.match(styleSource, /\.fds-group-caret\s*\{[\s\S]*line-height:\s*0/);
+  assert.match(styleSource, /\.fds-group-caret-icon\s*\{[\s\S]*display:\s*block/);
+  assert.match(styleSource, /\.fds-group-caret-icon\s*\{[\s\S]*width:\s*14px/);
+  assert.match(styleSource, /\.fds-group-caret-icon\s*\{[\s\S]*height:\s*14px/);
+  assert.doesNotMatch(styleSource, /\.fds-group-caret::before\s*\{/);
+  assert.match(styleSource, /\.fds-group-count\s*\{[\s\S]*display:\s*inline-flex/);
+  assert.match(styleSource, /\.fds-group-count\s*\{[\s\S]*align-items:\s*center/);
+  assert.match(styleSource, /\.fds-group-count\s*\{[\s\S]*min-width:\s*12px/);
   assert.match(styleSource, /\.fds-group-value\s*\{[\s\S]*text-overflow:\s*ellipsis/);
+  assert.match(styleSource, /\.fds-group-value\s*\{[\s\S]*display:\s*inline-flex/);
+  assert.match(styleSource, /\.fds-group-value\s*\{[\s\S]*align-items:\s*center/);
   assert.doesNotMatch(styleSource, /\.fds-group-status\s*\{/);
   assert.doesNotMatch(styleSource, /\.fds-group-chip\s*\{/);
 });
@@ -110,17 +168,23 @@ test('overlay keeps scrollbar gutters stable during panel focus changes', () => 
   assert.match(styleSource, /\.fds-panel-body\s*\{[\s\S]*scrollbar-width:\s*thin/);
   assert.match(styleSource, /\.fds-summary-card\s*\{[\s\S]*overflow-y:\s*hidden/);
   assert.match(styleSource, /\.fds-summary-card\s*\{[\s\S]*scrollbar-width:\s*none/);
-  assert.match(styleSource, /\.fds-summary-list\s*\{[\s\S]*scrollbar-width:\s*thin/);
+  assert.match(styleSource, /\.fds-summary-list\s*\{[\s\S]*overflow-y:\s*hidden/);
+  assert.match(styleSource, /\.fds-summary-list\s*\{[\s\S]*scrollbar-width:\s*none/);
+  assert.match(styleSource, /\.fds-summary-list\.is-scrollable\s*\{[\s\S]*overflow-y:\s*auto/);
+  assert.match(styleSource, /\.fds-summary-list\.is-scrollable\s*\{[\s\S]*scrollbar-width:\s*none/);
   assert.match(styleSource, /\.fds-panel-body\s*\{[\s\S]*scrollbar-gutter:\s*stable/);
-  assert.match(styleSource, /\.fds-summary-list\s*\{[\s\S]*scrollbar-gutter:\s*stable/);
+  assert.doesNotMatch(styleSource, /\.fds-summary-list\.is-scrollable\s*\{[\s\S]*scrollbar-gutter:/);
   assert.match(styleSource, /\.fds-summary-card::-webkit-scrollbar\s*\{[\s\S]*width:\s*0/);
   assert.match(styleSource, /\.fds-summary-card\.is-resizing\s*\{[\s\S]*scrollbar-width:\s*none/);
   assert.match(styleSource, /\.fds-summary-card\.is-resizing\s+\.fds-panel-body\s*\{[\s\S]*scrollbar-width:\s*none/);
   assert.match(styleSource, /\.fds-summary-card\.is-resizing\s+\.fds-summary-list\s*\{[\s\S]*scrollbar-width:\s*none/);
+  assert.match(styleSource, /\.fds-summary-card\.is-resizing\s+\.fds-summary-list\.is-scrollable\s*\{[\s\S]*scrollbar-width:\s*none/);
   assert.match(styleSource, /\.fds-summary-card\.is-resizing::-webkit-scrollbar\s*\{[\s\S]*width:\s*0/);
   assert.match(styleSource, /\.fds-summary-card\.is-resizing\s+\.fds-panel-body::-webkit-scrollbar\s*\{[\s\S]*width:\s*0/);
   assert.match(styleSource, /\.fds-summary-card\.is-resizing\s+\.fds-summary-list::-webkit-scrollbar\s*\{[\s\S]*width:\s*0/);
-  assert.match(styleSource, /\.fds-summary-list:hover::-webkit-scrollbar-thumb,\s*\.fds-summary-list:focus-within::-webkit-scrollbar-thumb\s*\{[\s\S]*background:\s*rgba\(255,\s*255,\s*255,\s*0\.24\)/);
+  assert.match(styleSource, /\.fds-summary-card\.is-resizing\s+\.fds-summary-list\.is-scrollable::-webkit-scrollbar\s*\{[\s\S]*width:\s*0/);
+  assert.match(styleSource, /\.fds-summary-list\.is-scrollable:hover,\s*\.fds-summary-list\.is-scrollable:focus-within\s*\{[\s\S]*scrollbar-color:\s*transparent transparent/);
+  assert.match(styleSource, /\.fds-summary-list\.is-scrollable:hover::-webkit-scrollbar-thumb,\s*\.fds-summary-list\.is-scrollable:focus-within::-webkit-scrollbar-thumb\s*\{[\s\S]*background:\s*transparent/);
   assert.match(styleSource, /\.fds-summary-list::-webkit-scrollbar-thumb\s*\{[\s\S]*background-clip:\s*content-box/);
   assert.match(styleSource, /\.fds-summary-list::-webkit-scrollbar-thumb\s*\{[\s\S]*border:\s*2px solid transparent/);
   assert.doesNotMatch(
@@ -129,7 +193,7 @@ test('overlay keeps scrollbar gutters stable during panel focus changes', () => 
   );
   assert.doesNotMatch(
     styleSource,
-    /\.fds-summary-list:hover,\s*\.fds-summary-list:focus-within\s*\{[^}]*scrollbar-width/
+    /\.fds-summary-list(?:\.is-scrollable)?:hover,\s*\.fds-summary-list(?:\.is-scrollable)?:focus-within\s*\{[^}]*scrollbar-width/
   );
   assert.doesNotMatch(
     styleSource,
@@ -162,9 +226,30 @@ test('tab clicks keep list content stable while allowing real height changes to 
   const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
 
   assert.match(contentSource, /const shouldRevealListItems = !\['group-toggle', 'tab'\]\.includes\(summaryMotion\?\.kind\)/);
-  assert.match(contentSource, /const didAnimateSummaryRefresh = Boolean\(getFDSMotion\(\)\?\.animateSummaryRefresh\?\.?\(panel/);
+  assert.match(contentSource, /const didAnimateSummaryRefresh = !customSummaryPanelHeight && Boolean\(getFDSMotion\(\)\?\.animateSummaryRefresh\?\.?\(panel/);
   assert.match(contentSource, /force:\s*false/);
   assert.match(contentSource, /revealListItems:\s*shouldRevealListItems/);
+});
+
+test('summary panel height can be resized by dragging the bottom handle', () => {
+  const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
+  const styleSource = fs.readFileSync(path.join(__dirname, 'overlay.css'), 'utf8');
+
+  assert.match(contentSource, /let panelResizeState = null;/);
+  assert.match(contentSource, /let customSummaryPanelHeight = null;/);
+  assert.match(contentSource, /function\s+beginSummaryPanelResize\(event\)/);
+  assert.match(contentSource, /function\s+moveSummaryPanelResize\(event\)/);
+  assert.match(contentSource, /function\s+stopSummaryPanelResize\(\)/);
+  assert.match(contentSource, /customSummaryPanelHeight = clampSummaryPanelHeight\(panelResizeState\.startHeight \+ deltaY,\s*panelResizeState\.top\)/);
+  assert.match(contentSource, /panel\.style\.setProperty\('--fds-summary-custom-height', `\$\{height\}px`\)/);
+  assert.match(contentSource, /<div class="fds-panel-resize-handle" role="separator" aria-label="패널 높이 조절"/);
+  assert.match(contentSource, /panelResizeHandle\.onpointerdown = beginSummaryPanelResize/);
+  assert.match(contentSource, /window\.addEventListener\('pointermove', moveSummaryPanelResize\)/);
+  assert.match(contentSource, /window\.addEventListener\('pointerup', stopSummaryPanelResize\)/);
+  assert.match(styleSource, /\.fds-panel-resize-handle\s*\{[\s\S]*cursor:\s*ns-resize/);
+  assert.match(styleSource, /\.fds-summary-card\.has-custom-height\s+\.fds-summary-section\s*\{[\s\S]*flex:\s*1 1 auto/);
+  assert.match(styleSource, /\.fds-summary-card\.has-custom-height\s+\.fds-summary-list\s*\{[\s\S]*max-height:\s*none/);
+  assert.match(styleSource, /body\.fds-panel-resizing\s*\{[\s\S]*cursor:\s*ns-resize !important/);
 });
 
 test('filter clicks do not immediately refresh over the panel open animation', () => {
@@ -208,14 +293,15 @@ test('summary list transition ghost stays anchored to the list area', () => {
 
 test('summary panel height derives from the rendered list height instead of full scroll height', () => {
   const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
+  const summaryPanelSource = fs.readFileSync(path.join(__dirname, 'content-summary-panel.js'), 'utf8');
 
   assert.match(contentSource, /const SUMMARY_LIST_MAX_HEIGHT = 168;/);
   assert.match(contentSource, /const previousListRenderedHeight = previousList/);
   assert.match(contentSource, /previousList\.getBoundingClientRect\?\.\(\)\.height/);
   assert.match(contentSource, /previousList\.clientHeight/);
-  assert.match(contentSource, /function measureNaturalSummaryPanelHeight\(panel\)/);
-  assert.match(contentSource, /function measureSummaryPanelTargetHeight\(panel,\s*\{ listHeight = 0 \} = \{\}\)/);
-  assert.match(contentSource, /child\.classList\?\.contains\('fds-summary-list'\)[\s\S]*\? listHeight/);
+  assert.match(summaryPanelSource, /function measureNaturalSummaryPanelHeight\(panel\)/);
+  assert.match(summaryPanelSource, /function measureSummaryPanelTargetHeight\(panel,\s*\{ listHeight = 0 \} = \{\}\)/);
+  assert.match(summaryPanelSource, /child\.classList\?\.contains\('fds-summary-list'\)[\s\S]*\? listHeight/);
   assert.match(contentSource, /const directContentPanelHeight = measureSummaryPanelTargetHeight\(panel,\s*\{ listHeight: nextListHeight \}\)/);
   assert.match(contentSource, /const naturalPanelHeight = measureNaturalSummaryPanelHeight\(panel\)/);
   assert.match(contentSource, /const nextPanelHeight = directContentPanelHeight \|\| naturalPanelHeight \|\| listDerivedPanelHeight \|\| previousPanelHeight/);
@@ -230,9 +316,12 @@ test('summary panel height derives from the rendered list height instead of full
 });
 
 test('summary list height cap lets collapsed radius groups scroll like spacing groups', () => {
+  const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
   const styleSource = fs.readFileSync(path.join(__dirname, 'overlay.css'), 'utf8');
   const motionSource = fs.readFileSync(path.join(__dirname, 'content-motion.js'), 'utf8');
 
+  assert.match(contentSource, /const SUMMARY_LIST_SCROLL_ITEM_THRESHOLD = 4;/);
+  assert.match(contentSource, /const hasScrollableList = renderedListItemCount > SUMMARY_LIST_SCROLL_ITEM_THRESHOLD;/);
   assert.match(styleSource, /\.fds-summary-list\s*\{[\s\S]*max-height:\s*168px/);
   assert.match(motionSource, /const SUMMARY_LIST_MAX_HEIGHT = 168;/);
 });
@@ -241,6 +330,24 @@ test('summary panel reserves toolbar clearance so short collapsed lists are not 
   const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
   const styleSource = fs.readFileSync(path.join(__dirname, 'overlay.css'), 'utf8');
 
+  assert.match(styleSource, /\.fds-summary-card\s*\{[\s\S]*padding:\s*16px 12px 12px/);
+  assert.match(styleSource, /\.fds-summary-card\s*\{[\s\S]*border-radius:\s*16px/);
+  assert.match(styleSource, /\.fds-panel-head\s*\{[\s\S]*height:\s*auto/);
+  assert.match(styleSource, /\.fds-panel-head\s*\{[\s\S]*min-height:\s*28px/);
+  assert.match(styleSource, /\.fds-panel-title-wrap\s*\{[\s\S]*gap:\s*0/);
+  assert.match(styleSource, /\.fds-panel-title\s*\{[\s\S]*line-height:\s*16px/);
+  assert.match(styleSource, /#fds-root \.fds-panel-head \+ \.fds-summary-section\s*\{[\s\S]*margin-top:\s*8px/);
+  assert.match(styleSource, /\.fds-summary-section\s*\{[\s\S]*gap:\s*4px/);
+  assert.match(styleSource, /\.fds-summary-tabbar\s*\{[\s\S]*height:\s*28px/);
+  assert.match(styleSource, /\.fds-summary-tab-indicator\s*\{[\s\S]*height:\s*24px/);
+  assert.match(styleSource, /\.fds-summary-tab\s*\{[\s\S]*height:\s*24px/);
+  assert.match(styleSource, /\.fds-summary-card-row\s*\{[\s\S]*height:\s*64px/);
+  assert.match(styleSource, /\.fds-summary-card-row\s*\{[\s\S]*gap:\s*4px/);
+  assert.match(styleSource, /\.fds-stat-box\s*\{[\s\S]*height:\s*64px/);
+  assert.match(styleSource, /\.fds-stat-box\s*\{[\s\S]*flex:\s*0 0 calc\(\(100% - 4px\) \/ 2\)/);
+  assert.match(styleSource, /\.fds-summary-list\s*\{[\s\S]*gap:\s*2px/);
+  assert.match(styleSource, /\.fds-list-group\s*\{[\s\S]*min-height:\s*32px/);
+  assert.match(styleSource, /\.fds-list-group-details\s*\{[\s\S]*gap:\s*2px/);
   assert.match(styleSource, /--fds-toolbar-bottom:\s*24px/);
   assert.match(styleSource, /--fds-summary-toolbar-gap:\s*16px/);
   assert.match(styleSource, /--fds-summary-panel-bottom:\s*calc\(/);
@@ -248,20 +355,20 @@ test('summary panel reserves toolbar clearance so short collapsed lists are not 
   assert.match(styleSource, /\.fds-summary-card\s*\{[\s\S]*bottom:\s*var\(--fds-summary-panel-bottom,\s*88px\)/);
   assert.match(styleSource, /\.fds-summary-card\s*\{[\s\S]*max-height:\s*calc\(100vh - var\(--fds-summary-panel-bottom,\s*88px\) - 12px\)/);
   assert.match(styleSource, /\.fds-summary-card\s*\{[\s\S]*overflow-y:\s*hidden/);
-  assert.match(styleSource, /\.fds-summary-list\s*\{[\s\S]*overflow-y:\s*auto/);
+  assert.match(styleSource, /\.fds-summary-list\.is-scrollable\s*\{[\s\S]*overflow-y:\s*auto/);
   assert.match(contentSource, /function positionDockedSummaryPanel\(toolbarRect\)[\s\S]*const gap = 16;/);
 });
 
-test('summary panel uses translucent blur over page content', () => {
+test('summary panel uses a readable blurred surface over page content', () => {
   const styleSource = fs.readFileSync(path.join(__dirname, 'overlay.css'), 'utf8');
 
-  assert.match(styleSource, /--fds-summary-panel-surface-opacity:\s*0\.8/);
-  assert.match(styleSource, /--fds-summary-panel-bg:\s*rgba\(0,\s*0,\s*0,\s*var\(--fds-summary-panel-surface-opacity,\s*0\.8\)\)/);
+  assert.match(styleSource, /--fds-summary-panel-surface-opacity:\s*0\.94/);
+  assert.match(styleSource, /--fds-summary-panel-bg:\s*rgba\(0,\s*0,\s*0,\s*var\(--fds-summary-panel-surface-opacity,\s*0\.94\)\)/);
   assert.match(styleSource, /--fds-summary-panel-backdrop-blur:\s*16px/);
   assert.match(styleSource, /--fds-summary-panel-backdrop-brightness:\s*0\.76/);
   assert.match(styleSource, /\.fds-summary-card\s*\{[\s\S]*background:\s*transparent/);
   assert.match(styleSource, /\.fds-summary-card\s*\{[\s\S]*box-shadow:\s*0 12px 28px rgba\(0,\s*0,\s*0,\s*0\.18\)/);
-  assert.match(styleSource, /\.fds-summary-card::before\s*\{[\s\S]*background-color:\s*var\(--fds-summary-panel-bg,\s*rgba\(0,\s*0,\s*0,\s*0\.8\)\)/);
+  assert.match(styleSource, /\.fds-summary-card::before\s*\{[\s\S]*background-color:\s*var\(--fds-summary-panel-bg,\s*rgba\(0,\s*0,\s*0,\s*0\.94\)\)/);
   assert.match(styleSource, /\.fds-summary-card::before\s*\{[\s\S]*-webkit-backdrop-filter:[\s\S]*blur\(var\(--fds-summary-panel-backdrop-blur,\s*16px\)\)[\s\S]*brightness\(var\(--fds-summary-panel-backdrop-brightness,\s*0\.76\)\)[\s\S]*saturate\(1\.05\)/);
   assert.match(styleSource, /\.fds-summary-card::before\s*\{[\s\S]*backdrop-filter:[\s\S]*blur\(var\(--fds-summary-panel-backdrop-blur,\s*16px\)\)[\s\S]*brightness\(var\(--fds-summary-panel-backdrop-brightness,\s*0\.76\)\)[\s\S]*saturate\(1\.05\)/);
   assert.match(styleSource, /\.fds-summary-card > \*\s*\{[\s\S]*z-index:\s*1/);
@@ -271,10 +378,12 @@ test('summary panel uses translucent blur over page content', () => {
 
 test('toolbar menu clicks preserve a user-moved summary panel position', () => {
   const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
+  const summaryPanelSource = fs.readFileSync(path.join(__dirname, 'content-summary-panel.js'), 'utf8');
 
   assert.match(contentSource, /let customSummaryPanelPosition = null;/);
   assert.match(contentSource, /function\s+saveCustomSummaryPanelPosition\(\)[\s\S]*customSummaryPanelPosition = \{/);
-  assert.match(contentSource, /function\s+applyCustomSummaryPanelPosition\(\)[\s\S]*panel\.style\.left = `\$\{customSummaryPanelPosition\.left\}px`/);
+  assert.match(contentSource, /function\s+applyCustomSummaryPanelPosition\(\)[\s\S]*applyCustomSummaryPanelPositionStyle\(\{/);
+  assert.match(summaryPanelSource, /function\s+applyCustomSummaryPanelPosition\(\{[\s\S]*panel\.style\.left = `\$\{position\.left\}px`/);
   assert.match(contentSource, /function\s+restoreExpandedToolbarAndPanelPosition\(\{ preserveSummaryPanelPosition = false \} = \{\}\)/);
   assert.match(contentSource, /if \(preserveSummaryPanelPosition && applyCustomSummaryPanelPosition\(\)\) return;/);
   assert.match(contentSource, /restoreExpandedToolbarAndPanelPosition\(\{ preserveSummaryPanelPosition: Boolean\(customSummaryPanelPosition\) \}\)/);
@@ -291,14 +400,62 @@ test('summary refresh releases fixed panel height after animation completes', ()
   assert.doesNotMatch(motionSource, /panel\.style\.height = `\$\{resolvedToPanelHeight\}px`/);
 });
 
-test('inspector hover card gives users enough time to move from list row to copy action', () => {
+test('inspector card gives users enough time to move from target to copy action', () => {
   const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
   const styleSource = fs.readFileSync(path.join(__dirname, 'overlay.css'), 'utf8');
 
   assert.match(contentSource, /const INSPECTOR_CARD_HIDE_DELAY_MS = 700;/);
   assert.match(contentSource, /card\.onpointerenter = clearInspectorCardHideTimer/);
-  assert.match(contentSource, /item\.onmouseleave[\s\S]*scheduleTransientInspectorPreviewClear\(\)/);
+  assert.match(contentSource, /document\.addEventListener\('mouseout'[\s\S]*scheduleTransientInspectorPreviewClear\(\)/);
   assert.match(styleSource, /\.fds-card\s*\{[\s\S]*pointer-events:\s*auto/);
+});
+
+test('inspector hover card uses the violation type as its title', () => {
+  const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
+  const styleSource = fs.readFileSync(path.join(__dirname, 'overlay.css'), 'utf8');
+
+  assert.match(contentSource, /function\s+getInspectorCardTitle\(issueEntries = \[\]\)/);
+  assert.match(contentSource, /return `\$\{parsedIssue\.chip \|\| '속성'\} 위반`/);
+  assert.match(contentSource, /return `\$\{categoryLabel\} 위반 \$\{issueEntries\.length\}건`/);
+  assert.match(contentSource, /const cardTitle = getInspectorCardTitle\(issueEntries\)/);
+  assert.match(contentSource, /<div class="fds-card-title" title="\$\{escapeHtml\(cardTitle\)\}">\$\{escapeHtml\(cardTitle\)\}<\/div>/);
+  assert.doesNotMatch(contentSource, /<div class="fds-card-title">INSPECTOR<\/div>/);
+  assert.doesNotMatch(contentSource, /fds-card-tone/);
+  assert.doesNotMatch(contentSource, /위험 감지/);
+  assert.doesNotMatch(contentSource, /경고 감지/);
+  assert.doesNotMatch(contentSource, /const targetLabel = getViolationPinLabel\(\{ element: target \}\)/);
+  assert.doesNotMatch(contentSource, /<div class="fds-card-subtitle">\$\{target\.tagName\.toLowerCase\(\)\}<\/div>/);
+  assert.match(styleSource, /\.fds-card\s*\{[\s\S]*padding:\s*10px/);
+  assert.match(styleSource, /\.fds-card\s*\{[\s\S]*display:\s*flex/);
+  assert.match(styleSource, /\.fds-card\s*\{[\s\S]*flex-direction:\s*column/);
+  assert.match(styleSource, /\.fds-card\s*\{[\s\S]*gap:\s*8px/);
+  assert.match(styleSource, /\.fds-card-head\s*\{[\s\S]*margin-bottom:\s*0/);
+  assert.match(styleSource, /\.fds-card-body\s*\{[\s\S]*gap:\s*6px/);
+  assert.doesNotMatch(styleSource, /\.fds-card-tone/);
+  assert.match(styleSource, /\.fds-card-title\s*\{[\s\S]*text-overflow:\s*ellipsis/);
+});
+
+test('inspector hover card separates issue value from repeated violation type copy', () => {
+  const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
+  const styleSource = fs.readFileSync(path.join(__dirname, 'overlay.css'), 'utf8');
+
+  assert.match(contentSource, /function\s+getInspectorIssueDisplay\(entry\)/);
+  assert.match(contentSource, /description:\s*'투명도가 포함된 미등록 컬러'/);
+  assert.match(contentSource, /tip:\s*'반투명 컬러 토큰 등록을 검토하세요\.'/);
+  assert.match(contentSource, /return \{ value,\s*description:\s*'미등록 컬러가 사용되었습니다\.' \}/);
+  assert.match(contentSource, /return \{ value,\s*description:\s*'원시값 컬러가 사용되었습니다\.' \}/);
+  assert.match(contentSource, /<strong class="fds-issue-value">\$\{escapeHtml\(issueDisplay\.value\)\}<\/strong>/);
+  assert.match(contentSource, /<span class="fds-issue-description">\$\{escapeHtml\(issueDisplay\.description\)\}<\/span>/);
+  assert.match(contentSource, /<span class="fds-issue-tip"><svg class="fds-issue-tip-icon" data-lucide="info"[\s\S]*<span>\$\{escapeHtml\(issueDisplay\.tip\)\}<\/span><\/span>/);
+  assert.doesNotMatch(contentSource, /<div class="fds-issue-message">\$\{escapeHtml\(entry\.message\)\}<\/div>/);
+  assert.match(styleSource, /\.fds-issue-message\s*\{[\s\S]*flex-direction:\s*column/);
+  assert.match(styleSource, /\.fds-issue-value\s*\{[\s\S]*font-weight:\s*800/);
+  assert.match(styleSource, /\.fds-issue-description\s*\{[\s\S]*font-size:\s*10px/);
+  assert.match(styleSource, /\.fds-issue-tip\s*\{[\s\S]*border-top:\s*1px solid rgba\(255,\s*255,\s*255,\s*0\.08\)/);
+  assert.match(styleSource, /\.fds-issue-tip\s*\{[\s\S]*align-items:\s*center/);
+  assert.match(styleSource, /\.fds-issue-tip\s*\{[\s\S]*color:\s*#75bef8/);
+  assert.match(styleSource, /\.fds-issue-tip-icon\s*\{[\s\S]*width:\s*12px/);
+  assert.doesNotMatch(styleSource, /\.fds-issue-tip-icon\s*\{[^}]*margin-top/);
 });
 
 test('inspector hover card anchors to violation elements instead of summary list rows', () => {
@@ -308,6 +465,16 @@ test('inspector hover card anchors to violation elements instead of summary list
   assert.match(contentSource, /const\s+anchorRect\s*=\s*\(anchorElement\s*\|\|\s*target\)\.getBoundingClientRect\(\)/);
   assert.doesNotMatch(contentSource, /showInspectorCardForEntries\(entry\.element,\s*\[entry\],\s*item\)/);
   assert.match(contentSource, /showInspectorCardForEntries\(entry\.element,\s*\[entry\]\)/);
+});
+
+test('inspector card moves the summary panel away when they overlap', () => {
+  const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
+
+  assert.match(contentSource, /function\s+avoidSummaryPanelOverlapWithInspectorCard\(card\)/);
+  assert.match(contentSource, /getRectOverlapArea\(cardRect,\s*panelRect\) <= 0/);
+  assert.match(contentSource, /customSummaryPanelPosition = \{[\s\S]*left:\s*Math\.round\(nextPosition\.left\),[\s\S]*top:\s*Math\.round\(nextPosition\.top\)/);
+  assert.match(contentSource, /applyCustomSummaryPanelPosition\(\);/);
+  assert.match(contentSource, /placeFloatingElement\(card,[\s\S]*\);[\s\S]*avoidSummaryPanelOverlapWithInspectorCard\(card\);[\s\S]*positionViolationPin/);
 });
 
 test('inspected element mouseout gives users time to move into the inspector card', () => {

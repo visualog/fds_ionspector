@@ -90,6 +90,8 @@ test('renderSummaryListItem parses and escapes violation messages', () => {
   });
 
   assert.match(markup, /data-issue-key="issue&lt;1&gt;"/);
+  assert.match(markup, /data-tooltip="요소로 이동"/);
+  assert.doesNotMatch(markup, /title="[^"]*클릭하면 해당 요소로 이동합니다/);
   assert.doesNotMatch(markup, /data-issue-number=/);
   assert.doesNotMatch(markup, /fds-list-index/);
   assert.doesNotMatch(markup, /1번/);
@@ -155,9 +157,13 @@ test('renderSummaryGroupItem summarizes and escapes grouped issues', () => {
 
   assert.match(markup, /data-group-key="group&lt;1&gt;"/);
   assert.match(markup, /aria-expanded="true"/);
+  assert.match(markup, /data-lucide="chevron-down"/);
   assert.doesNotMatch(markup, /fds-group-chip/);
   assert.doesNotMatch(markup, /fds-group-status/);
   assert.match(markup, /12개 요소/);
+  assert.match(markup, /data-tooltip="목록 접기"/);
+  assert.doesNotMatch(markup, /title="[^"]*클릭하면 상세 목록을 접습니다/);
+  assert.match(markup, /<span class="fds-group-count" aria-label="12개 요소">12<\/span>/);
   assert.doesNotMatch(markup, /대표 요소로 이동/);
   assert.match(markup, /클릭하면 상세 목록을 접습니다/);
   assert.match(markup, /#252d38/);
@@ -173,8 +179,11 @@ test('renderSummaryGroupItem keeps visible group rows focused on value and count
     count: 1,
   });
 
-  assert.match(markup, /<span class="fds-group-value" title="14px">14px<\/span>/);
-  assert.match(markup, /<span class="fds-group-count">1개 요소<\/span>/);
+  assert.match(markup, /data-tooltip="목록 펼치기"/);
+  assert.match(markup, /<span class="fds-group-value">14px<\/span>/);
+  assert.match(markup, /<span class="fds-group-count" aria-label="1개 요소">1<\/span>/);
+  assert.match(markup, /data-lucide="chevron-right"/);
+  assert.doesNotMatch(markup, /data-lucide="chevron-down"/);
   assert.doesNotMatch(markup, /fds-group-chip/);
   assert.doesNotMatch(markup, /fds-group-status/);
 });

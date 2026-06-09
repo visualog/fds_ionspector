@@ -21,6 +21,14 @@
     return Array.from(value).filter(Boolean);
   }
 
+  function hasClass(element, className) {
+    if (!element || !className) return false;
+    if (typeof element.classList?.contains === 'function') {
+      return element.classList.contains(className);
+    }
+    return String(element.className || '').split(/\s+/).includes(className);
+  }
+
   function createFDSMotion({
     gsap = globalScope.gsap,
     matchMedia = globalScope.matchMedia?.bind?.(globalScope),
@@ -107,6 +115,7 @@
         && resolvedToListHeight >= 0
         && (force ? (listHeightDeltaEligible || listChanged) : listHeightDeltaEligible);
       const clampedFromListHeight = Math.min(resolvedFromListHeight, SUMMARY_LIST_MAX_HEIGHT);
+      const listAnimationOverflowY = hasClass(summaryList, 'is-scrollable') ? 'auto' : 'hidden';
       const didAnimate = canAnimatePanelHeight || canAnimateListHeight;
       if (didAnimate) {
         kill([panel, summaryList, listTransitionElement, ...summaryListChildren]);
@@ -149,7 +158,7 @@
             opacity: listInitialOpacity,
             y: listInitialTranslateY,
             overflowX: 'hidden',
-            overflowY: 'auto',
+            overflowY: listAnimationOverflowY,
             willChange: 'height,opacity,transform',
           },
           {
@@ -289,7 +298,7 @@
             height: `${clampedFromListHeight}px`,
             maxHeight: 'none',
             overflowX: 'hidden',
-            overflowY: 'auto',
+            overflowY: listAnimationOverflowY,
             opacity: listInitialOpacity,
             y: listInitialTranslateY,
             willChange: 'height,opacity,transform',

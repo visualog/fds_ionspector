@@ -26,6 +26,7 @@ const { createContentTheme } = globalThis.FDSContentTheme;
 const { createContentStateUtils } = globalThis.FDSContentStateUtils;
 const { createContentInspector } = globalThis.FDSContentInspection;
 const { createContentSummaryModel } = globalThis.FDSContentSummaryModel;
+const { createContentSummaryPanel } = globalThis.FDSContentSummaryPanel;
 const { createContentToolbarUI } = globalThis.FDSContentToolbarUI;
 const { createContentBridgeSpecs } = globalThis.FDSContentBridgeSpecs;
 const { createContentTokenSuggestions } = globalThis.FDSContentTokenSuggestions;
@@ -37,6 +38,7 @@ const FDS_BUILD = '2026-04-13-dev3';
 const BRIDGE_POLL_INTERVAL_MS = 3000;
 const BRIDGE_DISCONNECT_GRACE_SAMPLES = 3;
 const SUMMARY_LIST_MAX_HEIGHT = 168;
+const SUMMARY_LIST_SCROLL_ITEM_THRESHOLD = 4;
 const FDS_CSS_VARIABLES = FDS_DESIGN_VARIABLES?.cssVariables || {};
 const FDS_SPECS = FDS_DESIGN_VARIABLES?.inspectorSpecs || {
   colors: {},
@@ -79,8 +81,25 @@ const {
   resetToolbarFloatingPosition,
   resetSummaryPanelFloatingPosition,
   applyToolbarSyncState,
+  replaceToolbarMarkupIfChanged,
+  getToolbarCollapsedState,
+  getToolbarModelVisibilityState,
+  createCollapsedToolbarModel,
+  bindToolbarPointerEvents,
+  bindToolbarButtonHoverEvents,
+  clearToolbarMoveButtonClick,
+  getToolbarFilterClickAction,
+  bindToolbarFilterButtonEvents,
+  bindToolbarCommandButtonEvents,
+  bindSummaryPanelCloseButton,
+  clearToolbarDragActiveState,
+  applyToolbarDragActiveState,
+  getToolbarDragMovement,
+  getToolbarDragNextPosition,
+  applyToolbarDragPosition,
 } = createContentToolbarUI({
   documentRef: document,
+  computeToolbarDragPosition,
 });
 const {
   recordIssue,
@@ -141,7 +160,9 @@ let isDismissedByUser = false;
 let hasBoundViewportEvents = false;
 let dragState = null;
 let panelDragState = null;
+let panelResizeState = null;
 let customSummaryPanelPosition = null;
+let customSummaryPanelHeight = null;
 let isToolbarCollapsed = false;
 let suppressToolbarClickUntil = 0;
 let isSummaryPanelDismissed = false;
@@ -216,6 +237,21 @@ const {
   getExpandedIssueGroupKeys: () => expandedIssueGroupKeys,
   parseViolationItem,
 });
+const {
+  getSummaryPanel,
+  setSummaryPanelVisible,
+  hideSummaryPanelElement,
+  isSummaryPanelElementVisible,
+  clearSummaryPanelDragActiveState,
+  applySummaryPanelDragActiveState,
+  applySummaryPanelPosition,
+  applyCustomSummaryPanelPosition: applyCustomSummaryPanelPositionStyle,
+  measureNaturalSummaryPanelHeight,
+  measureSummaryPanelTargetHeight,
+} = createContentSummaryPanel({
+  documentRef: document,
+  getComputedStyleRef: globalThis.getComputedStyle,
+});
 
 function getFDSMotion() {
   return globalThis.FDSMotion || null;
@@ -232,6 +268,16 @@ function formatScanCompletionText(metrics = lastScanMetrics) {
   const total = Number(metrics.totalElementCount || metrics.scannedElementCount || 0).toLocaleString('ko-KR');
   const truncatedLabel = metrics.truncated ? ' · 일부만 검사' : '';
   return `검사 완료 · ${scanned}/${total}개 요소 · ${seconds.toFixed(1)}초${truncatedLabel}`;
+}
+
+function formatScanScopeText(meta = scanData?.meta) {
+  const scanned = Number(meta?.scannedElementCount || 0);
+  const skipped = Number(meta?.skippedElementCount || 0);
+  if (!Number.isFinite(scanned) || !Number.isFinite(skipped) || scanned + skipped <= 0) {
+    return '';
+  }
+
+  return `렌더링 기준 · 검사됨 ${scanned.toLocaleString('ko-KR')}개 · 제외됨 ${skipped.toLocaleString('ko-KR')}개`;
 }
 
 const SCAN_BATCH_SIZE = 80;
@@ -460,7 +506,10 @@ function setActiveFilter(nextFilter) {
 }
 
 function setToolbarCollapsed(nextCollapsed) {
-  isToolbarCollapsed = Boolean(nextCollapsed) && Boolean(activeFilter);
+  isToolbarCollapsed = getToolbarCollapsedState({
+    nextCollapsed,
+    activeFilter,
+  });
   hideTooltip();
 }
 
@@ -521,6 +570,7 @@ const {
   getPinPositionCandidate,
   getClampedPinCandidate,
   getBestPinPosition,
+  getFloatingCardPosition,
 } = createContentFloatingInspector({
   clampPosition,
 });
@@ -556,11 +606,65 @@ function showToolbarButtonTooltip(button) {
   const rect = button.getBoundingClientRect();
   tooltip.style.display = 'block';
   const tooltipHeight = tooltip.offsetHeight || 36;
+  const offsetY = button.closest?.('.fds-summary-list') ? 6 : 18;
   placeFloatingElement(
     tooltip,
     window.scrollX + rect.left + rect.width / 2,
-    window.scrollY + rect.top - tooltipHeight - 18
+    window.scrollY + rect.top - tooltipHeight - offsetY
   );
+}
+
+function avoidSummaryPanelOverlapWithInspectorCard(card) {
+  const panel = getSummaryPanel();
+  if (!panel || panel.style.display !== 'block' || !card || card.style.display === 'none') return false;
+
+  const cardRect = card.getBoundingClientRect();
+  const panelRect = panel.getBoundingClientRect();
+  if (!cardRect.width || !cardRect.height || !panelRect.width || !panelRect.height) return false;
+  if (getRectOverlapArea(cardRect, panelRect) <= 0) return false;
+
+  const gap = 12;
+  const margin = 12;
+  const panelWidth = panelRect.width;
+  const panelHeight = panelRect.height;
+  const clampLeft = (left) => clampPosition(left, margin, Math.max(margin, window.innerWidth - panelWidth - margin));
+  const clampTop = (top) => clampPosition(top, margin, Math.max(margin, window.innerHeight - panelHeight - margin));
+  const toCandidate = ({ left, top }) => {
+    const nextLeft = clampLeft(left);
+    const nextTop = clampTop(top);
+    return {
+      left: nextLeft,
+      top: nextTop,
+      rect: {
+        left: nextLeft,
+        top: nextTop,
+        right: nextLeft + panelWidth,
+        bottom: nextTop + panelHeight,
+      },
+      distance: Math.abs(nextLeft - panelRect.left) + Math.abs(nextTop - panelRect.top),
+    };
+  };
+
+  const candidates = [
+    { left: cardRect.right + gap, top: cardRect.top },
+    { left: cardRect.left - panelWidth - gap, top: cardRect.top },
+    { left: cardRect.left, top: cardRect.bottom + gap },
+    { left: cardRect.left, top: cardRect.top - panelHeight - gap },
+    { left: margin, top: margin },
+    { left: window.innerWidth - panelWidth - margin, top: margin },
+    { left: margin, top: window.innerHeight - panelHeight - margin },
+    { left: window.innerWidth - panelWidth - margin, top: window.innerHeight - panelHeight - margin },
+  ].map(toCandidate)
+    .sort((a, b) => getRectOverlapArea(a.rect, cardRect) - getRectOverlapArea(b.rect, cardRect) || a.distance - b.distance);
+
+  const nextPosition = candidates[0];
+  if (!nextPosition) return false;
+  customSummaryPanelPosition = {
+    left: Math.round(nextPosition.left),
+    top: Math.round(nextPosition.top),
+  };
+  applyCustomSummaryPanelPosition();
+  return true;
 }
 
 function isInspectorUIVisible() {
@@ -617,12 +721,11 @@ function startBridgePolling() {
 }
 
 function showSummaryPanel() {
-  const panel = document.getElementById('fds-summary-panel');
+  const panel = getSummaryPanel();
   if (!panel || !isExtensionVisible || isDismissedByUser || isSummaryPanelDismissed) return;
   const wasPanelVisible = isSummaryPanelVisible();
   activeSummaryTone = 'danger';
-  panel.style.display = 'block';
-  panel.style.visibility = 'visible';
+  setSummaryPanelVisible(panel);
   updateSummaryUI();
   if (!wasPanelVisible) {
     getFDSMotion()?.animatePanelOpen?.(panel);
@@ -643,8 +746,7 @@ function openSummaryPanelForActiveFilter({ forceExpanded = true } = {}) {
 }
 
 function hideSummaryPanel() {
-  const panel = document.getElementById('fds-summary-panel');
-  if (panel) panel.style.display = 'none';
+  hideSummaryPanelElement();
   clearViolationPins();
 }
 
@@ -655,60 +757,7 @@ function dismissSummaryPanel() {
 }
 
 function isSummaryPanelVisible() {
-  const panel = document.getElementById('fds-summary-panel');
-  return panel?.style.display === 'block';
-}
-
-function measureNaturalSummaryPanelHeight(panel) {
-  if (!panel) return 0;
-  return Math.ceil(
-    panel.scrollHeight
-    || panel.getBoundingClientRect?.().height
-    || panel.offsetHeight
-    || 0
-  );
-}
-
-function toPixelNumber(value, fallback = 0) {
-  const parsed = Number.parseFloat(value);
-  return Number.isFinite(parsed) ? parsed : fallback;
-}
-
-function getRenderedHeight(element) {
-  if (!element) return 0;
-  return Math.ceil(
-    element.getBoundingClientRect?.().height
-    || element.offsetHeight
-    || element.scrollHeight
-    || 0
-  );
-}
-
-function measureSummaryPanelTargetHeight(panel, { listHeight = 0 } = {}) {
-  if (!panel) return 0;
-  const style = globalThis.getComputedStyle?.(panel);
-  const paddingTop = toPixelNumber(style?.paddingTop, 16);
-  const paddingBottom = toPixelNumber(style?.paddingBottom, 16);
-  const head = panel.querySelector?.('.fds-panel-head');
-  const section = panel.querySelector?.('.fds-summary-section');
-  const sectionStyle = section ? globalThis.getComputedStyle?.(section) : null;
-  const sectionMarginTop = toPixelNumber(sectionStyle?.marginTop, 16);
-  const sectionGap = toPixelNumber(sectionStyle?.rowGap || sectionStyle?.gap, 8);
-  const sectionChildren = Array.from(section?.children || []);
-  const sectionHeight = sectionChildren.reduce((sum, child, index) => {
-    const childHeight = child.classList?.contains('fds-summary-list')
-      ? listHeight
-      : getRenderedHeight(child);
-    return sum + childHeight + (index > 0 ? sectionGap : 0);
-  }, 0);
-
-  return Math.ceil(
-    paddingTop
-    + getRenderedHeight(head)
-    + sectionMarginTop
-    + sectionHeight
-    + paddingBottom
-  );
+  return isSummaryPanelElementVisible();
 }
 
 function getViolationPinLayer() {
@@ -791,6 +840,61 @@ function getHoveredInspectionTarget(event) {
     .find((element) => visibleElements.has(element) && element.classList.contains('fds-inspected')) || null;
 }
 
+function getInspectorCardTitle(issueEntries = []) {
+  if (!issueEntries.length) return '위반 정보';
+  if (issueEntries.length === 1) {
+    const parsedIssue = parseViolationItem(issueEntries[0]?.message);
+    return `${parsedIssue.chip || '속성'} 위반`;
+  }
+
+  const categories = new Set(issueEntries.map((entry) => entry?.category).filter(Boolean));
+  if (categories.size === 1) {
+    const category = [...categories][0];
+    const categoryLabel = {
+      color: '색상',
+      font: '서체',
+      spacing: '간격',
+      radius: '라운드',
+    }[category] || '속성';
+    return `${categoryLabel} 위반 ${issueEntries.length}건`;
+  }
+
+  return `위반 ${issueEntries.length}건`;
+}
+
+function getInspectorIssueDisplay(entry) {
+  const parsedIssue = parseViolationItem(entry?.message);
+  const value = parsedIssue.value || entry?.message || '확인 필요';
+  const suffix = String(parsedIssue.suffix || parsedIssue.tag || '').trim();
+  const isColorIssue = entry?.category === 'color' || ['배경색', '글자색', '보더색'].includes(parsedIssue.chip);
+  const hasAlpha = /^rgba\(.+,\s*(0?\.\d+|0)\s*\)$/i.test(value);
+
+  if (isColorIssue && suffix === '미등록') {
+    if (hasAlpha) {
+      return {
+        value,
+        description: '투명도가 포함된 미등록 컬러',
+        tip: '반투명 컬러 토큰 등록을 검토하세요.',
+      };
+    }
+    return { value, description: '미등록 컬러가 사용되었습니다.' };
+  }
+
+  if (isColorIssue && suffix === '원시값 직접 사용') {
+    return { value, description: '원시값 컬러가 사용되었습니다.' };
+  }
+
+  if (suffix.startsWith('원시값 직접 사용')) {
+    return { value, description: '원시값이 직접 사용되었습니다.' };
+  }
+
+  if (suffix) {
+    return { value, description: `${suffix} 값이 사용되었습니다.` };
+  }
+
+  return { value, description: '위반 정보가 감지되었습니다.' };
+}
+
 function showInspectorCardForEntries(target, issueEntries, anchorElement = target) {
   const card = document.getElementById('fds-inspector-card');
   if (!target?.isConnected || !card || !issueEntries?.length) {
@@ -806,23 +910,26 @@ function showInspectorCardForEntries(target, issueEntries, anchorElement = targe
   const hasDanger = issueEntries.some((entry) => entry.tone === 'danger');
   const hasWarning = issueEntries.some((entry) => entry.tone === 'warning');
   const toneClass = hasDanger ? 'danger' : hasWarning ? 'warning' : 'success';
-  const toneLabel = hasDanger ? '위험 감지' : hasWarning ? '경고 감지' : '정상';
+  const cardTitle = getInspectorCardTitle(issueEntries);
   const previewEntries = issueEntries.slice(0, 4);
   card.className = `fds-card ${toneClass}`;
   card.innerHTML = `
     <div class="fds-card-head">
       <div class="fds-card-title-wrap">
-        <div class="fds-card-title">INSPECTOR</div>
-        <div class="fds-card-subtitle">${target.tagName.toLowerCase()}</div>
+        <div class="fds-card-title" title="${escapeHtml(cardTitle)}">${escapeHtml(cardTitle)}</div>
       </div>
-      <div class="fds-card-tone ${toneClass}">${toneLabel}</div>
     </div>
     <div class="fds-card-body">
       ${previewEntries.map((entry) => {
         const suggestedTokens = getSuggestedTokensForIssue(entry);
+        const issueDisplay = getInspectorIssueDisplay(entry);
         return `
           <div class="fds-issue-item">
-            <div class="fds-issue-message">${escapeHtml(entry.message)}</div>
+            <div class="fds-issue-message" title="${escapeHtml(entry.message)}">
+              <strong class="fds-issue-value">${escapeHtml(issueDisplay.value)}</strong>
+              <span class="fds-issue-description">${escapeHtml(issueDisplay.description)}</span>
+              ${issueDisplay.tip ? `<span class="fds-issue-tip"><svg class="fds-issue-tip-icon" data-lucide="info" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg><span>${escapeHtml(issueDisplay.tip)}</span></span>` : ''}
+            </div>
             ${suggestedTokens.length
               ? `<div class="fds-issue-replacement">
                   <span>대체 토큰</span>
@@ -861,7 +968,14 @@ function showInspectorCardForEntries(target, issueEntries, anchorElement = targe
   };
   const anchorRect = (anchorElement || target).getBoundingClientRect();
   card.style.display = 'block';
-  placeFloatingElement(card, window.scrollX + anchorRect.left, window.scrollY + anchorRect.bottom + 8);
+  const cardPosition = getFloatingCardPosition(
+    anchorRect,
+    card.offsetWidth || 240,
+    card.offsetHeight || 84,
+    { gap: 12, margin: 12 }
+  );
+  placeFloatingElement(card, window.scrollX + cardPosition.left, window.scrollY + cardPosition.top);
+  avoidSummaryPanelOverlapWithInspectorCard(card);
   positionViolationPin(issueEntries.find((entry) => entry.key === activePinnedIssueKey) || issueEntries[0], { avoidElement: card });
   getFDSMotion()?.animateInspectorCard?.(card);
 }
@@ -1054,11 +1168,7 @@ function isMovingIntoInspectorCard(event) {
 function stopSummaryPanelDrag() {
   const didMovePanel = Boolean(panelDragState?.hasMoved);
   panelDragState = null;
-  const panel = document.getElementById('fds-summary-panel');
-  if (panel) {
-    panel.classList.remove('is-dragging');
-  }
-  document.body.classList.remove('fds-panel-dragging');
+  clearSummaryPanelDragActiveState();
   if (didMovePanel) {
     saveCustomSummaryPanelPosition();
   }
@@ -1080,19 +1190,8 @@ function beginSummaryPanelDrag(event) {
     hasMoved: false,
   };
 
-  panel.style.left = `${rect.left}px`;
-  panel.style.top = `${rect.top}px`;
-  panel.style.bottom = 'auto';
   isSummaryPanelDockedToToolbar = false;
-  panel.classList.add('is-dragging');
-  document.body.classList.add('fds-panel-dragging');
-
-  if (typeof panel.setPointerCapture === 'function') {
-    try {
-      panel.setPointerCapture(event.pointerId);
-    } catch {}
-  }
-
+  applySummaryPanelDragActiveState({ panel, rect, pointerId: event.pointerId });
   event.preventDefault();
 }
 
@@ -1110,8 +1209,84 @@ function moveSummaryPanelDrag(event) {
   });
 
   panelDragState.hasMoved = true;
-  panel.style.left = `${nextPosition.left}px`;
-  panel.style.top = `${nextPosition.top}px`;
+  applySummaryPanelPosition(panel, nextPosition);
+}
+
+function clampSummaryPanelHeight(height, top = 12) {
+  const margin = 12;
+  const minHeight = 220;
+  const maxHeight = Math.max(minHeight, window.innerHeight - top - margin);
+  return Math.round(clampPosition(height, minHeight, maxHeight));
+}
+
+function applyCustomSummaryPanelHeight(panel = getSummaryPanel()) {
+  if (!panel || !customSummaryPanelHeight) return false;
+  const rect = panel.getBoundingClientRect();
+  const top = Number.isFinite(rect.top) ? rect.top : 12;
+  const height = clampSummaryPanelHeight(customSummaryPanelHeight, top);
+  customSummaryPanelHeight = height;
+  panel.classList.add('has-custom-height');
+  panel.style.setProperty('--fds-summary-custom-height', `${height}px`);
+  panel.style.height = `${height}px`;
+  panel.style.overflow = 'hidden';
+  return true;
+}
+
+function beginSummaryPanelResize(event) {
+  const handle = event.target?.closest?.('.fds-panel-resize-handle');
+  if (!handle || event.button !== 0) return;
+  const panel = getSummaryPanel();
+  if (!panel || panel.style.display !== 'block') return;
+  event.preventDefault();
+  event.stopPropagation();
+
+  const rect = panel.getBoundingClientRect();
+  const nextPosition = {
+    left: Math.round(rect.left),
+    top: Math.round(rect.top),
+  };
+  customSummaryPanelPosition = nextPosition;
+  applySummaryPanelPosition(panel, nextPosition);
+  panel.style.bottom = 'auto';
+
+  panelResizeState = {
+    pointerId: event.pointerId,
+    startY: event.clientY,
+    startHeight: rect.height || panel.offsetHeight || 0,
+    top: rect.top,
+    hasMoved: false,
+  };
+  panel.classList.add('is-user-resizing', 'has-custom-height');
+  document.body?.classList?.add?.('fds-panel-resizing');
+  customSummaryPanelHeight = clampSummaryPanelHeight(panelResizeState.startHeight, rect.top);
+  applyCustomSummaryPanelHeight(panel);
+
+  if (typeof handle.setPointerCapture === 'function') {
+    try {
+      handle.setPointerCapture(event.pointerId);
+    } catch {}
+  }
+}
+
+function moveSummaryPanelResize(event) {
+  if (!panelResizeState || panelResizeState.pointerId !== event.pointerId) return;
+  const panel = getSummaryPanel();
+  if (!panel) return;
+  event.preventDefault();
+  const deltaY = event.clientY - panelResizeState.startY;
+  customSummaryPanelHeight = clampSummaryPanelHeight(panelResizeState.startHeight + deltaY, panelResizeState.top);
+  panelResizeState.hasMoved = true;
+  applyCustomSummaryPanelHeight(panel);
+}
+
+function stopSummaryPanelResize() {
+  const panel = getSummaryPanel();
+  panelResizeState = null;
+  panel?.classList?.remove?.('is-user-resizing');
+  document.body?.classList?.remove?.('fds-panel-resizing');
+  if (panel && customSummaryPanelHeight) {
+    applyCustomSummaryPanelHeight(panel);
+  }
 }
 
 function saveCustomSummaryPanelPosition() {
@@ -1126,12 +1301,10 @@ function saveCustomSummaryPanelPosition() {
 
 function applyCustomSummaryPanelPosition() {
   const panel = document.getElementById('fds-summary-panel');
-  if (!panel || !customSummaryPanelPosition) return false;
-  panel.style.left = `${customSummaryPanelPosition.left}px`;
-  panel.style.top = `${customSummaryPanelPosition.top}px`;
-  panel.style.bottom = 'auto';
-  panel.style.right = '';
-  return true;
+  return applyCustomSummaryPanelPositionStyle({
+    panel,
+    position: customSummaryPanelPosition,
+  });
 }
 
 function restoreExpandedToolbarAndPanelPosition({ preserveSummaryPanelPosition = false } = {}) {
@@ -1193,11 +1366,7 @@ function dockCollapsedToolbarAndPanel() {
 function stopToolbarDrag() {
   const dragged = Boolean(dragState?.hasMoved);
   dragState = null;
-  const toolbar = document.getElementById('fds-toolbar');
-  if (toolbar) {
-    toolbar.classList.remove('is-dragging');
-  }
-  document.body.classList.remove('fds-toolbar-dragging');
+  clearToolbarDragActiveState();
   if (dragged) {
     suppressToolbarClickUntil = Date.now() + 250;
   }
@@ -1228,19 +1397,7 @@ function beginToolbarDrag(event) {
   };
 
   if (!isCollapsedDrag) {
-    toolbar.style.left = `${rect.left}px`;
-    toolbar.style.top = `${rect.top}px`;
-    toolbar.style.bottom = 'auto';
-    toolbar.style.transform = 'none';
-    toolbar.classList.add('is-dragging');
-    document.body.classList.add('fds-toolbar-dragging');
-
-    if (typeof toolbar.setPointerCapture === 'function') {
-      try {
-        toolbar.setPointerCapture(event.pointerId);
-      } catch {}
-    }
-
+    applyToolbarDragActiveState({ toolbar, rect, pointerId: event.pointerId });
     event.preventDefault();
   }
 }
@@ -1250,45 +1407,38 @@ function moveToolbarDrag(event) {
   const toolbar = document.getElementById('fds-toolbar');
   if (!toolbar) return;
 
-  const deltaX = Math.abs(event.clientX - dragState.startPointer.x);
-  const deltaY = Math.abs(event.clientY - dragState.startPointer.y);
-  const movedEnough = deltaX > 3 || deltaY > 3;
+  const currentPointer = { x: event.clientX, y: event.clientY };
+  const { movedEnough } = getToolbarDragMovement({
+    startPointer: dragState.startPointer,
+    currentPointer,
+  });
 
   if (!dragState.isActive) {
     if (!movedEnough) return;
 
     dragState.isActive = true;
     dragState.hasMoved = true;
-    toolbar.style.left = `${dragState.startRect.left}px`;
-    toolbar.style.top = `${dragState.startRect.top}px`;
-    toolbar.style.bottom = 'auto';
-    toolbar.style.transform = 'none';
-    toolbar.classList.add('is-dragging');
-    document.body.classList.add('fds-toolbar-dragging');
-
-    if (typeof toolbar.setPointerCapture === 'function') {
-      try {
-        toolbar.setPointerCapture(event.pointerId);
-      } catch {}
-    }
-
+    applyToolbarDragActiveState({
+      toolbar,
+      rect: dragState.startRect,
+      pointerId: event.pointerId,
+    });
     event.preventDefault();
   }
 
-  const nextPosition = computeToolbarDragPosition({
-    startPointer: dragState.startPointer,
-    currentPointer: { x: event.clientX, y: event.clientY },
-    startRect: dragState.startRect,
+  const nextPosition = getToolbarDragNextPosition({
+    dragState,
+    currentPointer,
     viewport: { width: window.innerWidth, height: window.innerHeight },
     margin: 12,
   });
+  if (!nextPosition) return;
 
   if (movedEnough) {
     dragState.hasMoved = true;
   }
 
-  toolbar.style.left = `${nextPosition.left}px`;
-  toolbar.style.top = `${nextPosition.top}px`;
+  applyToolbarDragPosition(toolbar, nextPosition);
 
   if (isSummaryPanelDockedToToolbar && isSummaryPanelVisible()) {
     positionDockedSummaryPanel({
@@ -1335,20 +1485,23 @@ function getToolbarModel() {
     },
   });
 
-  const shouldCollapseToolbar = mode === TOOLBAR_MODES.DEFAULT && isToolbarCollapsed && Boolean(activeFilter);
-  if (!shouldCollapseToolbar && isToolbarCollapsed) {
-    isToolbarCollapsed = false;
-  }
+  const visibilityState = getToolbarModelVisibilityState({
+    mode,
+    defaultMode: TOOLBAR_MODES.DEFAULT,
+    isCollapsed: isToolbarCollapsed,
+    activeFilter,
+  });
+  isToolbarCollapsed = visibilityState.nextIsCollapsed;
 
-  if (!shouldCollapseToolbar) {
+  if (!visibilityState.shouldCollapseToolbar) {
     return baseModel;
   }
 
-  return {
-    ...baseModel,
-    width: TOOLBAR_SPEC.geometry.collapsedWidth,
-    items: [{ type: 'button', ref: activeFilter }],
-  };
+  return createCollapsedToolbarModel({
+    baseModel,
+    collapsedWidth: TOOLBAR_SPEC.geometry.collapsedWidth,
+    activeFilter,
+  });
 }
 
 function syncToolbar() {
@@ -1367,12 +1520,14 @@ function syncToolbar() {
     scanStatusText,
     applyToolbarSpecVariables,
   });
+  root.dataset.pageInteractionShield = activeFilter || isScanning ? 'active' : 'idle';
 
-  if (toolbar.innerHTML.trim() !== markup) {
-    hideTooltip();
-    toolbar.innerHTML = markup;
-    bindToolbarEvents();
-  }
+  replaceToolbarMarkupIfChanged({
+    toolbar,
+    markup,
+    onBeforeReplace: hideTooltip,
+    onAfterReplace: bindToolbarEvents,
+  });
 }
 
 function getViolationCountByFilter(filter) {
@@ -1493,104 +1648,88 @@ function updateConnectionUI() {
   }
 }
 
+function handleToolbarFilterAction(action) {
+  if (action.type === 'open-active-summary') {
+    openSummaryPanelForActiveFilter();
+    hideTooltip();
+    return;
+  }
+
+  if (action.type === 'toggle-active-filter') {
+    setToolbarCollapsed(!isToolbarCollapsed);
+    syncToolbar();
+    isSummaryPanelDockedToToolbar = isToolbarCollapsed;
+    if (isSummaryPanelVisible()) {
+      updateSummaryUI();
+    } else if (!isSummaryPanelDismissed) {
+      isSummaryPanelDismissed = false;
+      showSummaryPanel();
+    }
+    if (isToolbarCollapsed) {
+      dockCollapsedToolbarAndPanel();
+    } else {
+      restoreExpandedToolbarAndPanelPosition({ preserveSummaryPanelPosition: Boolean(customSummaryPanelPosition) });
+    }
+    hideTooltip();
+    return;
+  }
+
+  if (action.type === 'activate-filter') {
+    setActiveFilter(action.filter);
+    openSummaryPanelForActiveFilter();
+    hideTooltip();
+  }
+}
+
 function bindToolbarEvents() {
-  const toolbar = document.getElementById('fds-toolbar');
-  if (toolbar) {
-    toolbar.onpointerdown = beginToolbarDrag;
-    toolbar.onpointermove = moveToolbarDrag;
-    toolbar.onpointerup = stopToolbarDrag;
-    toolbar.onpointercancel = stopToolbarDrag;
-    toolbar.onmouseleave = hideTooltip;
-  }
-
-  document.querySelectorAll('#fds-toolbar button').forEach((btn) => {
-    btn.onmouseenter = () => {
-      showToolbarButtonTooltip(btn);
-    };
-
-    btn.onmouseleave = () => {
-      hideTooltip();
-    };
-
-    btn.onblur = () => {
-      hideTooltip();
-    };
-
-    btn.onpointerdown = () => {
-      hideTooltip();
-    };
+  bindToolbarPointerEvents({
+    onPointerDown: beginToolbarDrag,
+    onPointerMove: moveToolbarDrag,
+    onPointerUp: stopToolbarDrag,
+    onPointerCancel: stopToolbarDrag,
+    onMouseLeave: hideTooltip,
   });
 
-  const moveButton = document.getElementById('fds-btn-move');
-  if (moveButton) {
-    moveButton.onclick = null;
-  }
-
-  document.querySelectorAll('#fds-root [data-filter]').forEach((btn) => {
-    btn.onclick = () => {
-      hideTooltip();
-      if (Date.now() < suppressToolbarClickUntil) return;
-      const nextFilter = normalizeActiveFilter(btn.dataset.filter);
-      if (!nextFilter) return;
-
-      if (activeFilter === nextFilter) {
-        if (!isSummaryPanelVisible() || isSummaryPanelDismissed) {
-          openSummaryPanelForActiveFilter();
-          hideTooltip();
-          return;
-        }
-
-        setToolbarCollapsed(!isToolbarCollapsed);
-        syncToolbar();
-        isSummaryPanelDockedToToolbar = isToolbarCollapsed;
-        if (isSummaryPanelVisible()) {
-          updateSummaryUI();
-        } else if (!isSummaryPanelDismissed) {
-          isSummaryPanelDismissed = false;
-          showSummaryPanel();
-        }
-        if (isToolbarCollapsed) {
-          dockCollapsedToolbarAndPanel();
-        } else {
-          restoreExpandedToolbarAndPanelPosition({ preserveSummaryPanelPosition: Boolean(customSummaryPanelPosition) });
-        }
-        hideTooltip();
-        return;
-      }
-
-      setActiveFilter(nextFilter);
-      openSummaryPanelForActiveFilter();
-      hideTooltip();
-    };
+  bindToolbarButtonHoverEvents({
+    onShowTooltip: showToolbarButtonTooltip,
+    onHideTooltip: hideTooltip,
   });
 
-  const refreshBtn = document.getElementById('fds-btn-refresh');
-  if (refreshBtn) {
-    refreshBtn.onclick = () => {
-      hideTooltip();
+  clearToolbarMoveButtonClick();
+
+  bindToolbarFilterButtonEvents({
+    onHideTooltip: hideTooltip,
+    getAction: (button) => getToolbarFilterClickAction({
+      now: Date.now(),
+      suppressUntil: suppressToolbarClickUntil,
+      nextFilter: normalizeActiveFilter(button.dataset.filter),
+      activeFilter,
+      isSummaryPanelVisible: isSummaryPanelVisible(),
+      isSummaryPanelDismissed,
+    }),
+    onAction: handleToolbarFilterAction,
+  });
+
+  bindToolbarCommandButtonEvents({
+    onHideTooltip: hideTooltip,
+    onRefresh: () => {
       if (isScanning) return;
       if (!isExtensionVisible || isDismissedByUser) return;
       void scan('페이지 위반 수를 다시 계산하는 중입니다.');
       if (!isSummaryPanelDismissed) {
         showSummaryPanel();
       }
-    };
-  }
-
-  const closeBtn = document.getElementById('fds-btn-close');
-  if (closeBtn) {
-    closeBtn.onclick = () => {
-      hideTooltip();
+    },
+    onClose: () => {
       dismissToolbar();
-    };
-  }
+    },
+  });
 
-  const panelCloseBtn = document.querySelector('#fds-summary-panel .fds-panel-close');
-  if (panelCloseBtn) {
-    panelCloseBtn.onclick = () => {
+  bindSummaryPanelCloseButton({
+    onClose: () => {
       dismissSummaryPanel();
-    };
-  }
+    },
+  });
 }
 
 function createUI() {
@@ -1606,6 +1745,7 @@ function createUI() {
   console.info('[FDS Inspector] build:', FDS_BUILD);
   applyToolbarSpecVariables(root);
   root.innerHTML = `
+    <div id="fds-page-interaction-shield" class="fds-page-interaction-shield" aria-hidden="true"></div>
     <div id="fds-issue-pin-layer" class="fds-issue-pin-layer" aria-hidden="true"></div>
     <div id="fds-toolbar" class="fds-toolbar" role="toolbar" aria-label="FDS Inspector toolbar"></div>
     <div id="fds-summary-panel" class="fds-summary-card" style="display:none;"></div>
@@ -1614,6 +1754,7 @@ function createUI() {
   const mountPoint = document.body || document.documentElement;
   if (!mountPoint) return;
   mountPoint.appendChild(root);
+  bindPageInteractionShieldEvents(root);
 
   bindViewportEvents();
   void loadTokenSourceFromStorage();
@@ -1623,6 +1764,37 @@ function createUI() {
   });
   syncToolbar();
   resetToolbarFloatingPosition();
+}
+
+function bindPageInteractionShieldEvents(root = document.getElementById('fds-root')) {
+  const shield = root?.querySelector?.('#fds-page-interaction-shield');
+  if (!shield || shield.dataset.bound === 'true') return;
+  shield.dataset.bound = 'true';
+  [
+    'pointerover',
+    'pointerenter',
+    'pointermove',
+    'pointerdown',
+    'pointerup',
+    'pointercancel',
+    'mouseover',
+    'mouseenter',
+    'mousemove',
+    'mousedown',
+    'mouseup',
+    'mouseout',
+    'mouseleave',
+    'click',
+    'dblclick',
+    'contextmenu',
+  ].forEach((eventName) => {
+    shield.addEventListener(eventName, (event) => {
+      event.stopPropagation();
+      if (eventName === 'click' || eventName === 'dblclick' || eventName === 'contextmenu') {
+        event.preventDefault();
+      }
+    }, true);
+  });
 }
 
 function bindViewportEvents() {
@@ -1674,6 +1846,9 @@ function bindViewportEvents() {
   window.addEventListener('pointercancel', stopToolbarDrag);
   window.addEventListener('pointerup', stopSummaryPanelDrag);
   window.addEventListener('pointercancel', stopSummaryPanelDrag);
+  window.addEventListener('pointermove', moveSummaryPanelResize);
+  window.addEventListener('pointerup', stopSummaryPanelResize);
+  window.addEventListener('pointercancel', stopSummaryPanelResize);
 }
 
 function getPageScanElements() {
@@ -1882,6 +2057,7 @@ function getPreferredViolationFilter(counts = {}) {
   const isIdle = !activeFilter;
   const hasViolations = activeIssueEntries.length > 0;
   const summaryTitle = isIdle ? '검사 정보' : `${activeFilterLabel} 위반 정보`;
+  const scanScopeText = formatScanScopeText();
   const scanStatusMarkup = isScanning
     ? `<div class="fds-summary-loading" role="status" aria-live="polite">${escapeHtml(scanStatusText || getScanStatusMessage())}</div>`
     : scanErrorText
@@ -1905,7 +2081,7 @@ function getPreferredViolationFilter(counts = {}) {
     (sum, group) => sum + 1 + (group.expanded ? group.entries.length : 0),
     0
   );
-  const hasScrollableList = renderedListItemCount > 10;
+  const hasScrollableList = renderedListItemCount > SUMMARY_LIST_SCROLL_ITEM_THRESHOLD;
   const previousList = panel.querySelector('.fds-summary-list');
   const previousListSnapshot = previousList ? previousList.innerHTML : '';
   const previousListKey = panel.dataset.summaryListKey || '';
@@ -1972,6 +2148,7 @@ function getPreferredViolationFilter(counts = {}) {
     <div class="fds-panel-head">
       <div class="fds-panel-title-wrap">
         <span class="fds-panel-title">${escapeHtml(summaryTitle)}</span>
+        ${scanScopeText ? `<span class="fds-panel-meta" title="${escapeHtml(scanScopeText)}">${escapeHtml(scanScopeText)}</span>` : ''}
       </div>
       <button class="fds-panel-close" type="button" aria-label="패널 닫기" title="패널 닫기">${renderAssetIcon('close', 'close')}</button>
     </div>
@@ -1985,7 +2162,13 @@ function getPreferredViolationFilter(counts = {}) {
         ${listMarkup}
       </div>
     </section>
+    <div class="fds-panel-resize-handle" role="separator" aria-label="패널 높이 조절" title="패널 높이 조절" tabindex="0"></div>
   `;
+  if (customSummaryPanelHeight) {
+    applyCustomSummaryPanelHeight(panel);
+  } else {
+    panel.classList.remove('has-custom-height');
+  }
   panel.dataset.summaryListKey = nextListKey;
   const nextList = panel.querySelector('.fds-summary-list');
   const nextListHeight = nextList ? Math.min(nextList.scrollHeight, SUMMARY_LIST_MAX_HEIGHT) : 0;
@@ -2044,12 +2227,12 @@ function getPreferredViolationFilter(counts = {}) {
   applyVisibleIssueHighlights(visibleViolations);
   restoreLockedViolationPin(visibleListItems);
 
-  const panelCloseBtn = panel.querySelector('.fds-panel-close');
-  if (panelCloseBtn) {
-    panelCloseBtn.onclick = () => {
+  bindSummaryPanelCloseButton({
+    button: panel.querySelector('.fds-panel-close'),
+    onClose: () => {
       dismissSummaryPanel();
-    };
-  }
+    },
+  });
 
   panel.querySelectorAll('.fds-summary-tab[data-filter]').forEach((tab) => {
       tab.onclick = () => {
@@ -2091,6 +2274,11 @@ function getPreferredViolationFilter(counts = {}) {
   });
 
   panel.querySelectorAll('.fds-list-group[data-group-key]').forEach((item) => {
+    item.onmouseenter = () => showToolbarButtonTooltip(item);
+    item.onfocus = () => showToolbarButtonTooltip(item);
+    item.onmouseleave = hideTooltip;
+    item.onblur = hideTooltip;
+    item.onpointerdown = hideTooltip;
     item.onclick = (event) => {
       event.preventDefault();
       event.stopPropagation();
@@ -2119,7 +2307,6 @@ function getPreferredViolationFilter(counts = {}) {
       const entry = visibleListItems.find((candidate) => candidate.key === issueKey);
       if (!entry) return null;
       setActiveViolationPin(entry, { locked });
-      showInspectorCardForEntries(entry.element, [entry]);
       panel.querySelectorAll('.fds-list-item.is-pin-active').forEach((activeItem) => {
         activeItem.classList.remove('is-pin-active');
       });
@@ -2127,30 +2314,26 @@ function getPreferredViolationFilter(counts = {}) {
       return entry;
     };
 
-    item.onmouseenter = () => showPin();
-    item.onfocus = () => showPin();
+    item.onmouseenter = () => showToolbarButtonTooltip(item);
+    item.onfocus = () => showToolbarButtonTooltip(item);
     item.onclick = (event) => {
       event.preventDefault();
       event.stopPropagation();
       const entry = showPin({ locked: true });
       scrollToIssueElement(entry);
     };
-    item.onmouseleave = (event) => {
-      if (isMovingIntoInspectorCard(event)) return;
-      if (lockedPinnedIssueKey) {
-        restoreLockedViolationPin(visibleListItems);
-        panel.querySelectorAll('.fds-list-item.is-pin-active').forEach((activeItem) => {
-          activeItem.classList.toggle('is-pin-active', activeItem.dataset.issueKey === activePinnedIssueKey);
-        });
-      } else {
-        scheduleTransientInspectorPreviewClear();
-      }
-    };
+    item.onmouseleave = hideTooltip;
+    item.onblur = hideTooltip;
+    item.onpointerdown = hideTooltip;
   });
 
   const panelHead = panel.querySelector('.fds-panel-head');
   if (panelHead) {
     panelHead.onpointerdown = beginSummaryPanelDrag;
+  }
+  const panelResizeHandle = panel.querySelector('.fds-panel-resize-handle');
+  if (panelResizeHandle) {
+    panelResizeHandle.onpointerdown = beginSummaryPanelResize;
   }
   panel.onpointermove = moveSummaryPanelDrag;
   panel.onpointerup = stopSummaryPanelDrag;
@@ -2162,7 +2345,7 @@ function getPreferredViolationFilter(counts = {}) {
       getFDSMotion()?.animateTabSwitch?.(panel, tabSwitchMotionOptions);
     }
   }
-  const didAnimateSummaryRefresh = Boolean(getFDSMotion()?.animateSummaryRefresh?.(panel, {
+  const didAnimateSummaryRefresh = !customSummaryPanelHeight && Boolean(getFDSMotion()?.animateSummaryRefresh?.(panel, {
     listChanged: isListContentChanged,
     fromPanelHeight: previousPanelHeight,
     toPanelHeight: nextPanelHeight,
@@ -2174,8 +2357,12 @@ function getPreferredViolationFilter(counts = {}) {
     revealListItems: shouldRevealListItems,
   }));
   if (!didAnimateSummaryRefresh) {
-    panel.style.height = '';
-    panel.style.overflow = '';
+    if (customSummaryPanelHeight) {
+      applyCustomSummaryPanelHeight(panel);
+    } else {
+      panel.style.height = '';
+    }
+    panel.style.overflow = customSummaryPanelHeight ? 'hidden' : '';
     if (nextList) {
       nextList.style.height = '';
       nextList.style.opacity = '';

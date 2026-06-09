@@ -78,6 +78,23 @@ test('token suggestions combine spacing specs and parsed tag tokens', () => {
   );
 });
 
+test('token suggestions extract radius replacement tokens from raw-value tags', () => {
+  const suggestions = createSuggestions({
+    parseViolationItem: () => ({
+      tag: '원시값 직접 사용: radius.full',
+      value: '999px',
+    }),
+  });
+
+  assert.deepEqual(
+    suggestions.getSuggestedTokensForIssue({
+      category: 'radius',
+      message: '라운드 999px (원시값 직접 사용: radius.full)',
+    }),
+    ['radius.full'],
+  );
+});
+
 test('token suggestions ignore non raw-value issues', () => {
   const suggestions = createSuggestions();
 

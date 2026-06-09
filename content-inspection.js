@@ -17,7 +17,15 @@
 
     function getRadiusTokens(specs, radius) {
       const tokenMap = specs?.radiusTokens || {};
-      return tokenMap[radius] || [];
+      const directTokens = tokenMap[radius] || [];
+      if (directTokens.length) return directTokens;
+
+      const numericRadius = Number.parseFloat(radius);
+      if (Number.isFinite(numericRadius) && numericRadius >= 999) {
+        return tokenMap['9999px'] || [];
+      }
+
+      return [];
     }
 
     function getPxValue(value) {

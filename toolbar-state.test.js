@@ -171,6 +171,28 @@ test('getToolbarVariantState keeps large badge counts numeric and preserves full
   assert.equal(state.color.badgeLabel, '컬러 검사 2,003개 위반 요소');
 });
 
+test('getToolbarVariantState adds scan scope context to violation badge labels', () => {
+  const state = getToolbarVariantState({
+    activeFilter: 'color',
+    hoveredFilter: null,
+    isFigmaConnected: true,
+    scanData: {
+      violations: ['배경색 #fff (미등록)'],
+      suggestions: [],
+      counts: { color: 154, font: 0, spacing: 0, radius: 0 },
+      meta: {
+        scannedElementCount: 408,
+        skippedElementCount: 336,
+      },
+    },
+  });
+
+  assert.equal(
+    state.color.badgeLabel,
+    '컬러 검사 154개 위반 요소 · 현재 렌더링 기준 · 검사됨 408개 · 제외됨 336개'
+  );
+});
+
 test('getToolbarVariantState keeps refresh clear even when disconnected without violations', () => {
   const state = getToolbarVariantState({
     activeFilter: null,

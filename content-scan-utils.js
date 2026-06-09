@@ -16,7 +16,26 @@
         ? `.${element.className.trim().split(/\s+/).slice(0, 3).join('.')}`
         : '';
       const text = getDirectTextContent(element).slice(0, 24);
-      return `${tagName}${idPart}${classPart}:${text}`;
+      const pathPart = getElementDomPath(element);
+      return `${tagName}${idPart}${classPart}:${text}:${pathPart}`;
+    }
+
+    function getElementDomPath(element) {
+      const path = [];
+      let current = element;
+      let depth = 0;
+
+      while (current && current.tagName && depth < 8) {
+        const tagName = current.tagName.toLowerCase();
+        const parent = current.parentElement;
+        const siblings = Array.from(parent?.children || []).filter((sibling) => sibling.tagName === current.tagName);
+        const siblingIndex = Math.max(0, siblings.indexOf(current));
+        path.push(`${tagName}[${siblingIndex}]`);
+        current = parent;
+        depth += 1;
+      }
+
+      return path.reverse().join('>');
     }
 
     function getDirectTextContent(element) {
@@ -56,16 +75,29 @@
     }
 
     function rgbToHex(rgb) {
-      if (!rgb || rgb === 'transparent' || rgb === 'rgba(0, 0, 0, 0)') return null;
-      if (rgb.startsWith('#')) return rgb.toLowerCase();
-      const result = rgb.match(/\d+/g);
-      if (!result || result.length < 3) return rgb;
-      return `#${result.slice(0, 3).map((x) => Number.parseInt(x, 10).toString(16).padStart(2, '0')).join('')}`;
+      const text = String(rgb || '').trim();
+      if (!text || text === 'transparent') return null;
+      if (text.startsWith('#')) return text.toLowerCase();
+
+      const result = text.match(/^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+)\s*)?\)$/i);
+      if (!result) return text;
+
+      const channels = result.slice(1, 4).map((value) => Number.parseInt(value, 10));
+      if (channels.some((value) => !Number.isFinite(value))) return text;
+
+      const alpha = result[4] === undefined ? 1 : Number.parseFloat(result[4]);
+      if (Number.isFinite(alpha) && alpha <= 0) return null;
+      if (Number.isFinite(alpha) && alpha < 1) {
+        return `rgba(${channels[0]}, ${channels[1]}, ${channels[2]}, ${alpha})`;
+      }
+
+      return `#${channels.map((x) => x.toString(16).padStart(2, '0')).join('')}`;
     }
 
     return {
       recordIssue,
       getElementIssueSignature,
+      getElementDomPath,
       getDirectTextContent,
       hasDirectTextContent,
       getIssueTone,

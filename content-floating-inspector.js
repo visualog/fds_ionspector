@@ -135,6 +135,51 @@
       return candidates[0]?.position || preferredPosition;
     }
 
+    function getFloatingCardPosition(anchorRect, cardWidth, cardHeight, { gap = 12, margin = 12 } = {}) {
+      const viewport = getViewport();
+      if (!anchorRect || !cardWidth || !cardHeight) {
+        return {
+          left: clampPosition(anchorRect?.left || margin, margin, Math.max(margin, viewport.width - cardWidth - margin)),
+          top: clampPosition((anchorRect?.bottom || margin) + gap, margin, Math.max(margin, viewport.height - cardHeight - margin)),
+        };
+      }
+
+      const clampLeft = (left) => clampPosition(left, margin, Math.max(margin, viewport.width - cardWidth - margin));
+      const clampTop = (top) => clampPosition(top, margin, Math.max(margin, viewport.height - cardHeight - margin));
+      const targetCenterY = anchorRect.top + anchorRect.height / 2;
+      const targetCenterX = anchorRect.left + anchorRect.width / 2;
+      const preferred = [
+        { placement: 'right', left: anchorRect.right + gap, top: targetCenterY - cardHeight / 2 },
+        { placement: 'top', left: targetCenterX - cardWidth / 2, top: anchorRect.top - cardHeight - gap },
+        { placement: 'left', left: anchorRect.left - cardWidth - gap, top: targetCenterY - cardHeight / 2 },
+        { placement: 'bottom', left: targetCenterX - cardWidth / 2, top: anchorRect.bottom + gap },
+      ];
+
+      const candidates = preferred.map((candidate, index) => {
+        const left = clampLeft(candidate.left);
+        const top = clampTop(candidate.top);
+        const rect = {
+          left,
+          top,
+          right: left + cardWidth,
+          bottom: top + cardHeight,
+        };
+        return {
+          ...candidate,
+          left,
+          top,
+          order: index,
+          overlapArea: getRectOverlapArea(rect, anchorRect),
+          distance: Math.abs(left - candidate.left) + Math.abs(top - candidate.top),
+        };
+      }).sort((a, b) => a.overlapArea - b.overlapArea || a.order - b.order || a.distance - b.distance);
+
+      return {
+        left: candidates[0]?.left ?? clampLeft(anchorRect.right + gap),
+        top: candidates[0]?.top ?? clampTop(anchorRect.top),
+      };
+    }
+
     return {
       createInspectorCardHideTimer,
       getViolationPinLabel,
@@ -143,6 +188,7 @@
       getPinPositionCandidate,
       getClampedPinCandidate,
       getBestPinPosition,
+      getFloatingCardPosition,
     };
   }
 

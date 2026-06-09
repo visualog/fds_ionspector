@@ -27,33 +27,37 @@
   });
 
   const BUTTON_STATE_FACTORIES = Object.freeze({
-    color: ({ activeFilter, hoveredFilter, counts }) => buildViolationButtonState({
+    color: ({ activeFilter, hoveredFilter, counts, scanScopeText }) => buildViolationButtonState({
       key: 'color',
       activeFilter,
       hoveredFilter,
       count: counts.color,
       indicator: 'badge',
+      scanScopeText,
     }),
-    font: ({ activeFilter, hoveredFilter, counts }) => buildViolationButtonState({
+    font: ({ activeFilter, hoveredFilter, counts, scanScopeText }) => buildViolationButtonState({
       key: 'font',
       activeFilter,
       hoveredFilter,
       count: counts.font,
       indicator: 'badge',
+      scanScopeText,
     }),
-    spacing: ({ activeFilter, hoveredFilter, counts }) => buildViolationButtonState({
+    spacing: ({ activeFilter, hoveredFilter, counts, scanScopeText }) => buildViolationButtonState({
       key: 'spacing',
       activeFilter,
       hoveredFilter,
       count: counts.spacing,
       indicator: 'badge',
+      scanScopeText,
     }),
-    radius: ({ activeFilter, hoveredFilter, counts }) => buildViolationButtonState({
+    radius: ({ activeFilter, hoveredFilter, counts, scanScopeText }) => buildViolationButtonState({
       key: 'radius',
       activeFilter,
       hoveredFilter,
       count: counts.radius,
       indicator: 'badge',
+      scanScopeText,
     }),
     refresh: ({ isFigmaConnected, hasViolations }) => ({
       active: false,
@@ -165,12 +169,23 @@
     return numericCount.toLocaleString('ko-KR');
   }
 
+  function formatScanScopeText(scanData = {}) {
+    const meta = scanData?.meta || {};
+    const scanned = Number(meta.scannedElementCount || 0);
+    const skipped = Number(meta.skippedElementCount || 0);
+    if (!Number.isFinite(scanned) || !Number.isFinite(skipped) || scanned + skipped <= 0) {
+      return '';
+    }
+
+    return `현재 렌더링 기준 · 검사됨 ${scanned.toLocaleString('ko-KR')}개 · 제외됨 ${skipped.toLocaleString('ko-KR')}개`;
+  }
+
   function getViolationBadgeText({ count, hovered, active }) {
     if (count <= 0) return '';
     return hovered || active ? formatBadgeCount(count) : '•';
   }
 
-  function buildViolationButtonState({ key, activeFilter, hoveredFilter, count, indicator }) {
+  function buildViolationButtonState({ key, activeFilter, hoveredFilter, count, indicator, scanScopeText = '' }) {
     const active = activeFilter === key;
     const hovered = hoveredFilter === key;
     const isHighlighted = active || hovered;
@@ -179,7 +194,10 @@
     const badge = getViolationBadgeText({ count, hovered, active });
     const usesBadgeIndicator = indicator === 'badge';
     const badgeLabel = badgeFullCount
-      ? `${BUTTON_META[key]?.title || key} ${badgeFullCount}개 위반 요소`
+      ? [
+        `${BUTTON_META[key]?.title || key} ${badgeFullCount}개 위반 요소`,
+        scanScopeText,
+      ].filter(Boolean).join(' · ')
       : '';
 
     return {
@@ -234,6 +252,7 @@
     const normalizedFilter = normalizeActiveFilter(activeFilter);
     const normalizedHoveredFilter = normalizeActiveFilter(hoveredFilter);
     const counts = getViolationCounts(scanData);
+    const scanScopeText = formatScanScopeText(scanData);
     const hasViolations = (scanData?.violations || []).length > 0;
     const ctx = {
       activeFilter: normalizedFilter,
@@ -242,6 +261,7 @@
       hasViolations,
       isFigmaConnected,
       scanData,
+      scanScopeText,
     };
 
     return Object.keys(BUTTON_META).reduce((acc, key) => {

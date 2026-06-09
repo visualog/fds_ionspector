@@ -131,6 +131,7 @@ test('content injection file lists preserve dependency order', () => {
     'content-state-utils.js',
     'content-inspection.js',
     'content-summary-model.js',
+    'content-summary-panel.js',
     'content-toolbar-ui.js',
     'content-bridge-specs.js',
     'content-token-suggestions.js',

@@ -133,3 +133,37 @@ test('floating inspector chooses a pin position that avoids inspector card overl
 
   assert.equal(inspector.getBestPinPosition(targetRect, 28, 24, avoidRect), 'pin_LT');
 });
+
+test('floating inspector places the issue card beside the target when there is room', () => {
+  const inspector = createInspector({ width: 720, height: 620 });
+  const targetRect = { left: 80, top: 420, right: 340, bottom: 580, width: 260, height: 160 };
+
+  const position = inspector.getFloatingCardPosition(targetRect, 240, 136);
+
+  assert.equal(position.left, 352);
+  assert.equal(position.top, 432);
+  assert.equal(
+    inspector.getRectOverlapArea(
+      { left: position.left, top: position.top, right: position.left + 240, bottom: position.top + 136 },
+      targetRect,
+    ),
+    0,
+  );
+});
+
+test('floating inspector moves the issue card above the target when right side would overlap', () => {
+  const inspector = createInspector({ width: 420, height: 620 });
+  const targetRect = { left: 80, top: 420, right: 340, bottom: 580, width: 260, height: 160 };
+
+  const position = inspector.getFloatingCardPosition(targetRect, 240, 136);
+
+  assert.equal(position.left, 90);
+  assert.equal(position.top, 272);
+  assert.equal(
+    inspector.getRectOverlapArea(
+      { left: position.left, top: position.top, right: position.left + 240, bottom: position.top + 136 },
+      targetRect,
+    ),
+    0,
+  );
+});
