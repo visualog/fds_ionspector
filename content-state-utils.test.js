@@ -12,6 +12,7 @@ test('createEmptyScanData returns the default scan shape', () => {
     violations: [],
     issueEntries: [],
     suggestions: [],
+    excludedEntries: [],
     counts: {
       color: 0,
       font: 0,

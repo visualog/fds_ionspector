@@ -105,6 +105,29 @@ test('FDSMotion uses GSAP for inspector card, pin, and copy feedback', () => {
   assert.equal(calls.filter(([name]) => name === 'fromTo').length, 3);
 });
 
+test('FDSMotion animates summary panel movement from the previous position', () => {
+  const { calls, gsap } = createGsapRecorder();
+  const motion = createFDSMotion({
+    gsap,
+    matchMedia: () => ({ matches: false }),
+  });
+  const panel = { id: 'summary-panel', style: {} };
+
+  assert.equal(motion.animateSummaryPanelMove(panel, {
+    fromRect: { left: 80, top: 320 },
+    toRect: { left: 140, top: 260 },
+  }), true);
+
+  const moveCall = calls.find(([name, target]) => name === 'fromTo' && target === panel);
+  assert.ok(moveCall, 'summary panel move should use a GSAP fromTo tween');
+  assert.equal(moveCall[2].x, -60);
+  assert.equal(moveCall[2].y, 60);
+  assert.equal(moveCall[3].x, 0);
+  assert.equal(moveCall[3].y, 0);
+  assert.equal(moveCall[3].duration <= 0.36, true);
+  assert.equal(moveCall[3].overwrite, 'auto');
+});
+
 test('FDSMotion animates summary refresh with panel and list height transitions', () => {
   const { calls, gsap } = createGsapRecorder();
   const motion = createFDSMotion({
@@ -161,7 +184,7 @@ test('FDSMotion animates summary refresh with panel and list height transitions'
   const listHeightTween = calls.find(([name, target, fromVars, toVars]) => (
     name === 'timeline.fromTo'
     && target === summaryList
-    && fromVars.height === '168px'
+    && fromVars.height === '210px'
     && toVars.height === '120px'
   ));
   assert.ok(listHeightTween, 'summary list height should use a single GSAP fromTo tween');

@@ -103,16 +103,16 @@ test('content summary groups toggle details while child rows navigate issues on 
   assert.doesNotMatch(contentSource, /item\.onmouseenter = \(\) => \{[\s\S]*showPin\(\)/);
   assert.doesNotMatch(contentSource, /const showPin = \(\{ locked = false \} = \{\}\) => \{[\s\S]*?showInspectorCardForEntries\(entry\.element, \[entry\]\)[\s\S]*?return entry;/);
   assert.match(contentSource, /const entry = showPin\(\{ locked: true,\s*isolate: true \}\);/);
-  assert.match(contentSource, /scrollToIssueElement\(entry\)/);
+  assert.match(contentSource, /scrollToIssueElement\(entry,\s*\{\s*ignoreCustomPosition:\s*true\s*\}\)/);
 });
 
 test('content scrolls issue elements through nested app containers before window fallback', () => {
   const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
 
-  assert.match(contentSource, /function\s+scheduleIssuePreviewAfterScroll\(entry\)/);
+  assert.match(contentSource, /function\s+scheduleIssuePreviewAfterScroll\(entry,\s*\{\s*ignoreCustomPosition\s*=\s*false\s*\}\s*=\s*\{\}\)/);
   assert.match(contentSource, /entry\.element\.scrollIntoView\(\{[\s\S]*block:\s*'center'[\s\S]*inline:\s*'center'[\s\S]*behavior/);
-  assert.match(contentSource, /scheduleIssuePreviewAfterScroll\(entry\);[\s\S]*return;[\s\S]*catch \(error\)/);
-  assert.match(contentSource, /function\s+scheduleIssuePreviewAfterScroll\(entry\)[\s\S]*showInspectorCardForEntries\(entry\.element, \[entry\]\)/);
+  assert.match(contentSource, /scheduleIssuePreviewAfterScroll\(entry,\s*\{\s*ignoreCustomPosition\s*\}\);[\s\S]*return;[\s\S]*catch \(error\)/);
+  assert.match(contentSource, /function\s+scheduleIssuePreviewAfterScroll\(entry,[\s\S]*showInspectorCardForEntries\(entry\.element,\s*\[entry\],\s*entry\.element,\s*\{\s*ignoreCustomPosition\s*\}\)/);
   assert.match(contentSource, /if \(typeof window\.scrollTo !== 'function'\) return;[\s\S]*window\.scrollTo\(\{/);
   assert.match(contentSource, /window\.setTimeout\?\.?\(updateIssuePreview,\s*240\)/);
 });
@@ -131,20 +131,76 @@ test('spacing violations expose directional padding and margin markers', () => {
   const styleSource = fs.readFileSync(path.join(__dirname, 'overlay.css'), 'utf8');
 
   assert.match(contentSource, /function\s+getSpacingIssueMetadata\(entries = \[\]\)/);
+  assert.match(contentSource, /function\s+markScannedElementsFromEntries\(\)[\s\S]*renderGapHighlights\(scanData\.issueEntries\)/);
+  assert.match(contentSource, /function\s+clearInspectionMarks\(\)\s*\{[\s\S]*clearGapHighlights\(\)/);
   assert.match(contentSource, /data-fds-spacing-kind/);
   assert.match(contentSource, /data-fds-spacing-sides/);
   assert.match(contentSource, /data-fds-spacing-label/);
   assert.match(contentSource, /function\s+applyElementSpacingAreaVariables\(element, spacingMetadata\)/);
   assert.match(contentSource, /--fds-spacing-area-\$\{side\}/);
+  assert.match(contentSource, /function\s+renderGapHighlights\(entries = getVisibleIssueEntries\(\)\)/);
+  assert.match(contentSource, /function\s+getGapHighlightLayer\(\)/);
+  assert.match(contentSource, /function\s+getRadiusHighlightLayer\(\)/);
+  assert.match(contentSource, /function\s+getTextColorHighlightLayer\(\)/);
+  assert.match(contentSource, /id="fds-gap-highlight-layer" class="fds-gap-highlight-layer"/);
+  assert.match(contentSource, /id="fds-radius-highlight-layer" class="fds-radius-highlight-layer"/);
+  assert.match(contentSource, /id="fds-text-color-highlight-layer" class="fds-text-color-highlight-layer"/);
+  assert.match(contentSource, /const layer = getGapHighlightLayer\(\);[\s\S]*clearGapHighlights\(\);/);
+  assert.match(contentSource, /function\s+renderTextColorHighlights\(entries = getVisibleIssueEntries\(\)\)/);
+  assert.match(contentSource, /function\s+getTextColorMarkerRects\(element\)/);
+  assert.match(contentSource, /range\.getClientRects/);
+  assert.match(contentSource, /function\s+appendTextColorMarker\(layer, rect\)/);
+  assert.match(contentSource, /scheduleTextColorHighlightUpdate\(\)/);
+  assert.match(contentSource, /renderTextColorHighlights\(scanData\.issueEntries\)/);
+  assert.match(contentSource, /function\s+renderRadiusHighlights\(entries = getVisibleIssueEntries\(\)\)/);
+  assert.match(contentSource, /function\s+parseCssRadiusPair\(value\)/);
+  assert.match(contentSource, /function\s+getRadiusCornerRects\(element\)/);
+  assert.match(contentSource, /styles\.borderTopLeftRadius/);
+  assert.match(contentSource, /--fds-radius-corner-width/);
+  assert.match(contentSource, /function\s+appendRadiusCornerMarker\(layer, rect\)/);
+  assert.match(contentSource, /function\s+renderViolationPins\(entries = \[\]\)[\s\S]*const layer = getViolationPinLayer\(\)/);
+  assert.match(contentSource, /function\s+getGapMarkerRects\(element, spacingMetadata\)/);
+  assert.match(contentSource, /function\s+getGapItemMarkerRects\(element, spacingMetadata\)/);
+  assert.match(contentSource, /function\s+appendGapOverlayMarker\(layer, className, rect, dataset = \{\}\)/);
+  assert.match(contentSource, /appendGapOverlayMarker\(layer, 'fds-gap-item-highlight', rect\)/);
+  assert.match(contentSource, /appendGapOverlayMarker\(layer, 'fds-gap-highlight', rect, \{ axis: rect\.axis \}\)/);
+  assert.match(contentSource, /scheduleGapHighlightUpdate\(\)/);
+  assert.match(contentSource, /scheduleRadiusHighlightUpdate\(\)/);
   assert.match(contentSource, /element\.style\.position = 'relative'/);
   assert.match(styleSource, /\.fds-violation\[data-fds-category="spacing"\]::before/);
   assert.match(styleSource, /\[data-fds-spacing-kind="padding"\]::before/);
   assert.match(styleSource, /\[data-fds-spacing-kind="margin"\]::before/);
-  assert.match(styleSource, /\.fds-inspected\.fds-hover-target\s*\{[\s\S]*outline:\s*2px dashed #ff5b5b !important/);
-  assert.match(styleSource, /\.fds-inspected\.fds-hover-target\.fds-violation-warning\s*\{[\s\S]*outline-color:\s*#ffbb3d !important/);
-  assert.match(styleSource, /\.fds-inspected\.fds-hover-target\[data-fds-category="spacing"\]\s*\{[\s\S]*outline-color:\s*#f59e0b !important/);
-  assert.doesNotMatch(styleSource, /\.fds-inspected\.fds-hover-target\s*\{[^}]*#3182f6/);
-  assert.doesNotMatch(styleSource, /\.fds-inspected\.fds-hover-target\s*\{[^}]*outline:\s*2px solid/);
+  assert.match(styleSource, /\[data-fds-spacing-kind="gap"\]::before/);
+  assert.match(styleSource, /\.fds-text-color-highlight-layer,\s*\.fds-gap-highlight-layer,\s*\.fds-radius-highlight-layer,\s*\.fds-issue-pin-layer\s*\{[\s\S]*position:\s*fixed/);
+  assert.match(styleSource, /\.fds-issue-pin-layer\s*\{[\s\S]*z-index:\s*2147483645/);
+  assert.match(styleSource, /\.fds-text-color-highlight\s*\{[\s\S]*background:\s*var\(--fds-devtools-content-fill,\s*rgba\(111,\s*168,\s*220,\s*0\.22\)\)/);
+  assert.match(styleSource, /\.fds-violation\[data-fds-category="color"\]\[data-fds-color-part="text"\]\s*\{[\s\S]*box-shadow:\s*none !important/);
+  assert.match(styleSource, /\.fds-gap-highlight\s*\{[\s\S]*position:\s*fixed/);
+  assert.match(styleSource, /\.fds-radius-corner-highlight\s*\{[\s\S]*position:\s*fixed/);
+  assert.match(styleSource, /\.fds-violation\[data-fds-category="radius"\]\s*\{[\s\S]*box-shadow:\s*none !important/);
+  assert.match(styleSource, /\.fds-radius-corner-highlight\s*\{[\s\S]*color:\s*rgba\(255,\s*229,\s*153,\s*0\.98\)/);
+  assert.match(styleSource, /\.fds-radius-corner-highlight\[data-corner="top-left"\]\s*\{[\s\S]*border-top-left-radius:\s*var\(--fds-radius-corner-width,\s*16px\) var\(--fds-radius-corner-height,\s*16px\)/);
+  assert.match(styleSource, /\[data-fds-spacing-kind="gap"\]\s*\{[\s\S]*box-shadow:\s*none !important/);
+  assert.match(styleSource, /\[data-fds-spacing-kind="gap"\]\s*\{[\s\S]*outline-color:\s*transparent !important/);
+  assert.match(styleSource, /\[data-fds-spacing-kind="margin"\]::before\s*\{[\s\S]*border:\s*none/);
+  assert.match(styleSource, /\.fds-gap-item-highlight\s*\{[\s\S]*background:\s*transparent/);
+  assert.match(styleSource, /\.fds-gap-item-highlight\s*\{[\s\S]*border:\s*none/);
+  assert.match(styleSource, /\.fds-gap-highlight\s*\{[\s\S]*border:\s*none/);
+  assert.match(styleSource, /\.fds-gap-highlight\s*\{[\s\S]*repeating-linear-gradient\(\s*45deg/);
+  assert.match(styleSource, /--fds-devtools-content-line:\s*rgba\(111,\s*168,\s*220,\s*0\.95\)/);
+  assert.match(styleSource, /--fds-devtools-padding-fill:\s*rgba\(147,\s*196,\s*125,\s*0\.36\)/);
+  assert.match(styleSource, /--fds-devtools-radius-line:\s*rgba\(255,\s*229,\s*153,\s*0\.98\)/);
+  assert.match(styleSource, /--fds-devtools-margin-fill:\s*rgba\(246,\s*178,\s*107,\s*0\.34\)/);
+  assert.match(styleSource, /--fds-devtools-gap-line:\s*rgba\(161,\s*120,\s*255,\s*0\.96\)/);
+  assert.match(styleSource, /\.fds-violation\s*\{[\s\S]*outline:\s*2px solid var\(--fds-devtools-content-line\) !important/);
+  assert.match(styleSource, /\.fds-violation\s*\{[\s\S]*inset 0 0 0 9999px var\(--fds-devtools-content-fill\)/);
+  assert.match(styleSource, /\.fds-violation\[data-fds-category="spacing"\]\s*\{[\s\S]*outline-color:\s*transparent !important/);
+  assert.match(styleSource, /\.fds-violation\[data-fds-category="spacing"\]::before\s*\{[\s\S]*border:\s*none/);
+  assert.match(styleSource, /\.fds-inspected\.fds-hover-target\s*\{[\s\S]*outline:\s*2px solid rgba\(111,\s*168,\s*220,\s*0\.98\) !important/);
+  assert.match(styleSource, /\.fds-inspected\.fds-hover-target\.fds-violation-warning\s*\{[\s\S]*outline-color:\s*rgba\(111,\s*168,\s*220,\s*0\.98\) !important/);
+  assert.match(styleSource, /\.fds-inspected\.fds-hover-target\[data-fds-category="spacing"\]\s*\{[\s\S]*outline-color:\s*transparent !important/);
+  assert.match(styleSource, /\.fds-inspected\.fds-hover-target\[data-fds-category="radius"\]\s*\{[\s\S]*outline-color:\s*transparent !important/);
+  assert.doesNotMatch(styleSource, /\.fds-inspected\.fds-hover-target\s*\{[^}]*2px dashed/);
   assert.match(styleSource, /top \/ 100% var\(--fds-spacing-area-top, 0px\) no-repeat/);
   assert.match(styleSource, /right \/ var\(--fds-spacing-area-right, 0px\) 100% no-repeat/);
   assert.match(styleSource, /calc\(var\(--fds-spacing-area-top, 0px\) \* -1\)/);
@@ -193,6 +249,9 @@ test('active summary detail items use the same background color as violation pin
   assert.match(styleSource, /\.fds-list-item\.is-pin-active\s*\{[\s\S]*background:\s*var\(--fds-list-pin-bg\)/);
   assert.match(styleSource, /\.fds-list-item\.danger\.is-pin-active,[\s\S]*?\.fds-list-item\.danger\.is-pin-active:hover,[\s\S]*?\.fds-list-item\.danger\.is-pin-active:focus-visible\s*\{[\s\S]*background:\s*#D84936/);
   assert.match(styleSource, /\.fds-list-item\.warning\.is-pin-active,[\s\S]*?\.fds-list-item\.warning\.is-pin-active:hover,[\s\S]*?\.fds-list-item\.warning\.is-pin-active:focus-visible\s*\{[\s\S]*background:\s*#D49C13/);
+  assert.match(styleSource, /\.fds-list-label-icon\s*\{[\s\S]*display:\s*none/);
+  assert.match(styleSource, /\.fds-list-item\.is-pin-active \.fds-list-label-icon\s*\{[\s\S]*display:\s*inline-flex/);
+  assert.match(styleSource, /\.fds-list-item\.is-pin-active \.fds-list-label-text\s*\{[\s\S]*color:\s*#fff/);
   assert.doesNotMatch(styleSource, /\.fds-list-item\.danger:hover,[\s\S]*?\.fds-list-item\.danger\.is-pin-active\s*\{/);
   assert.doesNotMatch(styleSource, /\.fds-list-item\.warning:hover,[\s\S]*?\.fds-list-item\.warning\.is-pin-active\s*\{/);
 });
@@ -239,7 +298,7 @@ test('overlay keeps scrollbar gutters stable during panel focus changes', () => 
   assert.match(styleSource, /\.fds-panel-body\s*\{[\s\S]*scrollbar-width:\s*thin/);
   assert.match(styleSource, /\.fds-summary-card\s*\{[\s\S]*overflow-y:\s*hidden/);
   assert.match(styleSource, /\.fds-summary-card\s*\{[\s\S]*scrollbar-width:\s*none/);
-  assert.match(styleSource, /\.fds-summary-list\s*\{[\s\S]*overflow-y:\s*hidden/);
+  assert.match(styleSource, /\.fds-summary-list\s*\{[\s\S]*overflow-y:\s*auto/);
   assert.match(styleSource, /\.fds-summary-list\s*\{[\s\S]*scrollbar-width:\s*none/);
   assert.match(styleSource, /\.fds-summary-list\.is-scrollable\s*\{[\s\S]*overflow-y:\s*auto/);
   assert.match(styleSource, /\.fds-summary-list\.is-scrollable\s*\{[\s\S]*scrollbar-width:\s*none/);
@@ -322,6 +381,10 @@ test('summary panel height can be resized by dragging the bottom handle', () => 
 
   assert.match(contentSource, /let panelResizeState = null;/);
   assert.match(contentSource, /let customSummaryPanelHeight = null;/);
+  assert.match(contentSource, /function\s+clearCustomSummaryPanelHeight\(panel = getSummaryPanel\(\)\)/);
+  assert.match(contentSource, /customSummaryPanelHeight = null;/);
+  assert.match(contentSource, /panel\.style\.removeProperty\('--fds-summary-custom-height'\)/);
+  assert.match(contentSource, /if \(action\.type === 'activate-filter'\) \{[\s\S]*clearCustomSummaryPanelHeight\(\);[\s\S]*setActiveFilter\(action\.filter\)/);
   assert.match(contentSource, /function\s+beginSummaryPanelResize\(event\)/);
   assert.match(contentSource, /function\s+moveSummaryPanelResize\(event\)/);
   assert.match(contentSource, /function\s+stopSummaryPanelResize\(\)/);
@@ -349,7 +412,7 @@ test('filter clicks do not immediately refresh over the panel open animation', (
 test('already-open summary panel uses resize motion instead of replaying panel open', () => {
   const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
 
-  assert.match(contentSource, /function\s+showSummaryPanel\(\)[\s\S]*const wasPanelVisible = isSummaryPanelVisible\(\)/);
+  assert.match(contentSource, /function\s+showSummaryPanel\(\{ anchorFilter = null,\s*animatePosition = true \} = \{\}\)[\s\S]*const wasPanelVisible = isSummaryPanelVisible\(\)/);
   assert.match(contentSource, /if \(!wasPanelVisible\) \{[\s\S]*getFDSMotion\(\)\?\.animatePanelOpen\?\.?\(panel\)/);
   assert.doesNotMatch(contentSource, /updateSummaryUI\(\);\s*getFDSMotion\(\)\?\.animatePanelOpen\?\.?\(panel\);/);
 });
@@ -380,7 +443,7 @@ test('summary panel height derives from the rendered list height instead of full
   const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
   const summaryPanelSource = fs.readFileSync(path.join(__dirname, 'content-summary-panel.js'), 'utf8');
 
-  assert.match(contentSource, /const SUMMARY_LIST_MAX_HEIGHT = 168;/);
+  assert.doesNotMatch(contentSource, /SUMMARY_LIST_MAX_HEIGHT/);
   assert.match(contentSource, /const previousListRenderedHeight = previousList/);
   assert.match(contentSource, /previousList\.getBoundingClientRect\?\.\(\)\.height/);
   assert.match(contentSource, /previousList\.clientHeight/);
@@ -395,20 +458,23 @@ test('summary panel height derives from the rendered list height instead of full
       < contentSource.indexOf("listTransitionGhost.classList.add('fds-summary-list-transition-ghost')"),
     'summary target height should be measured before inserting the transition ghost'
   );
-  assert.match(contentSource, /const previousListHeight = previousList \? Math\.min\(previousListRenderedHeight, SUMMARY_LIST_MAX_HEIGHT\) : 0/);
-  assert.match(contentSource, /const nextListHeight = nextList \? Math\.min\(nextList\.scrollHeight, SUMMARY_LIST_MAX_HEIGHT\) : 0/);
+  assert.match(contentSource, /const previousListHeight = previousList \? previousListRenderedHeight : 0/);
+  assert.match(contentSource, /const nextListHeight = nextList \? nextList\.scrollHeight : 0/);
   assert.doesNotMatch(contentSource, /const previousListHeight = previousList \? Math\.min\(previousList\.scrollHeight, SUMMARY_LIST_MAX_HEIGHT\) : 0/);
 });
 
-test('summary list height cap lets collapsed radius groups scroll like spacing groups', () => {
+test('summary list uses natural height and only scrolls when the viewport constrains the panel', () => {
   const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
   const styleSource = fs.readFileSync(path.join(__dirname, 'overlay.css'), 'utf8');
   const motionSource = fs.readFileSync(path.join(__dirname, 'content-motion.js'), 'utf8');
 
-  assert.match(contentSource, /const SUMMARY_LIST_SCROLL_ITEM_THRESHOLD = 4;/);
-  assert.match(contentSource, /const hasScrollableList = renderedListItemCount > SUMMARY_LIST_SCROLL_ITEM_THRESHOLD;/);
-  assert.match(styleSource, /\.fds-summary-list\s*\{[\s\S]*max-height:\s*168px/);
-  assert.match(motionSource, /const SUMMARY_LIST_MAX_HEIGHT = 168;/);
+  assert.doesNotMatch(contentSource, /SUMMARY_LIST_SCROLL_ITEM_THRESHOLD/);
+  assert.match(contentSource, /<div class="fds-summary-list is-scrollable" role="list" aria-label="위반 목록">/);
+  assert.match(styleSource, /\.fds-summary-card\s*\{[\s\S]*max-height:\s*calc\(100vh - var\(--fds-summary-panel-bottom,\s*88px\) - 12px\)/);
+  assert.match(styleSource, /\.fds-summary-section\s*\{[\s\S]*flex:\s*1 1 auto/);
+  assert.match(styleSource, /\.fds-summary-list\s*\{[\s\S]*max-height:\s*none/);
+  assert.match(styleSource, /\.fds-summary-list\s*\{[\s\S]*overflow-y:\s*auto/);
+  assert.doesNotMatch(motionSource, /SUMMARY_LIST_MAX_HEIGHT/);
 });
 
 test('summary panel reserves toolbar clearance so short collapsed lists are not visually clipped', () => {
@@ -417,6 +483,9 @@ test('summary panel reserves toolbar clearance so short collapsed lists are not 
 
   assert.match(styleSource, /\.fds-summary-card\s*\{[\s\S]*padding:\s*16px 12px 12px/);
   assert.match(styleSource, /\.fds-summary-card\s*\{[\s\S]*border-radius:\s*16px/);
+  assert.match(styleSource, /\.fds-summary-card\s*\{[\s\S]*min-height:\s*56px/);
+  assert.match(contentSource, /const SUMMARY_PANEL_MIN_HEIGHT = 56;/);
+  assert.match(contentSource, /Math\.max\(previousPanelHeight,\s*SUMMARY_PANEL_MIN_HEIGHT\)/);
   assert.match(styleSource, /\.fds-panel-head\s*\{[\s\S]*height:\s*auto/);
   assert.match(styleSource, /\.fds-panel-head\s*\{[\s\S]*min-height:\s*28px/);
   assert.match(styleSource, /\.fds-panel-title-wrap\s*\{[\s\S]*gap:\s*0/);
@@ -444,6 +513,24 @@ test('summary panel reserves toolbar clearance so short collapsed lists are not 
   assert.match(contentSource, /function positionDockedSummaryPanel\(toolbarRect\)[\s\S]*const gap = 16;/);
 });
 
+test('summary panel shows a full loading skeleton while scan data is pending', () => {
+  const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
+  const styleSource = fs.readFileSync(path.join(__dirname, 'overlay.css'), 'utf8');
+
+  assert.match(contentSource, /function\s+renderSummaryLoadingSkeleton\(\{ activeFilter \} = \{\}\)/);
+  assert.match(contentSource, /function\s+hasCompletedScanForSummary\(\)/);
+  assert.match(contentSource, /const isPendingInitialSummaryScan = Boolean\(activeFilter\) && !hasCompletedScanForSummary\(\);/);
+  assert.match(contentSource, /const isSummaryLoading = !scanErrorText && \(isScanning \|\| isPendingInitialSummaryScan\);/);
+  assert.match(contentSource, /renderSummaryLoadingSkeleton\(\{ activeFilter \}\)/);
+  assert.match(contentSource, /panel\.classList\.toggle\('is-loading', isSummaryLoading\)/);
+  assert.match(contentSource, /aria-busy="true"/);
+  assert.match(styleSource, /\.fds-summary-card\.is-loading \.fds-summary-section\s*\{[\s\S]*min-height:\s*198px/);
+  assert.match(styleSource, /\.fds-summary-tabbar\.is-skeleton\s*\{[\s\S]*grid-template-columns:\s*repeat\(3,\s*1fr\)/);
+  assert.match(styleSource, /\.fds-stat-box\.is-skeleton\s*\{[\s\S]*pointer-events:\s*none/);
+  assert.match(styleSource, /\.fds-summary-list\.is-skeleton\s*\{[\s\S]*min-height:\s*104px/);
+  assert.match(styleSource, /@keyframes fds-summary-skeleton/);
+});
+
 test('summary panel uses a readable blurred surface over page content', () => {
   const styleSource = fs.readFileSync(path.join(__dirname, 'overlay.css'), 'utf8');
 
@@ -469,11 +556,37 @@ test('toolbar menu clicks preserve a user-moved summary panel position', () => {
   assert.match(contentSource, /function\s+saveCustomSummaryPanelPosition\(\)[\s\S]*customSummaryPanelPosition = \{/);
   assert.match(contentSource, /function\s+applyCustomSummaryPanelPosition\(\)[\s\S]*applyCustomSummaryPanelPositionStyle\(\{/);
   assert.match(summaryPanelSource, /function\s+applyCustomSummaryPanelPosition\(\{[\s\S]*panel\.style\.left = `\$\{position\.left\}px`/);
-  assert.match(contentSource, /function\s+restoreExpandedToolbarAndPanelPosition\(\{ preserveSummaryPanelPosition = false \} = \{\}\)/);
+  assert.match(contentSource, /function\s+restoreExpandedToolbarAndPanelPosition\(\{[\s\S]*preserveSummaryPanelPosition = false,[\s\S]*resetSummaryPanelPosition = true,[\s\S]*\} = \{\}\)/);
   assert.match(contentSource, /if \(preserveSummaryPanelPosition && applyCustomSummaryPanelPosition\(\)\) return;/);
-  assert.match(contentSource, /restoreExpandedToolbarAndPanelPosition\(\{ preserveSummaryPanelPosition: Boolean\(customSummaryPanelPosition\) \}\)/);
+  assert.match(contentSource, /if \(!resetSummaryPanelPosition\) return;/);
+  assert.match(contentSource, /preserveSummaryPanelPosition: Boolean\(customSummaryPanelPosition\) && !anchorFilter/);
+  assert.match(contentSource, /resetSummaryPanelPosition: !anchorFilter/);
   assert.match(contentSource, /const didMovePanel = Boolean\(panelDragState\?\.hasMoved\)/);
   assert.match(contentSource, /if \(didMovePanel\) \{[\s\S]*saveCustomSummaryPanelPosition\(\)/);
+});
+
+test('toolbar menu clicks align the summary panel to the clicked filter button', () => {
+  const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
+  const motionSource = fs.readFileSync(path.join(__dirname, 'content-motion.js'), 'utf8');
+
+  assert.match(contentSource, /function\s+getSummaryPanelPositionForToolbarButton\(anchorElement\)/);
+  assert.match(contentSource, /function\s+getToolbarFilterButton\(filter = activeFilter\)/);
+  assert.match(contentSource, /const buttonId = BUTTON_META\?\.\[normalizedFilter\]\?\.id/);
+  assert.match(contentSource, /buttonRect\.left \+ \(buttonRect\.width \/ 2\) - \(panelRect\.width \/ 2\)/);
+  assert.match(contentSource, /window\.innerHeight - buttonRect\.top \+ gap/);
+  assert.match(contentSource, /return \{ left: Math\.round\(left\), bottom: Math\.round\(bottom\) \}/);
+  assert.match(contentSource, /function\s+positionSummaryPanelForToolbarButton\(anchorElement,\s*\{ animate = true \} = \{\}\)/);
+  assert.match(contentSource, /panel\.style\.top = 'auto'/);
+  assert.match(contentSource, /panel\.style\.bottom = `\$\{nextPosition\.bottom\}px`/);
+  assert.match(contentSource, /panel\.style\.setProperty\('--fds-summary-panel-bottom', `\$\{nextPosition\.bottom\}px`\)/);
+  assert.match(contentSource, /getFDSMotion\(\)\?\.animateSummaryPanelMove\?\.?\(panel,\s*\{ fromRect,\s*toRect \}\)/);
+  assert.match(contentSource, /function\s+showSummaryPanel\(\{ anchorFilter = null,\s*animatePosition = true \} = \{\}\)/);
+  assert.match(contentSource, /const anchorElement = getToolbarFilterButton\(anchorFilter \|\| activeFilter\)/);
+  assert.match(contentSource, /positionSummaryPanelForToolbarButton\(anchorElement,\s*\{ animate: animatePosition && wasPanelVisible \}\)/);
+  assert.match(contentSource, /function\s+openSummaryPanelForActiveFilter\(\{ forceExpanded = true,\s*anchorFilter = activeFilter \} = \{\}\)/);
+  assert.match(contentSource, /openSummaryPanelForActiveFilter\(\{ anchorFilter: action\.filter \}\)/);
+  assert.match(motionSource, /function\s+animateSummaryPanelMove\(panel,\s*\{/);
+  assert.match(motionSource, /recordMotion\('summary-panel-move'\)/);
 });
 
 test('summary refresh releases fixed panel height after animation completes', () => {
@@ -540,6 +653,8 @@ test('inspector hover card separates issue value from repeated violation type co
   assert.match(contentSource, /<strong class="fds-issue-value">\$\{escapeHtml\(issueDisplay\.value\)\}<\/strong>/);
   assert.match(contentSource, /<span class="fds-issue-description">\$\{escapeHtml\(issueDisplay\.description\)\}<\/span>/);
   assert.match(contentSource, /<span class="fds-issue-tip"><svg class="fds-issue-tip-icon" data-lucide="info"[\s\S]*<span>\$\{escapeHtml\(issueDisplay\.tip\)\}<\/span><\/span>/);
+  assert.match(contentSource, /function\s+renderSuggestedTokenRows\(tokens = \[\]\)/);
+  assert.match(contentSource, /tokens\.map\(\(token\) => `[\s\S]*<div class="fds-token-row">[\s\S]*data-copy-token="\$\{escapeHtml\(token\)\}"/);
   assert.match(contentSource, /<button class="fds-token-copy"[\s\S]*data-lucide="\$\{escapeHtml\(name\)\}"/);
   assert.doesNotMatch(contentSource, />토큰명 복사<\/button>/);
   assert.doesNotMatch(contentSource, /<span>대체 토큰<\/span>/);
@@ -553,9 +668,10 @@ test('inspector hover card separates issue value from repeated violation type co
   assert.match(styleSource, /\.fds-issue-tip\s*\{[\s\S]*color:\s*#75bef8/);
   assert.match(styleSource, /\.fds-issue-tip-icon\s*\{[\s\S]*width:\s*12px/);
   assert.doesNotMatch(styleSource, /\.fds-issue-tip-icon\s*\{[^}]*margin-top/);
-  assert.match(styleSource, /\.fds-issue-replacement\s*\{[\s\S]*align-items:\s*center/);
+  assert.match(styleSource, /\.fds-issue-replacement\s*\{[\s\S]*flex-direction:\s*column/);
+  assert.match(styleSource, /\.fds-token-row\s*\{[\s\S]*align-items:\s*center/);
   assert.doesNotMatch(styleSource, /\.fds-issue-replacement span\s*\{/);
-  assert.match(styleSource, /\.fds-issue-replacement strong\s*\{[\s\S]*flex:\s*1 1 auto/);
+  assert.match(styleSource, /\.fds-token-row strong\s*\{[\s\S]*flex:\s*1 1 auto/);
   assert.match(styleSource, /\.fds-token-copy\s*\{[\s\S]*width:\s*22px/);
   assert.match(styleSource, /\.fds-token-copy\s*\{[\s\S]*border:\s*none/);
   assert.match(styleSource, /\.fds-token-copy\s*\{[\s\S]*background:\s*transparent/);
@@ -572,15 +688,17 @@ test('inspector hover card separates issue value from repeated violation type co
 test('inspector hover card anchors to violation elements instead of summary list rows', () => {
   const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
 
-  assert.match(contentSource, /function\s+showInspectorCardForEntries\(target,\s*issueEntries,\s*anchorElement\s*=\s*target\)/);
+  assert.match(contentSource, /function\s+showInspectorCardForEntries\(target,\s*issueEntries,\s*anchorElement\s*=\s*target,\s*\{\s*ignoreCustomPosition\s*=\s*false\s*\}\s*=\s*\{\}\)/);
   assert.match(contentSource, /const\s+anchorRect\s*=\s*\(anchorElement\s*\|\|\s*target\)\.getBoundingClientRect\(\)/);
   assert.match(contentSource, /const cardHead = card\.querySelector\('\.fds-card-head'\)/);
   assert.match(contentSource, /cardHead\.onpointerdown = beginInspectorCardDrag/);
-  assert.match(contentSource, /if \(!applyCustomInspectorCardPosition\(card\)\) \{[\s\S]*placeFloatingElement\(card/);
+  assert.match(contentSource, /if \(!ignoreCustomPosition && applyCustomInspectorCardPosition\(card\)\) \{/);
+  assert.match(contentSource, /if \(ignoreCustomPosition\) \{[\s\S]*customInspectorCardPosition = null;[\s\S]*\}/);
+  assert.match(contentSource, /placeFloatingElement\(card,\s*window\.scrollX \+ cardPosition\.left,\s*window\.scrollY \+ cardPosition\.top\)/);
   assert.match(contentSource, /const shouldAnimateCard = card\.style\.display !== 'block' \|\| card\.dataset\.issueKeys !== nextIssueKeys/);
   assert.match(contentSource, /if \(shouldAnimateCard\) \{[\s\S]*getFDSMotion\(\)\?\.animateInspectorCard\?\.?\(card\)/);
   assert.doesNotMatch(contentSource, /showInspectorCardForEntries\(entry\.element,\s*\[entry\],\s*item\)/);
-  assert.match(contentSource, /showInspectorCardForEntries\(entry\.element,\s*\[entry\]\)/);
+  assert.match(contentSource, /showInspectorCardForEntries\(entry\.element,\s*\[entry\],\s*entry\.element,\s*\{\s*ignoreCustomPosition\s*\}\)/);
 });
 
 test('inspector card can be moved by dragging its header', () => {
@@ -682,8 +800,8 @@ test('inspector card hover area is protected from document-level mouse clearing'
 test('inspector token text can wrap instead of hiding long token candidates', () => {
   const styleSource = fs.readFileSync(path.join(__dirname, 'overlay.css'), 'utf8');
 
-  assert.match(styleSource, /\.fds-issue-replacement strong\s*\{[\s\S]*overflow-wrap:\s*anywhere/);
-  assert.match(styleSource, /\.fds-issue-replacement strong\s*\{[\s\S]*white-space:\s*normal/);
+  assert.match(styleSource, /\.fds-token-row strong\s*\{[\s\S]*overflow-wrap:\s*anywhere/);
+  assert.match(styleSource, /\.fds-token-row strong\s*\{[\s\S]*white-space:\s*normal/);
 });
 
 test('fixture QA injects the bundled GSAP motion layer before the content script', () => {
@@ -820,6 +938,7 @@ test('scan runner counts all filters while collecting entries only for the activ
     totalElementCount: 1,
     scannedElementCount: 1,
     skippedElementCount: 0,
+    excludedElementCount: 0,
     batchYieldCount: 0,
     truncated: false,
   });

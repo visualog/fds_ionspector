@@ -8,6 +8,12 @@
     getUrl,
     escapeHtml = fallbackEscapeHtml,
   }) {
+    function removeRenderingScopeFromText(text) {
+      const value = String(text || '');
+      const tokenIndex = value.indexOf(' · 현재 렌더링 기준');
+      return tokenIndex >= 0 ? value.slice(0, tokenIndex) : value;
+    }
+
     function renderAssetIcon(kind, alt) {
       const path = iconPaths[kind] || iconPaths.close;
       const src = path ? getUrl(path) : null;
@@ -20,6 +26,20 @@
       }
 
       return `<img class="fds-icon-svg" src="${escapeHtml(src)}" alt="${escapeHtml(alt || kind)}" />`;
+    }
+
+    function renderLucideStatusIcon(kind) {
+      const iconMap = {
+        'circle-alert': '<circle cx="12" cy="12" r="10"></circle><path d="M12 8v4"></path><path d="M12 16h.01"></path>',
+        'triangle-alert': '<path d="m21.73 18-8-14a2 2 0 0 0-3.46 0l-8 14A2 2 0 0 0 4 21h16a2 2 0 0 0 1.73-3"></path><path d="M12 9v4"></path><path d="M12 17h.01"></path>',
+      };
+      const paths = iconMap[kind];
+      if (!paths) return '';
+      return `<svg class="fds-icon-svg fds-icon-lucide" data-lucide="${escapeHtml(kind)}" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${paths}</svg>`;
+    }
+
+    function renderStatusIcon(kind, alt) {
+      return renderLucideStatusIcon(kind) || renderAssetIcon(kind, alt);
     }
 
     function renderLucideChevronIcon(kind) {
@@ -41,12 +61,11 @@
     function renderToolbarButton(button) {
       if (!button) return '';
       const accessibleLabel = button.badgeLabel || button.ariaLabel || button.title || '';
-      const tooltip = button.badgeLabel || button.tooltip || button.title || '';
+      const tooltip = removeRenderingScopeFromText(button.tooltip || button.title || button.badgeLabel || '');
       const attrs = [
         `id="${escapeHtml(button.id)}"`,
         'class="fds-btn' + (button.extraClass ? ` ${button.extraClass}` : '') + (button.active ? ' active' : '') + (button.dot ? ' has-dot' : '') + '"',
         'type="button"',
-        `title="${escapeHtml(tooltip)}"`,
         `aria-label="${escapeHtml(accessibleLabel)}"`,
         `data-tooltip="${escapeHtml(tooltip)}"`,
         `data-kind="${escapeHtml(button.kind)}"`,
@@ -66,7 +85,7 @@
     function renderToolbarModelItem(item, model) {
       if (item.type === 'static') {
         const moveTooltip = '툴바 이동';
-        return `<button id="${escapeHtml(item.id)}" class="fds-btn-static fds-btn-move" type="button" title="${escapeHtml(moveTooltip)}" data-tooltip="${escapeHtml(moveTooltip)}" data-kind="${escapeHtml(item.kind)}"><span class="fds-icon-slot">${renderAssetIcon(item.kind, item.kind)}</span></button>`;
+        return `<button id="${escapeHtml(item.id)}" class="fds-btn-static fds-btn-move" type="button" data-tooltip="${escapeHtml(moveTooltip)}" data-kind="${escapeHtml(item.kind)}"><span class="fds-icon-slot">${renderAssetIcon(item.kind, item.kind)}</span></button>`;
       }
 
       if (item.type === 'divider') return renderDivider(item.id);
@@ -105,6 +124,8 @@
         { regex: /^(상단|오른쪽|하단|왼쪽) 패딩\s+(.+?)\s+\((.+?)\)$/, chip: (_, side) => `${side} 패딩`, tone: 'warning', valueLabel: '크기' },
         { regex: /^마진\s+(.+?)\s+\((.+?)\)$/, chip: '마진', tone: 'warning', valueLabel: '크기' },
         { regex: /^(상단|오른쪽|하단|왼쪽) 마진\s+(.+?)\s+\((.+?)\)$/, chip: (_, side) => `${side} 마진`, tone: 'warning', valueLabel: '크기' },
+        { regex: /^갭\s+(.+?)\s+\((.+?)\)$/, chip: '갭', tone: 'warning', valueLabel: '크기' },
+        { regex: /^(행|열) 갭\s+(.+?)\s+\((.+?)\)$/, chip: (_, axis) => `${axis} 갭`, tone: 'warning', valueLabel: '크기' },
         { regex: /^라운드\s+(.+?)\s+\((.+?)\)$/, chip: '라운드', tone: 'warning', valueLabel: '크기' },
       ];
 
@@ -166,7 +187,7 @@
       return '1억+';
     }
 
-    function renderSummaryMetricCard({ tone, label, value, caption = '', icon = 'warning', isToggle = false, isActive = false }) {
+    function renderSummaryMetricCard({ tone, label, value, caption = '', icon = '', isToggle = false, isActive = false }) {
       const tagName = isToggle ? 'button' : 'article';
       const typeAttr = isToggle ? ' type="button"' : '';
       const dataAttr = isToggle ? ` data-summary-tone="${escapeHtml(tone)}"` : '';
@@ -174,10 +195,11 @@
       const displayValue = formatDisplayCount(value);
       const captionText = String(caption || '');
       const ariaLabel = captionText ? `${label}: ${displayValue}, ${captionText}` : `${label}: ${displayValue}`;
+      const resolvedIcon = icon || (tone === 'danger' ? 'triangle-alert' : tone === 'warning' ? 'circle-alert' : 'warning');
       return `
     <${tagName}${typeAttr}${dataAttr}${pressedAttr} class="fds-stat-box ${tone}${isToggle ? ' is-toggle' : ''}${isActive ? ' is-active' : ''}" aria-label="${escapeHtml(ariaLabel)}">
       <div class="fds-stat-topline" aria-hidden="true">
-        <span class="fds-stat-icon">${renderAssetIcon(icon, icon)}</span>
+        <span class="fds-stat-icon">${renderStatusIcon(resolvedIcon, resolvedIcon)}</span>
         <span class="fds-stat-heading">${escapeHtml(label)}</span>
       </div>
       <div class="fds-stat-num">${escapeHtml(displayValue)}</div>
@@ -227,6 +249,7 @@
           label: '미등록',
           value: missingColorPatternCount,
           caption: `영향 ${formatDisplayCount(missingColorCount)}개 요소`,
+          icon: 'triangle-alert',
           isToggle: true,
           isActive: activeSummaryTone === 'danger',
         },
@@ -235,6 +258,7 @@
           label: '원시값',
           value: primitiveColorPatternCount,
           caption: `영향 ${formatDisplayCount(primitiveColorCount)}개 요소`,
+          icon: 'circle-alert',
           isToggle: true,
           isActive: activeSummaryTone === 'warning',
         },
@@ -312,7 +336,7 @@
       return `
     <button class="fds-list-item ${tone}" type="button" role="listitem" data-issue-key="${escapeHtml(issueKey)}" data-issue-keys="${escapeHtml(JSON.stringify(issueKeys))}" data-tooltip="${escapeHtml(tooltipLabel)}" aria-label="${escapeHtml(itemLabel)}">
       <span class="fds-list-label">
-        <span class="fds-list-label-icon" aria-hidden="true">${renderAssetIcon('warning', 'warning')}</span>
+        <span class="fds-list-label-icon" aria-hidden="true">${renderStatusIcon(tone === 'warning' ? 'circle-alert' : 'triangle-alert', tone)}</span>
         <span class="fds-list-label-text">
           <span class="fds-list-element">${escapeHtml(displayElementLabel)}</span>
         </span>

@@ -8,7 +8,7 @@
   const SUMMARY_HEIGHT_THRESHOLD = 2;
   const SUMMARY_LIST_REVEAL_DURATION = 0.32;
   const SUMMARY_LIST_REVEAL_EASE = 'sine.inOut';
-  const SUMMARY_LIST_MAX_HEIGHT = 168;
+  const SUMMARY_POSITION_DURATION = 0.34;
   const PANEL_TARGET_SELECTOR = [
     '.fds-stat-box',
     '.fds-list-group',
@@ -84,6 +84,38 @@
       return true;
     }
 
+    function animateSummaryPanelMove(panel, {
+      fromRect,
+      toRect,
+    } = {}) {
+      if (!canAnimate(panel) || !fromRect || !toRect) return false;
+      const deltaX = Number(fromRect.left || 0) - Number(toRect.left || 0);
+      const deltaY = Number(fromRect.top || 0) - Number(toRect.top || 0);
+      if (Math.abs(deltaX) < 1 && Math.abs(deltaY) < 1) return false;
+
+      gsap.fromTo(
+        panel,
+        {
+          x: deltaX,
+          y: deltaY,
+          willChange: 'transform',
+        },
+        {
+          x: 0,
+          y: 0,
+          duration: SUMMARY_POSITION_DURATION,
+          ease: DEFAULT_EASE,
+          overwrite: 'auto',
+          onComplete: () => {
+            panel.style.transform = '';
+            panel.style.willChange = '';
+          },
+        }
+      );
+      recordMotion('summary-panel-move');
+      return true;
+    }
+
     function animateSummaryRefresh(panel, {
       listChanged = true,
       fromPanelHeight = 0,
@@ -114,7 +146,6 @@
         && resolvedFromListHeight >= 0
         && resolvedToListHeight >= 0
         && (force ? (listHeightDeltaEligible || listChanged) : listHeightDeltaEligible);
-      const clampedFromListHeight = Math.min(resolvedFromListHeight, SUMMARY_LIST_MAX_HEIGHT);
       const listAnimationOverflowY = hasClass(summaryList, 'is-scrollable') ? 'auto' : 'hidden';
       const didAnimate = canAnimatePanelHeight || canAnimateListHeight;
       if (didAnimate) {
@@ -153,7 +184,7 @@
         timeline.fromTo(
           summaryList,
           {
-            height: `${clampedFromListHeight}px`,
+            height: `${resolvedFromListHeight}px`,
             maxHeight: 'none',
             opacity: listInitialOpacity,
             y: listInitialTranslateY,
@@ -162,7 +193,7 @@
             willChange: 'height,opacity,transform',
           },
           {
-            height: `${Math.min(resolvedToListHeight, SUMMARY_LIST_MAX_HEIGHT)}px`,
+            height: `${resolvedToListHeight}px`,
             opacity: 1,
             y: 0,
             duration: SUMMARY_LIST_DURATION,
@@ -295,7 +326,7 @@
 
         if (canAnimateListHeight && summaryList) {
           gsap.set(summaryList, {
-            height: `${clampedFromListHeight}px`,
+            height: `${resolvedFromListHeight}px`,
             maxHeight: 'none',
             overflowX: 'hidden',
             overflowY: listAnimationOverflowY,
@@ -304,7 +335,7 @@
             willChange: 'height,opacity,transform',
           });
           gsap.to(summaryList, {
-            height: `${Math.min(resolvedToListHeight, SUMMARY_LIST_MAX_HEIGHT)}px`,
+            height: `${resolvedToListHeight}px`,
             opacity: 1,
             y: 0,
             duration: SUMMARY_LIST_DURATION,
@@ -455,6 +486,7 @@
       animatePanelOpen,
       animateTabSwitch,
       animateSummaryRefresh,
+      animateSummaryPanelMove,
       animateInspectorCard,
       animatePin,
       animateCopySuccess,

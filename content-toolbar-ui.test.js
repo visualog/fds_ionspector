@@ -49,6 +49,17 @@ test('toolbar UI reads tooltip copy from dataset before title', () => {
   assert.equal(toolbarUI.getToolbarButtonTooltip(null), '');
 });
 
+test('toolbar UI strips rendering scope metadata from toolbar tooltip text', () => {
+  const toolbarUI = createContentToolbarUI();
+  const button = createElement();
+  button.dataset.tooltip = '컬러 검사 2,003개 위반 요소 · 현재 렌더링 기준 · 검사됨 408개 · 제외됨 336개';
+
+  assert.equal(
+    toolbarUI.getToolbarButtonTooltip(button),
+    '컬러 검사 2,003개 위반 요소'
+  );
+});
+
 test('toolbar UI toggles root visibility and body class', () => {
   const root = createElement();
   const body = createElement();

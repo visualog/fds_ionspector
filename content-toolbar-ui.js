@@ -3,9 +3,16 @@
     documentRef = globalScope.document,
     computeToolbarDragPosition = globalScope.FDSToolbarDrag?.computeToolbarDragPosition,
   } = {}) {
+    function removeRenderingScopeFromTooltip(text) {
+      const value = String(text || '');
+      const tokenIndex = value.indexOf(' · 현재 렌더링 기준');
+      return tokenIndex >= 0 ? value.slice(0, tokenIndex) : value;
+    }
+
     function getToolbarButtonTooltip(button) {
       if (!button) return '';
-      return button.dataset.tooltip || button.getAttribute('title') || '';
+      const rawTooltip = button.dataset.tooltip || button.getAttribute('title') || '';
+      return removeRenderingScopeFromTooltip(rawTooltip);
     }
 
     function setRootVisibility(visible, root = documentRef?.getElementById?.('fds-root')) {

@@ -16,6 +16,7 @@
     getStyles,
     inspectElement,
     addIssueEntry,
+    addExcludedEntry,
     markElement,
     yieldToBrowser,
   }) {
@@ -24,6 +25,7 @@
         violations: [],
         issueEntries: [],
         suggestions: [],
+        excludedEntries: [],
         counts: createEmptyCounts(filters),
         colorBreakdown: {
           missing: 0,
@@ -33,6 +35,7 @@
           totalElementCount: 0,
           scannedElementCount: 0,
           skippedElementCount: 0,
+          excludedElementCount: 0,
           batchYieldCount: 0,
           truncated: false,
         },
@@ -50,6 +53,13 @@
         const element = elements[index];
         if (!isElementVisible(element)) {
           scanData.meta.skippedElementCount += 1;
+          const excludedEntry = typeof addExcludedEntry === 'function'
+            ? addExcludedEntry(element)
+            : null;
+          if (excludedEntry) {
+            scanData.excludedEntries.push(excludedEntry);
+            scanData.meta.excludedElementCount += 1;
+          }
           continue;
         }
 

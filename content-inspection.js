@@ -28,6 +28,24 @@
       return [];
     }
 
+    function getColorPartFromTokenName(token) {
+      const parts = String(token || '')
+        .toLowerCase()
+        .split(/[./_\-\s]+/)
+        .filter(Boolean);
+      if (parts.includes('text') || parts.includes('foreground') || parts.includes('content')) return 'text';
+      if (parts.includes('border') || parts.includes('stroke') || parts.includes('outline')) return 'border';
+      if (parts.includes('bg') || parts.includes('background') || parts.includes('surface')) return 'bg';
+      return null;
+    }
+
+    function getKnownColorTokensForPart(value, colorPart) {
+      return getKnownColorTokens(value).filter((token) => {
+        const tokenPart = getColorPartFromTokenName(token);
+        return tokenPart === null || tokenPart === colorPart;
+      });
+    }
+
     function getPxValue(value) {
       const parsed = Number.parseInt(value, 10);
       return Number.isFinite(parsed) ? parsed : 0;
@@ -67,6 +85,31 @@
       });
     }
 
+    function inspectGapSpacing({ issues, activeSpecs, styles, element }) {
+      const gaps = [
+        { label: '행 갭', cssProp: 'row-gap', styleKey: 'rowGap' },
+        { label: '열 갭', cssProp: 'column-gap', styleKey: 'columnGap' },
+      ].map((item) => ({
+        ...item,
+        value: getPxValue(styles[item.styleKey]),
+      }));
+      const positiveGaps = gaps.filter((item) => item.value > 0);
+      if (!positiveGaps.length) return;
+
+      const allGapsEqual = gaps.every((item) => item.value === gaps[0].value);
+      if (allGapsEqual) {
+        if (!hasAuthoredTokenReference(element, ['gap', 'row-gap', 'column-gap'])) {
+          addSpacingIssue({ issues, activeSpecs, label: '갭', value: gaps[0].value });
+        }
+        return;
+      }
+
+      positiveGaps.forEach((item) => {
+        if (hasAuthoredTokenReference(element, [item.cssProp, 'gap'])) return;
+        addSpacingIssue({ issues, activeSpecs, label: item.label, value: item.value });
+      });
+    }
+
     function getInspectionForFilter(filter, styles, element = null) {
       const issues = [];
       const suggestions = [];
@@ -87,17 +130,17 @@
         ]);
 
         if (bg && !bgUsesToken) {
-          const tokens = getKnownColorTokens(bg);
+          const tokens = getKnownColorTokensForPart(bg, 'bg');
           issues.push(tokens.length ? `배경색 ${bg} (원시값 직접 사용)` : `배경색 ${bg} (미등록)`);
         }
 
         if (text && !textUsesToken) {
-          const tokens = getKnownColorTokens(text);
+          const tokens = getKnownColorTokensForPart(text, 'text');
           issues.push(tokens.length ? `글자색 ${text} (원시값 직접 사용)` : `글자색 ${text} (미등록)`);
         }
 
         if (borderWidth > 0 && borderColor && !borderUsesToken) {
-          const tokens = getKnownColorTokens(borderColor);
+          const tokens = getKnownColorTokensForPart(borderColor, 'border');
           issues.push(tokens.length ? `보더색 ${borderColor} (원시값 직접 사용)` : `보더색 ${borderColor} (미등록)`);
         }
       } else if (filter === 'font') {
@@ -126,6 +169,7 @@
             styleKey: side.styleKey.replace('padding', 'margin'),
           })),
         });
+        inspectGapSpacing({ issues, activeSpecs, styles, element });
       } else if (filter === 'radius') {
         const radius = styles.borderRadius;
         const radiusUsesToken = hasAuthoredTokenReference(element, ['border-radius']);

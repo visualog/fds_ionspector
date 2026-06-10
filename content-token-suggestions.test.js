@@ -14,7 +14,13 @@ function createSuggestions(overrides = {}) {
       },
     }),
     getKnownColorTokens: (hex) => (hex === '#1a202c'
-      ? ['dark.neutral.900', 'Color.text.primary', 'Color.bg.surface']
+      ? [
+        'dark.neutral.900',
+        'Color.text.primary',
+        'Color.bg.surface',
+        'Color.border.primary',
+        'Color/avatar/cool gray/text',
+      ]
       : []),
     parseViolationItem: (message) => {
       const [, tag = '', value = ''] = String(message).match(/^(.*)\s+([^\s]+)\s+\(원시값 직접 사용/) || [];
@@ -55,9 +61,31 @@ test('token suggestions resolve color raw-value issues from known token registri
   assert.deepEqual(
     suggestions.getSuggestedTokensForIssue({
       category: 'color',
+      colorPart: 'text',
       message: '글자색 #1a202c (원시값 직접 사용)',
     }),
-    ['Color.bg.surface', 'Color.text.primary', 'dark.neutral.900'],
+    ['Color.text.primary', 'Color/avatar/cool gray/text'],
+  );
+});
+
+test('token suggestions keep color replacements scoped to the issue part', () => {
+  const suggestions = createSuggestions();
+
+  assert.deepEqual(
+    suggestions.getSuggestedTokensForIssue({
+      category: 'color',
+      colorPart: 'bg',
+      message: '배경색 #1a202c (원시값 직접 사용)',
+    }),
+    ['Color.bg.surface'],
+  );
+  assert.deepEqual(
+    suggestions.getSuggestedTokensForIssue({
+      category: 'color',
+      colorPart: 'border',
+      message: '보더색 #1a202c (원시값 직접 사용)',
+    }),
+    ['Color.border.primary'],
   );
 });
 

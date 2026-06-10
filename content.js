@@ -37,8 +37,7 @@ const FDS_DESIGN_VARIABLES = globalThis.FDSDesignVariables;
 const FDS_BUILD = '2026-04-13-dev3';
 const BRIDGE_POLL_INTERVAL_MS = 3000;
 const BRIDGE_DISCONNECT_GRACE_SAMPLES = 3;
-const SUMMARY_LIST_MAX_HEIGHT = 168;
-const SUMMARY_LIST_SCROLL_ITEM_THRESHOLD = 4;
+const SUMMARY_PANEL_MIN_HEIGHT = 56;
 const FDS_CSS_VARIABLES = FDS_DESIGN_VARIABLES?.cssVariables || {};
 const FDS_SPECS = FDS_DESIGN_VARIABLES?.inspectorSpecs || {
   colors: {},
@@ -200,6 +199,9 @@ let lastScanMetrics = null;
 let pendingSummaryMotion = null;
 let violationPinPositionFrame = null;
 let inspectorPreviewPositionFrame = null;
+let gapHighlightFrame = null;
+let radiusHighlightFrame = null;
+let textColorHighlightFrame = null;
 
 const FILTER_LABELS = Object.freeze({
   color: '컬러',
@@ -725,13 +727,17 @@ function startBridgePolling() {
   }, BRIDGE_POLL_INTERVAL_MS);
 }
 
-function showSummaryPanel() {
+function showSummaryPanel({ anchorFilter = null, animatePosition = true } = {}) {
   const panel = getSummaryPanel();
   if (!panel || !isExtensionVisible || isDismissedByUser || isSummaryPanelDismissed) return;
   const wasPanelVisible = isSummaryPanelVisible();
   activeSummaryTone = 'danger';
   setSummaryPanelVisible(panel);
   updateSummaryUI();
+  const anchorElement = getToolbarFilterButton(anchorFilter || activeFilter);
+  if (anchorElement && !isSummaryPanelDockedToToolbar) {
+    positionSummaryPanelForToolbarButton(anchorElement, { animate: animatePosition && wasPanelVisible });
+  }
   if (!wasPanelVisible) {
     getFDSMotion()?.animatePanelOpen?.(panel);
   }
@@ -740,18 +746,24 @@ function showSummaryPanel() {
   }
 }
 
-function openSummaryPanelForActiveFilter({ forceExpanded = true } = {}) {
+function openSummaryPanelForActiveFilter({ forceExpanded = true, anchorFilter = activeFilter } = {}) {
   if (forceExpanded) {
     setToolbarCollapsed(false);
-    restoreExpandedToolbarAndPanelPosition({ preserveSummaryPanelPosition: Boolean(customSummaryPanelPosition) });
+    restoreExpandedToolbarAndPanelPosition({
+      preserveSummaryPanelPosition: Boolean(customSummaryPanelPosition) && !anchorFilter,
+      resetSummaryPanelPosition: !anchorFilter,
+    });
   }
   isSummaryPanelDismissed = false;
   updateToolbarIndicators();
-  showSummaryPanel();
+  showSummaryPanel({ anchorFilter });
 }
 
 function hideSummaryPanel() {
   hideSummaryPanelElement();
+  clearGapHighlights();
+  clearRadiusHighlights();
+  clearTextColorHighlights();
   clearViolationPins();
 }
 
@@ -769,12 +781,39 @@ function getViolationPinLayer() {
   return document.getElementById('fds-issue-pin-layer');
 }
 
+function getGapHighlightLayer() {
+  return document.getElementById('fds-gap-highlight-layer');
+}
+
+function getRadiusHighlightLayer() {
+  return document.getElementById('fds-radius-highlight-layer');
+}
+
+function getTextColorHighlightLayer() {
+  return document.getElementById('fds-text-color-highlight-layer');
+}
+
 function clearViolationPins() {
   const layer = getViolationPinLayer();
   if (layer) {
     layer.innerHTML = '';
     delete layer.dataset.issueKeys;
   }
+}
+
+function clearGapHighlights() {
+  const layer = getGapHighlightLayer();
+  layer?.querySelectorAll?.('.fds-gap-highlight, .fds-gap-item-highlight')?.forEach((marker) => marker.remove());
+}
+
+function clearRadiusHighlights() {
+  const layer = getRadiusHighlightLayer();
+  layer?.querySelectorAll?.('.fds-radius-corner-highlight')?.forEach((marker) => marker.remove());
+}
+
+function clearTextColorHighlights() {
+  const layer = getTextColorHighlightLayer();
+  layer?.querySelectorAll?.('.fds-text-color-highlight')?.forEach((marker) => marker.remove());
 }
 
 function clearHoveredInspectionTarget() {
@@ -807,6 +846,7 @@ function clearExpandedIssueGroups() {
 function clearElementSpacingHighlightMetadata(element) {
   if (!element) return;
   element.removeAttribute('data-fds-category');
+  element.removeAttribute('data-fds-color-part');
   element.removeAttribute('data-fds-spacing-kind');
   element.removeAttribute('data-fds-spacing-sides');
   element.removeAttribute('data-fds-spacing-value');
@@ -827,15 +867,34 @@ function clearElementSpacingHighlightMetadata(element) {
   element.removeAttribute('data-fds-prev-inline-position');
 }
 
+function getRadiusIssueMetadata(entries = []) {
+  const radiusEntries = entries
+    .map((entry) => ({ entry, parsed: parseViolationItem(entry?.message) }))
+    .filter(({ entry, parsed }) => entry?.category === 'radius' || String(parsed.chip || '').includes('라운드'));
+  if (!radiusEntries.length) return null;
+  const firstValue = radiusEntries.find(({ parsed }) => parsed.value)?.parsed?.value || '';
+  return { value: firstValue };
+}
+
+function getTextColorIssueMetadata(entries = []) {
+  const colorEntries = entries.filter((entry) => entry?.category === 'color');
+  if (!colorEntries.length) return null;
+  const hasOnlyTextColor = colorEntries.every((entry) => entry.colorPart === 'text');
+  return hasOnlyTextColor ? { part: 'text' } : null;
+}
+
 function getSpacingIssueMetadata(entries = []) {
   const spacingEntries = entries
     .map((entry) => ({ entry, parsed: parseViolationItem(entry?.message) }))
-    .filter(({ entry, parsed }) => entry?.category === 'spacing' || ['패딩', '마진'].some((label) => String(parsed.chip || '').includes(label)));
+    .filter(({ entry, parsed }) => entry?.category === 'spacing' || ['패딩', '마진', '갭'].some((label) => String(parsed.chip || '').includes(label)));
   if (!spacingEntries.length) return null;
 
   const sideMap = { '상단': 'top', '오른쪽': 'right', '하단': 'bottom', '왼쪽': 'left' };
   const sideOrder = ['top', 'right', 'bottom', 'left'];
+  const axisMap = { '행': 'row', '열': 'column' };
+  const axisOrder = ['row', 'column'];
   const sides = new Set();
+  const axes = new Set();
   let kind = null;
   let value = '';
 
@@ -843,17 +902,35 @@ function getSpacingIssueMetadata(entries = []) {
     const chip = String(parsed.chip || '');
     const isPadding = chip.includes('패딩');
     const isMargin = chip.includes('마진');
-    if (!kind) kind = isPadding ? 'padding' : isMargin ? 'margin' : null;
+    const isGap = chip.includes('갭');
+    if (!kind) kind = isPadding ? 'padding' : isMargin ? 'margin' : isGap ? 'gap' : null;
     if (!value && parsed.value) value = parsed.value;
     const sideLabel = Object.keys(sideMap).find((label) => chip.includes(label));
+    const axisLabel = Object.keys(axisMap).find((label) => chip.includes(label));
     if (sideLabel) {
       sides.add(sideMap[sideLabel]);
+    } else if (axisLabel) {
+      axes.add(axisMap[axisLabel]);
     } else if (isPadding || isMargin) {
       sideOrder.forEach((side) => sides.add(side));
+    } else if (isGap) {
+      axisOrder.forEach((axis) => axes.add(axis));
     }
   });
 
-  if (!kind || !sides.size) return null;
+  if (!kind) return null;
+  if (kind === 'gap') {
+    if (!axes.size) return null;
+    const normalizedAxes = axisOrder.filter((axis) => axes.has(axis));
+    return {
+      kind,
+      sides: normalizedAxes.join(' '),
+      value,
+      label: `g${normalizedAxes.map((axis) => axis[0]).join('')} ${value}`.trim(),
+    };
+  }
+
+  if (!sides.size) return null;
   const normalizedSides = sideOrder.filter((side) => sides.has(side));
   const shortKind = kind === 'padding' ? 'p' : 'm';
   const sideLabel = normalizedSides.length === 4 ? 'all' : normalizedSides.map((side) => side[0]).join('');
@@ -866,6 +943,7 @@ function getSpacingIssueMetadata(entries = []) {
 }
 
 function getSpacingAreaValue(styles, kind, side) {
+  if (kind === 'gap') return '0px';
   const propertyName = `${kind}${side.charAt(0).toUpperCase()}${side.slice(1)}`;
   return styles?.[propertyName] || '0px';
 }
@@ -885,6 +963,12 @@ function applyElementSpacingHighlightMetadata(element, elementEntries = []) {
   const spacingMetadata = getSpacingIssueMetadata(elementEntries);
   if (!spacingMetadata) {
     clearElementSpacingHighlightMetadata(element);
+    if (getRadiusIssueMetadata(elementEntries)) {
+      element.setAttribute('data-fds-category', 'radius');
+    } else if (getTextColorIssueMetadata(elementEntries)) {
+      element.setAttribute('data-fds-category', 'color');
+      element.setAttribute('data-fds-color-part', 'text');
+    }
     return;
   }
 
@@ -902,7 +986,319 @@ function applyElementSpacingHighlightMetadata(element, elementEntries = []) {
   }
 }
 
+function getVisibleChildRects(element) {
+  return Array.from(element?.children || [])
+    .slice(0, 96)
+    .map((child) => {
+      const rect = child.getBoundingClientRect?.();
+      if (!rect || rect.width <= 0 || rect.height <= 0) return null;
+      return rect;
+    })
+    .filter(Boolean);
+}
+
+function getGapMarkerRects(element, spacingMetadata) {
+  if (!element || spacingMetadata?.kind !== 'gap') return [];
+  const containerRect = element.getBoundingClientRect?.();
+  if (!containerRect || containerRect.width <= 0 || containerRect.height <= 0) return [];
+  const axes = new Set(String(spacingMetadata.sides || '').split(/\s+/).filter(Boolean));
+  const children = getVisibleChildRects(element);
+  if (children.length < 2) return [];
+
+  const markerRects = [];
+  const minOverlap = 2;
+  const minGap = 1;
+  const addMarker = (rect, axis) => {
+    if (!rect || rect.width < minGap || rect.height < minGap) return;
+    markerRects.push({
+      axis,
+      left: Math.max(containerRect.left, rect.left),
+      top: Math.max(containerRect.top, rect.top),
+      width: Math.min(containerRect.right, rect.left + rect.width) - Math.max(containerRect.left, rect.left),
+      height: Math.min(containerRect.bottom, rect.top + rect.height) - Math.max(containerRect.top, rect.top),
+    });
+  };
+
+  if (axes.has('column')) {
+    children.forEach((current) => {
+      const rightNeighbor = children
+        .filter((candidate) => candidate.left >= current.right + minGap)
+        .filter((candidate) => Math.min(current.bottom, candidate.bottom) - Math.max(current.top, candidate.top) >= minOverlap)
+        .sort((a, b) => a.left - b.left)[0];
+      if (!rightNeighbor) return;
+      addMarker({
+        left: current.right,
+        top: Math.max(current.top, rightNeighbor.top),
+        width: rightNeighbor.left - current.right,
+        height: Math.min(current.bottom, rightNeighbor.bottom) - Math.max(current.top, rightNeighbor.top),
+      }, 'column');
+    });
+  }
+
+  if (axes.has('row')) {
+    children.forEach((current) => {
+      const bottomNeighbor = children
+        .filter((candidate) => candidate.top >= current.bottom + minGap)
+        .filter((candidate) => Math.min(current.right, candidate.right) - Math.max(current.left, candidate.left) >= minOverlap)
+        .sort((a, b) => a.top - b.top)[0];
+      if (!bottomNeighbor) return;
+      addMarker({
+        left: Math.max(current.left, bottomNeighbor.left),
+        top: current.bottom,
+        width: Math.min(current.right, bottomNeighbor.right) - Math.max(current.left, bottomNeighbor.left),
+        height: bottomNeighbor.top - current.bottom,
+      }, 'row');
+    });
+  }
+
+  return markerRects
+    .filter((rect) => rect.width >= minGap && rect.height >= minGap)
+    .slice(0, 48);
+}
+
+function getGapItemMarkerRects(element, spacingMetadata) {
+  if (!element || spacingMetadata?.kind !== 'gap') return [];
+  const containerRect = element.getBoundingClientRect?.();
+  if (!containerRect || containerRect.width <= 0 || containerRect.height <= 0) return [];
+  return getVisibleChildRects(element)
+    .map((rect) => ({
+      left: Math.max(containerRect.left, rect.left),
+      top: Math.max(containerRect.top, rect.top),
+      width: Math.min(containerRect.right, rect.right) - Math.max(containerRect.left, rect.left),
+      height: Math.min(containerRect.bottom, rect.bottom) - Math.max(containerRect.top, rect.top),
+    }))
+    .filter((rect) => rect.width >= 1 && rect.height >= 1)
+    .slice(0, 96);
+}
+
+function appendGapOverlayMarker(layer, className, rect, dataset = {}) {
+  const marker = document.createElement('div');
+  marker.className = className;
+  Object.entries(dataset).forEach(([key, value]) => {
+    marker.dataset[key] = value;
+  });
+  marker.style.left = `${Math.round(rect.left)}px`;
+  marker.style.top = `${Math.round(rect.top)}px`;
+  marker.style.width = `${Math.max(1, Math.round(rect.width))}px`;
+  marker.style.height = `${Math.max(1, Math.round(rect.height))}px`;
+  layer.appendChild(marker);
+  return marker;
+}
+
+function parseCssRadiusPair(value) {
+  const parts = String(value || '')
+    .trim()
+    .split(/\s+/)
+    .map((part) => Number.parseFloat(part))
+    .filter((number) => Number.isFinite(number) && number > 0);
+  if (!parts.length) return { x: 0, y: 0 };
+  return { x: parts[0], y: parts[1] || parts[0] };
+}
+
+function getRadiusCornerRects(element) {
+  const rect = element?.getBoundingClientRect?.();
+  if (!rect || rect.width <= 0 || rect.height <= 0) return [];
+  const styles = getComputedStyle(element);
+  const maxX = Math.max(1, rect.width / 2);
+  const maxY = Math.max(1, rect.height / 2);
+  const strokeOutset = 1;
+  const normalize = (corner, value) => {
+    const radius = parseCssRadiusPair(value);
+    const width = Math.min(maxX, radius.x);
+    const height = Math.min(maxY, radius.y);
+    if (width <= 0 || height <= 0) return null;
+    const isRight = corner.includes('right');
+    const isBottom = corner.includes('bottom');
+    return {
+      corner,
+      left: isRight ? rect.right - width + strokeOutset : rect.left - strokeOutset,
+      top: isBottom ? rect.bottom - height + strokeOutset : rect.top - strokeOutset,
+      width,
+      height,
+    };
+  };
+  return [
+    normalize('top-left', styles.borderTopLeftRadius),
+    normalize('top-right', styles.borderTopRightRadius),
+    normalize('bottom-left', styles.borderBottomLeftRadius),
+    normalize('bottom-right', styles.borderBottomRightRadius),
+  ].filter(Boolean);
+}
+
+function appendRadiusCornerMarker(layer, rect) {
+  const marker = document.createElement('div');
+  marker.className = 'fds-radius-corner-highlight';
+  marker.dataset.corner = rect.corner;
+  marker.style.left = `${Math.round(rect.left)}px`;
+  marker.style.top = `${Math.round(rect.top)}px`;
+  marker.style.width = `${Math.max(1, Math.round(rect.width))}px`;
+  marker.style.height = `${Math.max(1, Math.round(rect.height))}px`;
+  marker.style.setProperty('--fds-radius-corner-width', `${Math.max(1, Math.round(rect.width))}px`);
+  marker.style.setProperty('--fds-radius-corner-height', `${Math.max(1, Math.round(rect.height))}px`);
+  layer.appendChild(marker);
+  return marker;
+}
+
+function getDirectTextNodes(element) {
+  return Array.from(element?.childNodes || [])
+    .filter((node) => node?.nodeType === Node.TEXT_NODE && String(node.textContent || '').trim());
+}
+
+function getTextColorMarkerRects(element) {
+  if (!element?.isConnected || typeof document.createRange !== 'function') return [];
+  const elementRect = element.getBoundingClientRect?.();
+  if (!elementRect || elementRect.width <= 0 || elementRect.height <= 0) return [];
+  const markerRects = [];
+
+  getDirectTextNodes(element).forEach((node) => {
+    const range = document.createRange();
+    try {
+      range.selectNodeContents(node);
+      Array.from(range.getClientRects?.() || []).forEach((rect) => {
+        const left = Math.max(elementRect.left, rect.left);
+        const top = Math.max(elementRect.top, rect.top);
+        const right = Math.min(elementRect.right, rect.right);
+        const bottom = Math.min(elementRect.bottom, rect.bottom);
+        if (right - left < 1 || bottom - top < 1) return;
+        markerRects.push({ left, top, width: right - left, height: bottom - top });
+      });
+    } finally {
+      range.detach?.();
+    }
+  });
+
+  return markerRects.slice(0, 64);
+}
+
+function appendTextColorMarker(layer, rect) {
+  const marker = document.createElement('div');
+  marker.className = 'fds-text-color-highlight';
+  marker.style.left = `${Math.round(rect.left)}px`;
+  marker.style.top = `${Math.round(rect.top)}px`;
+  marker.style.width = `${Math.max(1, Math.round(rect.width))}px`;
+  marker.style.height = `${Math.max(1, Math.round(rect.height))}px`;
+  layer.appendChild(marker);
+  return marker;
+}
+
+function renderGapHighlights(entries = getVisibleIssueEntries()) {
+  const layer = getGapHighlightLayer();
+  if (!layer) return;
+  clearGapHighlights();
+
+  const entriesByElement = new Map();
+  entries.forEach((entry) => {
+    if (!entry?.element?.isConnected || entry.category !== 'spacing') return;
+    const current = entriesByElement.get(entry.element) || [];
+    current.push(entry);
+    entriesByElement.set(entry.element, current);
+  });
+
+  entriesByElement.forEach((elementEntries, element) => {
+    const spacingMetadata = getSpacingIssueMetadata(elementEntries);
+    if (spacingMetadata?.kind !== 'gap') return;
+    getGapItemMarkerRects(element, spacingMetadata).forEach((rect) => {
+      appendGapOverlayMarker(layer, 'fds-gap-item-highlight', rect);
+    });
+    getGapMarkerRects(element, spacingMetadata).forEach((rect) => {
+      appendGapOverlayMarker(layer, 'fds-gap-highlight', rect, { axis: rect.axis });
+    });
+  });
+}
+
+function renderRadiusHighlights(entries = getVisibleIssueEntries()) {
+  const layer = getRadiusHighlightLayer();
+  if (!layer) return;
+  clearRadiusHighlights();
+
+  const entriesByElement = new Map();
+  entries.forEach((entry) => {
+    if (!entry?.element?.isConnected || entry.category !== 'radius') return;
+    if (!entriesByElement.has(entry.element)) entriesByElement.set(entry.element, []);
+    entriesByElement.get(entry.element).push(entry);
+  });
+
+  entriesByElement.forEach((elementEntries, element) => {
+    if (!getRadiusIssueMetadata(elementEntries)) return;
+    getRadiusCornerRects(element).forEach((rect) => {
+      appendRadiusCornerMarker(layer, rect);
+    });
+  });
+}
+
+function renderTextColorHighlights(entries = getVisibleIssueEntries()) {
+  const layer = getTextColorHighlightLayer();
+  if (!layer) return;
+  clearTextColorHighlights();
+
+  const textColorElements = new Set();
+  entries.forEach((entry) => {
+    if (!entry?.element?.isConnected || entry.category !== 'color' || entry.colorPart !== 'text') return;
+    textColorElements.add(entry.element);
+  });
+
+  textColorElements.forEach((element) => {
+    getTextColorMarkerRects(element).forEach((rect) => {
+      appendTextColorMarker(layer, rect);
+    });
+  });
+}
+
+function scheduleGapHighlightUpdate() {
+  if (gapHighlightFrame !== null) return;
+
+  const updateGapHighlights = () => {
+    gapHighlightFrame = null;
+    if (!isExtensionVisible || isDismissedByUser) return;
+    renderGapHighlights();
+  };
+
+  if (typeof window.requestAnimationFrame === 'function') {
+    gapHighlightFrame = window.requestAnimationFrame(updateGapHighlights);
+    return;
+  }
+
+  gapHighlightFrame = window.setTimeout(updateGapHighlights, 16);
+}
+
+function scheduleRadiusHighlightUpdate() {
+  if (radiusHighlightFrame !== null) return;
+
+  const updateRadiusHighlights = () => {
+    radiusHighlightFrame = null;
+    if (!isExtensionVisible || isDismissedByUser) return;
+    renderRadiusHighlights();
+  };
+
+  if (typeof window.requestAnimationFrame === 'function') {
+    radiusHighlightFrame = window.requestAnimationFrame(updateRadiusHighlights);
+    return;
+  }
+
+  radiusHighlightFrame = window.setTimeout(updateRadiusHighlights, 16);
+}
+
+function scheduleTextColorHighlightUpdate() {
+  if (textColorHighlightFrame !== null) return;
+
+  const updateTextColorHighlights = () => {
+    textColorHighlightFrame = null;
+    if (!isExtensionVisible || isDismissedByUser) return;
+    renderTextColorHighlights();
+  };
+
+  if (typeof window.requestAnimationFrame === 'function') {
+    textColorHighlightFrame = window.requestAnimationFrame(updateTextColorHighlights);
+    return;
+  }
+
+  textColorHighlightFrame = window.setTimeout(updateTextColorHighlights, 16);
+}
+
 function applyVisibleIssueHighlights(entries = getVisibleIssueEntries()) {
+  clearGapHighlights();
+  clearRadiusHighlights();
+  clearTextColorHighlights();
   document.querySelectorAll('.fds-inspected, .fds-violation, .fds-hover-target').forEach((el) => {
     el.classList.remove('fds-inspected', 'fds-violation', 'fds-violation-danger', 'fds-violation-warning', 'fds-hover-target');
     el.removeAttribute('data-fds-msg');
@@ -931,6 +1327,9 @@ function applyVisibleIssueHighlights(entries = getVisibleIssueEntries()) {
     element.setAttribute('data-fds-issue-keys', JSON.stringify(elementEntries.map((entry) => entry.key)));
     applyElementSpacingHighlightMetadata(element, elementEntries);
   });
+  renderGapHighlights(entries);
+  renderRadiusHighlights(entries);
+  renderTextColorHighlights(entries);
 }
 
 function getVisibleIssueEntriesForElement(element) {
@@ -1024,7 +1423,16 @@ function getInspectorIssueDisplay(entry) {
   return { value, description: '위반 정보가 감지되었습니다.' };
 }
 
-function showInspectorCardForEntries(target, issueEntries, anchorElement = target) {
+function renderSuggestedTokenRows(tokens = []) {
+  return tokens.map((token) => `
+    <div class="fds-token-row">
+      <strong title="${escapeHtml(token)}">${escapeHtml(token)}</strong>
+      <button class="fds-token-copy" type="button" data-copy-token="${escapeHtml(token)}" data-state="idle" aria-label="${escapeHtml(`토큰명 복사: ${token}`)}" title="${escapeHtml(`토큰명 복사: ${token}`)}">${getLucideIconSvg('copy', 'fds-token-copy-icon')}</button>
+    </div>
+  `).join('');
+}
+
+function showInspectorCardForEntries(target, issueEntries, anchorElement = target, { ignoreCustomPosition = false } = {}) {
   const card = document.getElementById('fds-inspector-card');
   if (!target?.isConnected || !card || !issueEntries?.length) {
     clearHoveredInspectionTarget();
@@ -1065,8 +1473,7 @@ function showInspectorCardForEntries(target, issueEntries, anchorElement = targe
             </div>
             ${suggestedTokens.length
               ? `<div class="fds-issue-replacement">
-                  <strong title="${escapeHtml(suggestedTokens.join(', '))}">${escapeHtml(suggestedTokens.join(', '))}</strong>
-                  <button class="fds-token-copy" type="button" data-copy-token="${escapeHtml(suggestedTokens[0])}" data-state="idle" aria-label="토큰명 복사" title="${escapeHtml(`토큰명 복사: ${suggestedTokens[0]}`)}">${getLucideIconSvg('copy', 'fds-token-copy-icon')}</button>
+                  ${renderSuggestedTokenRows(suggestedTokens)}
                 </div>`
               : ''}
           </div>
@@ -1112,11 +1519,20 @@ function showInspectorCardForEntries(target, issueEntries, anchorElement = targe
     card.offsetHeight || 84,
     { gap: 12, margin: 12 }
   );
-  if (!applyCustomInspectorCardPosition(card)) {
-    placeFloatingElement(card, window.scrollX + cardPosition.left, window.scrollY + cardPosition.top);
-    avoidSummaryPanelOverlapWithInspectorCard(card);
-  }
   const pinnedEntries = getPinnedIssueEntries();
+  if (!ignoreCustomPosition && applyCustomInspectorCardPosition(card)) {
+    positionViolationPin(pinnedEntries.length ? pinnedEntries : issueEntries, { avoidElement: card });
+    if (shouldAnimateCard) {
+      getFDSMotion()?.animateInspectorCard?.(card);
+    }
+    return;
+  }
+
+  if (ignoreCustomPosition) {
+    customInspectorCardPosition = null;
+  }
+  placeFloatingElement(card, window.scrollX + cardPosition.left, window.scrollY + cardPosition.top);
+  avoidSummaryPanelOverlapWithInspectorCard(card);
   positionViolationPin(pinnedEntries.length ? pinnedEntries : issueEntries, { avoidElement: card });
   if (shouldAnimateCard) {
     getFDSMotion()?.animateInspectorCard?.(card);
@@ -1409,18 +1825,18 @@ function setActiveViolationPins(entries = [], { locked = false } = {}) {
   renderViolationPins(connectedEntries);
 }
 
-function scheduleIssuePreviewAfterScroll(entry) {
+function scheduleIssuePreviewAfterScroll(entry, { ignoreCustomPosition = false } = {}) {
   const updateIssuePreview = () => {
     if (!entry?.element?.isConnected) return;
     positionViolationPin(entry);
-    showInspectorCardForEntries(entry.element, [entry]);
+    showInspectorCardForEntries(entry.element, [entry], entry.element, { ignoreCustomPosition });
   };
 
   window.requestAnimationFrame?.(updateIssuePreview);
   window.setTimeout?.(updateIssuePreview, 240);
 }
 
-function scrollToIssueElement(entry) {
+function scrollToIssueElement(entry, { ignoreCustomPosition = false } = {}) {
   if (!entry?.element?.isConnected) return;
   const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
   const behavior = prefersReducedMotion ? 'auto' : 'smooth';
@@ -1432,7 +1848,7 @@ function scrollToIssueElement(entry) {
         inline: 'center',
         behavior,
       });
-      scheduleIssuePreviewAfterScroll(entry);
+      scheduleIssuePreviewAfterScroll(entry, { ignoreCustomPosition });
       return;
     } catch (error) {
       // Fall back to the document scroll path for older scrollIntoView implementations.
@@ -1453,7 +1869,7 @@ function scrollToIssueElement(entry) {
     behavior,
   });
 
-  scheduleIssuePreviewAfterScroll(entry);
+  scheduleIssuePreviewAfterScroll(entry, { ignoreCustomPosition });
 }
 
 function restoreLockedViolationPin(visibleEntries) {
@@ -1670,6 +2086,16 @@ function applyCustomSummaryPanelHeight(panel = getSummaryPanel()) {
   return true;
 }
 
+function clearCustomSummaryPanelHeight(panel = getSummaryPanel()) {
+  customSummaryPanelHeight = null;
+  if (!panel) return false;
+  panel.classList.remove('has-custom-height', 'is-user-resizing');
+  panel.style.removeProperty('--fds-summary-custom-height');
+  panel.style.height = '';
+  panel.style.overflow = '';
+  return true;
+}
+
 function beginSummaryPanelResize(event) {
   const handle = event.target?.closest?.('.fds-panel-resize-handle');
   if (!handle || event.button !== 0) return;
@@ -1745,10 +2171,69 @@ function applyCustomSummaryPanelPosition() {
   });
 }
 
-function restoreExpandedToolbarAndPanelPosition({ preserveSummaryPanelPosition = false } = {}) {
+function getToolbarFilterButton(filter = activeFilter) {
+  const normalizedFilter = normalizeActiveFilter(filter);
+  if (!normalizedFilter) return null;
+  const buttonId = BUTTON_META?.[normalizedFilter]?.id;
+  if (buttonId) {
+    const button = document.getElementById(buttonId);
+    if (button) return button;
+  }
+  return document.querySelector(`#fds-toolbar [data-filter="${normalizedFilter}"]`);
+}
+
+function getSummaryPanelPositionForToolbarButton(anchorElement) {
+  const panel = getSummaryPanel();
+  if (!panel || !anchorElement) return null;
+  const buttonRect = anchorElement.getBoundingClientRect?.();
+  const panelRect = panel.getBoundingClientRect?.();
+  if (!buttonRect || !panelRect?.width) return null;
+
+  const gap = 16;
+  const margin = 12;
+  const left = clampPosition(
+    buttonRect.left + (buttonRect.width / 2) - (panelRect.width / 2),
+    margin,
+    Math.max(margin, window.innerWidth - panelRect.width - margin)
+  );
+  const bottom = clampPosition(
+    window.innerHeight - buttonRect.top + gap,
+    margin,
+    Math.max(margin, window.innerHeight - SUMMARY_PANEL_MIN_HEIGHT - margin)
+  );
+
+  return { left: Math.round(left), bottom: Math.round(bottom) };
+}
+
+function positionSummaryPanelForToolbarButton(anchorElement, { animate = true } = {}) {
+  const panel = getSummaryPanel();
+  if (!panel || panel.style.display !== 'block' || !anchorElement) return false;
+  const nextPosition = getSummaryPanelPositionForToolbarButton(anchorElement);
+  if (!nextPosition) return false;
+
+  const fromRect = panel.getBoundingClientRect?.();
+  panel.style.left = `${nextPosition.left}px`;
+  panel.style.top = 'auto';
+  panel.style.bottom = `${nextPosition.bottom}px`;
+  panel.style.right = '';
+  panel.style.setProperty('--fds-summary-panel-bottom', `${nextPosition.bottom}px`);
+  customSummaryPanelPosition = null;
+
+  const toRect = panel.getBoundingClientRect?.();
+  if (animate && fromRect && toRect) {
+    getFDSMotion()?.animateSummaryPanelMove?.(panel, { fromRect, toRect });
+  }
+  return true;
+}
+
+function restoreExpandedToolbarAndPanelPosition({
+  preserveSummaryPanelPosition = false,
+  resetSummaryPanelPosition = true,
+} = {}) {
   isSummaryPanelDockedToToolbar = false;
   resetToolbarFloatingPosition();
   if (preserveSummaryPanelPosition && applyCustomSummaryPanelPosition()) return;
+  if (!resetSummaryPanelPosition) return;
   resetSummaryPanelFloatingPosition();
 }
 
@@ -2088,7 +2573,7 @@ function updateConnectionUI() {
 
 function handleToolbarFilterAction(action) {
   if (action.type === 'open-active-summary') {
-    openSummaryPanelForActiveFilter();
+    openSummaryPanelForActiveFilter({ anchorFilter: action.filter });
     hideTooltip();
     return;
   }
@@ -2113,8 +2598,9 @@ function handleToolbarFilterAction(action) {
   }
 
   if (action.type === 'activate-filter') {
+    clearCustomSummaryPanelHeight();
     setActiveFilter(action.filter);
-    openSummaryPanelForActiveFilter();
+    openSummaryPanelForActiveFilter({ anchorFilter: action.filter });
     hideTooltip();
   }
 }
@@ -2184,6 +2670,9 @@ function createUI() {
   applyToolbarSpecVariables(root);
   root.innerHTML = `
     <div id="fds-page-interaction-shield" class="fds-page-interaction-shield" aria-hidden="true"></div>
+    <div id="fds-text-color-highlight-layer" class="fds-text-color-highlight-layer" aria-hidden="true"></div>
+    <div id="fds-gap-highlight-layer" class="fds-gap-highlight-layer" aria-hidden="true"></div>
+    <div id="fds-radius-highlight-layer" class="fds-radius-highlight-layer" aria-hidden="true"></div>
     <div id="fds-issue-pin-layer" class="fds-issue-pin-layer" aria-hidden="true"></div>
     <div id="fds-toolbar" class="fds-toolbar" role="toolbar" aria-label="FDS Inspector toolbar"></div>
     <div id="fds-summary-panel" class="fds-summary-card" style="display:none;"></div>
@@ -2293,18 +2782,27 @@ function bindViewportEvents() {
     }
     applyCustomInspectorCardPosition();
     scheduleInspectorPreviewPositionUpdate();
+    scheduleTextColorHighlightUpdate();
+    scheduleGapHighlightUpdate();
+    scheduleRadiusHighlightUpdate();
   });
 
   window.addEventListener('scroll', () => {
     if (!isExtensionVisible || isDismissedByUser) return;
     hideTooltip();
     scheduleInspectorPreviewPositionUpdate();
+    scheduleTextColorHighlightUpdate();
+    scheduleGapHighlightUpdate();
+    scheduleRadiusHighlightUpdate();
   }, { passive: true });
 
   document.addEventListener('scroll', () => {
     if (!isExtensionVisible || isDismissedByUser) return;
     hideTooltip();
     scheduleInspectorPreviewPositionUpdate();
+    scheduleTextColorHighlightUpdate();
+    scheduleGapHighlightUpdate();
+    scheduleRadiusHighlightUpdate();
   }, { passive: true, capture: true });
 
   document.addEventListener('keydown', (event) => {
@@ -2386,6 +2884,39 @@ function markScannedElementsFromEntries() {
       entries,
     });
   });
+  renderTextColorHighlights(scanData.issueEntries);
+  renderGapHighlights(scanData.issueEntries);
+  renderRadiusHighlights(scanData.issueEntries);
+}
+
+function getElementSummaryLabel(element) {
+  if (!element) return 'element';
+  const tagName = element.tagName ? element.tagName.toLowerCase() : 'element';
+  const idLabel = element.id ? `#${element.id}` : '';
+  const className = typeof element.className === 'string' && element.className.trim()
+    ? `.${element.className.trim().split(/\s+/)[0]}`
+    : '';
+  return `${tagName}${idLabel}${className}`;
+}
+
+function addExcludedEntry(element) {
+  if (!(element instanceof Element)) return null;
+  const rect = element.getBoundingClientRect?.();
+  const excludedIndex = (scanData?.excludedEntries?.length || 0) + 1;
+  const width = Number(rect?.width || 0);
+  const height = Number(rect?.height || 0);
+  return {
+    id: `excluded-${excludedIndex}`,
+    key: `excluded-${excludedIndex}`,
+    element,
+    category: 'excluded',
+    label: getElementSummaryLabel(element),
+    reason: `렌더링 기준 미만 (${Number.isFinite(width) ? Math.round(width) : 0}×${Number.isFinite(height) ? Math.round(height) : 0}px)`,
+    message: `제외됨: ${getElementSummaryLabel(element)} (${width ? '미검사' : '비표시'})`,
+    tone: 'warning',
+    tag: getElementSummaryLabel(element),
+    value: 'excluded',
+  };
 }
 
 async function runSingleScanPass() {
@@ -2406,6 +2937,7 @@ async function runSingleScanPass() {
     isElementVisible: isScannableElement,
     getStyles: (element) => window.getComputedStyle(element),
     inspectElement: ({ filterKey, styles, element }) => getInspectionForFilter(filterKey, styles, element),
+    addExcludedEntry,
     addIssueEntry,
     markElement: () => {},
     yieldToBrowser,
@@ -2500,6 +3032,9 @@ function refreshActiveScanBreakdown() {
 }
 
 function clearInspectionMarks() {
+  clearGapHighlights();
+  clearRadiusHighlights();
+  clearTextColorHighlights();
   document.querySelectorAll('.fds-inspected, .fds-violation, .fds-hover-target').forEach((el) => {
     el.classList.remove('fds-inspected', 'fds-violation', 'fds-violation-danger', 'fds-violation-warning', 'fds-hover-target');
     el.removeAttribute('data-fds-msg');
@@ -2512,6 +3047,43 @@ function clearInspectionMarks() {
 
 function getPreferredViolationFilter(counts = {}) {
   return FILTER_KEYS.find((filterKey) => Number(counts[filterKey] || 0) > 0) || DEFAULT_FILTER;
+}
+
+function renderSummaryLoadingSkeleton({ activeFilter } = {}) {
+  const tabSkeleton = activeFilter === 'color'
+    ? `<div class="fds-summary-tabbar is-skeleton" aria-hidden="true">
+        <span class="fds-summary-skeleton fds-summary-skeleton-tab"></span>
+        <span class="fds-summary-skeleton fds-summary-skeleton-tab"></span>
+        <span class="fds-summary-skeleton fds-summary-skeleton-tab"></span>
+      </div>`
+    : '';
+
+  return `
+    ${tabSkeleton}
+    <div class="fds-summary-card-row" aria-hidden="true">
+      <div class="fds-stat-box danger is-skeleton">
+        <span class="fds-summary-skeleton fds-summary-skeleton-label"></span>
+        <span class="fds-summary-skeleton fds-summary-skeleton-number"></span>
+        <span class="fds-summary-skeleton fds-summary-skeleton-caption"></span>
+      </div>
+      <div class="fds-stat-box warning is-skeleton">
+        <span class="fds-summary-skeleton fds-summary-skeleton-label"></span>
+        <span class="fds-summary-skeleton fds-summary-skeleton-number"></span>
+        <span class="fds-summary-skeleton fds-summary-skeleton-caption"></span>
+      </div>
+    </div>
+    <div class="fds-summary-list is-skeleton" role="list" aria-label="위반 목록 로딩 중">
+      <span class="fds-summary-skeleton fds-summary-skeleton-row"></span>
+      <span class="fds-summary-skeleton fds-summary-skeleton-row"></span>
+      <span class="fds-summary-skeleton fds-summary-skeleton-row short"></span>
+    </div>
+  `;
+}
+
+function hasCompletedScanForSummary() {
+  return Boolean(lastScanMetrics)
+    || Number(scanData?.meta?.scannedElementCount || 0) > 0
+    || Number(scanData?.meta?.totalElementCount || 0) > 0;
 }
 
   function updateSummaryUI() {
@@ -2537,6 +3109,8 @@ function getPreferredViolationFilter(counts = {}) {
     normalizeActiveSummaryToneForCounts(getToneCountsForEntries(activeIssueEntries));
   }
   const isIdle = !activeFilter;
+  const isPendingInitialSummaryScan = Boolean(activeFilter) && !hasCompletedScanForSummary();
+  const isSummaryLoading = !scanErrorText && (isScanning || isPendingInitialSummaryScan);
   const hasViolations = activeIssueEntries.length > 0;
   const summaryTitle = isIdle ? '검사 정보' : `${activeFilterLabel} 위반 정보`;
   const scanScopeText = formatScanScopeText();
@@ -2559,11 +3133,6 @@ function getPreferredViolationFilter(counts = {}) {
   const missingColorPatternCount = activeTonePatternCounts.danger;
   const primitiveColorPatternCount = activeTonePatternCounts.warning;
   const activeIssueCount = getViolationCountByFilter(activeFilter);
-  const renderedListItemCount = visibleIssueGroups.reduce(
-    (sum, group) => sum + 1 + (group.expanded ? group.entries.length : 0),
-    0
-  );
-  const hasScrollableList = renderedListItemCount > SUMMARY_LIST_SCROLL_ITEM_THRESHOLD;
   const previousList = panel.querySelector('.fds-summary-list');
   const previousListSnapshot = previousList ? previousList.innerHTML : '';
   const previousListKey = panel.dataset.summaryListKey || '';
@@ -2574,13 +3143,15 @@ function getPreferredViolationFilter(counts = {}) {
       || previousList.scrollHeight
       || 0
     : 0;
-  const previousListHeight = previousList ? Math.min(previousListRenderedHeight, SUMMARY_LIST_MAX_HEIGHT) : 0;
+  const previousListHeight = previousList ? previousListRenderedHeight : 0;
   const previousPanelHeight = panel.offsetHeight || 0;
   const shouldAnimateListHeight = previousList !== null;
   const nextListKey = getSummaryListRenderKey(visibleListItems);
   const isListContentChanged = previousListKey !== nextListKey;
   const hasScanError = Boolean(scanErrorText);
-  const listMarkup = hasScanError
+  const listMarkup = isSummaryLoading
+    ? ''
+    : hasScanError
     ? '<div class="fds-list-empty danger" role="note">오류로 인해 결과를 표시할 수 없습니다. 새로고침 버튼으로 다시 검사해 주세요.</div>'
     : isIdle
     ? renderSummaryEmptyState({ isIdle: true })
@@ -2594,7 +3165,9 @@ function getPreferredViolationFilter(counts = {}) {
             : ''}
         `).join('')
       : renderSummaryEmptyState({ activeFilterLabel });
-  const summaryCards = hasScanError
+  const summaryCards = isSummaryLoading
+    ? []
+    : hasScanError
     ? [{
       tone: 'danger',
       label: '검사 실패',
@@ -2620,9 +3193,20 @@ function getPreferredViolationFilter(counts = {}) {
     colorTabs,
     activeSummarySubtab,
   });
+  const summaryBodyMarkup = isSummaryLoading
+    ? renderSummaryLoadingSkeleton({ activeFilter })
+    : `
+      ${tabBarMarkup}
+      <div class="fds-summary-card-row${!hasViolations || hasScanError ? ' is-single' : ''}">
+        ${cardRowMarkup}
+      </div>
+      <div class="fds-summary-list is-scrollable" role="list" aria-label="위반 목록">
+        ${listMarkup}
+      </div>
+    `;
 
   if (previousPanelHeight > 0) {
-    panel.style.height = `${previousPanelHeight}px`;
+    panel.style.height = `${Math.max(previousPanelHeight, SUMMARY_PANEL_MIN_HEIGHT)}px`;
     panel.style.overflow = 'hidden';
   }
 
@@ -2634,18 +3218,13 @@ function getPreferredViolationFilter(counts = {}) {
       </div>
       <button class="fds-panel-close" type="button" aria-label="패널 닫기" title="패널 닫기">${renderAssetIcon('close', 'close')}</button>
     </div>
-    <section class="fds-summary-section" aria-label="요약 및 탐색">
+    <section class="fds-summary-section" aria-label="요약 및 탐색"${isSummaryLoading ? ' aria-busy="true"' : ''}>
       ${scanStatusMarkup}
-      ${tabBarMarkup}
-      <div class="fds-summary-card-row${!hasViolations || hasScanError ? ' is-single' : ''}">
-        ${cardRowMarkup}
-      </div>
-      <div class="fds-summary-list${hasScrollableList ? ' is-scrollable' : ''}" role="list" aria-label="위반 목록">
-        ${listMarkup}
-      </div>
+      ${summaryBodyMarkup}
     </section>
     <div class="fds-panel-resize-handle" role="separator" aria-label="패널 높이 조절" title="패널 높이 조절" tabindex="0"></div>
   `;
+  panel.classList.toggle('is-loading', isSummaryLoading);
   if (customSummaryPanelHeight) {
     applyCustomSummaryPanelHeight(panel);
   } else {
@@ -2653,7 +3232,7 @@ function getPreferredViolationFilter(counts = {}) {
   }
   panel.dataset.summaryListKey = nextListKey;
   const nextList = panel.querySelector('.fds-summary-list');
-  const nextListHeight = nextList ? Math.min(nextList.scrollHeight, SUMMARY_LIST_MAX_HEIGHT) : 0;
+  const nextListHeight = nextList ? nextList.scrollHeight : 0;
   const isListGrowing = nextListHeight > previousListHeight;
   const directContentPanelHeight = measureSummaryPanelTargetHeight(panel, { listHeight: nextListHeight });
   const naturalPanelHeight = measureNaturalSummaryPanelHeight(panel);
@@ -2818,7 +3397,7 @@ function getPreferredViolationFilter(counts = {}) {
       }
       activeIsolatedIssueKey = issueKey;
       const entry = showPin({ locked: true, isolate: true });
-      scrollToIssueElement(entry);
+      scrollToIssueElement(entry, { ignoreCustomPosition: true });
     };
     item.onmouseleave = hideTooltip;
     item.onblur = hideTooltip;

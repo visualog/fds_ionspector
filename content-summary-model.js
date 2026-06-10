@@ -66,6 +66,10 @@
       return getColorEntriesForActiveSubtab().filter((entry) => entry.tone === activeSummaryTone);
     }
 
+    function getExcludedEntries() {
+      return getScanData()?.excludedEntries || [];
+    }
+
     function getIssueGroupKey(entry, parsed = parseViolationItem(entry?.message)) {
       return [
         entry?.category || 'unknown',
@@ -188,6 +192,7 @@
       getColorToneCountsForActiveSubtab,
       getToneCountsForEntries,
       getTonePatternCountsForGroups,
+      getExcludedEntries,
       getColorTonePatternCountsForActiveSubtab,
       getColorSummaryTabs,
       getSummaryListRenderKey,

@@ -69,7 +69,7 @@
       const text = String(message || '');
       if (/^(배경색|글자색|보더색|외곽선)\s+/.test(text)) return 'color';
       if (text.startsWith('서체 ')) return 'font';
-      if (text.startsWith('상단 패딩 ')) return 'spacing';
+      if (/^(패딩|마진|갭|상단 패딩|오른쪽 패딩|하단 패딩|왼쪽 패딩|상단 마진|오른쪽 마진|하단 마진|왼쪽 마진|행 갭|열 갭)\s+/.test(text)) return 'spacing';
       if (text.startsWith('라운드 ')) return 'radius';
       return fallback || null;
     }

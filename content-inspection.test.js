@@ -87,6 +87,29 @@ test('spacing inspection labels equal four-side margin as margin', () => {
   assert.deepEqual(result.issues, ['마진 14px (미등록)']);
 });
 
+test('spacing inspection includes gap values outside the token scale', () => {
+  const inspector = createInspector();
+  const result = inspector.getInspectionForFilter('spacing', {
+    rowGap: '11px',
+    columnGap: '11px',
+  }, {});
+
+  assert.deepEqual(result.issues, ['갭 11px (미등록)']);
+});
+
+test('spacing inspection labels directional gap values when row and column differ', () => {
+  const inspector = createInspector();
+  const result = inspector.getInspectionForFilter('spacing', {
+    rowGap: '12px',
+    columnGap: '8px',
+  }, {});
+
+  assert.deepEqual(result.issues, [
+    '행 갭 12px (미등록)',
+    '열 갭 8px (원시값 직접 사용: spacing/8)',
+  ]);
+});
+
 test('radius inspection warns when a token value is used as a raw value', () => {
   const inspector = createInspector();
   const result = inspector.getInspectionForFilter('radius', { borderRadius: '4px' }, {});
@@ -114,4 +137,22 @@ test('color inspection does not collapse translucent rgba to opaque token sugges
   }, {});
 
   assert.deepEqual(result.issues, ['배경색 rgba(0, 0, 0, 0.04) (미등록)']);
+});
+
+test('color inspection treats wrong color token part as unregistered for the element context', () => {
+  const inspector = createInspector({
+    getKnownColorTokens: () => ['Color.text.primary'],
+  });
+  const result = inspector.getInspectionForFilter('color', {
+    backgroundColor: '#1a202c',
+    color: '#1a202c',
+    borderTopWidth: '1px',
+    borderTopColor: '#1a202c',
+  }, {});
+
+  assert.deepEqual(result.issues, [
+    '배경색 #1a202c (미등록)',
+    '글자색 #1a202c (원시값 직접 사용)',
+    '보더색 #1a202c (미등록)',
+  ]);
 });

@@ -57,7 +57,26 @@ test('renderToolbarMarkup exposes full badge count while rendering numeric badge
   assert.match(markup, /data-badge-count="2003"/);
   assert.match(markup, /data-badge-full-count="2,003"/);
   assert.match(markup, /aria-label="컬러 검사 2,003개 위반 요소"/);
-  assert.match(markup, /title="컬러 검사 2,003개 위반 요소"/);
+  assert.match(markup, /data-tooltip="컬러 검사"/);
+});
+
+test('renderToolbarMarkup excludes rendering scope from generated toolbar tooltip', () => {
+  const markup = renderers.renderToolbarMarkup({
+    items: [{ type: 'button', ref: 'color' }],
+    buttons: {
+      color: {
+        id: 'fds-btn-color',
+        kind: 'color',
+        title: '컬러 검사',
+        filter: 'color',
+        active: true,
+        badgeLabel: '컬러 검사 2,003개 위반 요소 · 현재 렌더링 기준 · 검사됨 408개 · 제외됨 336개',
+      },
+    },
+  });
+
+  assert.match(markup, /data-tooltip="컬러 검사"/);
+  assert.match(markup, /aria-label="컬러 검사 2,003개 위반 요소 · 현재 렌더링 기준 · 검사됨 408개 · 제외됨 336개"/);
 });
 
 test('renderToolbarMarkup hides decorative close icon from accessibility tree', () => {
@@ -116,6 +135,7 @@ test('renderSummaryListItem parses all-side padding violations', () => {
 
   assert.match(markup, /div\.card/);
   assert.doesNotMatch(markup, /<span class="fds-list-element">[^<]*패딩/);
+  assert.match(markup, /data-lucide="triangle-alert"/);
   assert.match(markup, /미등록/);
   assert.match(markup, /14px/);
 });
@@ -131,6 +151,7 @@ test('renderSummaryListItem shows aggregated class detail counts', () => {
   });
 
   assert.match(markup, /div\.css-1jpkuk3 · 7개 요소/);
+  assert.match(markup, /data-lucide="circle-alert"/);
   assert.match(markup, /data-issue-keys="\[&quot;spacing-1&quot;,&quot;spacing-2&quot;\]"/);
   assert.match(markup, /대표 요소로 이동합니다/);
 });
@@ -160,6 +181,15 @@ test('renderSummaryGroupItem can summarize margin violations', () => {
   assert.equal(parsed.tag, '미등록');
   assert.equal(parsed.tone, 'danger');
   assert.equal(parsed.value, '14px');
+});
+
+test('renderSummaryGroupItem can summarize gap violations', () => {
+  const parsed = renderers.parseViolationItem('열 갭 8px (원시값 직접 사용: spacing/8)');
+
+  assert.equal(parsed.chip, '열 갭');
+  assert.equal(parsed.tag, '원시값 직접 사용: spacing/8');
+  assert.equal(parsed.tone, 'warning');
+  assert.equal(parsed.value, '8px');
 });
 
 test('renderSummaryGroupItem summarizes and escapes grouped issues', () => {
@@ -231,9 +261,11 @@ test('createSummaryMetricCards keeps missing and raw labels for non-color summar
   assert.equal(cards[0].label, '미등록');
   assert.equal(cards[0].value, 0);
   assert.equal(cards[0].caption, '영향 0개 요소');
+  assert.equal(cards[0].icon, 'triangle-alert');
   assert.equal(cards[1].label, '원시값');
   assert.equal(cards[1].value, 3);
   assert.equal(cards[1].caption, '영향 3,999개 요소');
+  assert.equal(cards[1].icon, 'circle-alert');
   assert.equal(cards.some((card) => card.label === '검토 패턴' || card.label === '영향 요소'), false);
 });
 
@@ -251,9 +283,11 @@ test('createSummaryMetricCards shows color tone pattern counts with affected ele
   assert.equal(cards[0].label, '미등록');
   assert.equal(cards[0].value, 2);
   assert.equal(cards[0].caption, '영향 32개 요소');
+  assert.equal(cards[0].icon, 'triangle-alert');
   assert.equal(cards[1].label, '원시값');
   assert.equal(cards[1].value, 1);
   assert.equal(cards[1].caption, '영향 2,001개 요소');
+  assert.equal(cards[1].icon, 'circle-alert');
   assert.equal(cards[1].isActive, true);
 });
 
@@ -280,6 +314,7 @@ test('renderSummaryMetricCard exposes concise captions in visible and accessible
   });
 
   assert.match(markup, /<div class="fds-stat-caption">영향 2,001개 요소<\/div>/);
+  assert.match(markup, /data-lucide="circle-alert"/);
   assert.match(markup, /aria-label="원시값: 1, 영향 2,001개 요소"/);
 });
 
