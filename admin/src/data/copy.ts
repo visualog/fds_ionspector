@@ -2,7 +2,7 @@ import type { Language, NavId } from '../types/admin';
 
 export const navLabels: Record<Language, Record<NavId, string>> = {
   en: {
-    dashboard: 'Dashboard',
+    dashboard: 'Operational Overview',
     tokens: 'Token Registry',
     foundation: 'Design Foundation',
     components: 'Component Library',
@@ -13,7 +13,7 @@ export const navLabels: Record<Language, Record<NavId, string>> = {
     modules: 'Module Map',
   },
   ko: {
-    dashboard: '대시보드',
+    dashboard: '운영 개요',
     tokens: '토큰 레지스트리',
     foundation: '디자인 파운데이션',
     components: '컴포넌트 라이브러리',

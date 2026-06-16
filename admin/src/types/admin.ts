@@ -28,7 +28,7 @@ export interface TokenFile {
   purposeKo?: string;
   groupCount: string;
   groupCountKo?: string;
-  status: 'configured';
+  status: 'managed';
 }
 
 export interface RuleGroup {

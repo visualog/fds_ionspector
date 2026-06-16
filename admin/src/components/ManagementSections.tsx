@@ -3,8 +3,7 @@ import { docGroups } from '../data/docs';
 import { moduleGroups } from '../data/modules';
 import { ruleGroups } from '../data/rules';
 import { tokenFiles } from '../data/tokens';
-import { DataCard } from './DataCard';
-import { FileList } from './FileList';
+import { FileList, InlineFile } from './FileList';
 import { SectionBlock } from './SectionBlock';
 import type { Language } from '../types/admin';
 
@@ -23,7 +22,6 @@ const sectionCopy = {
     modulesEyebrow: 'Module Map',
     modulesTitle: 'Runtime ownership summary',
     path: 'Path',
-    scope: 'Scope',
     runtime: 'Runtime',
     tests: 'Tests',
     buildCommand: 'Build command',
@@ -45,7 +43,6 @@ const sectionCopy = {
     modulesEyebrow: '모듈 맵',
     modulesTitle: '런타임 소유권 요약',
     path: '경로',
-    scope: '범위',
     runtime: '런타임',
     tests: '테스트',
     buildCommand: '빌드 명령',
@@ -64,21 +61,15 @@ export function TokenRegistrySection({ language }: SectionProps) {
 
   return (
     <SectionBlock eyebrow={copy.tokensEyebrow} title={copy.tokensTitle}>
-      <div className="card-grid">
+      <div className="record-list">
         {tokenFiles.map((token) => (
-          <DataCard key={token.path} title={language === 'ko' ? token.labelKo ?? token.label : token.label} meta={token.status}>
+          <article className="token-record" key={token.path}>
+            <h3>{language === 'ko' ? token.labelKo ?? token.label : token.label}</h3>
             <p>{language === 'ko' ? token.purposeKo ?? token.purpose : token.purpose}</p>
-            <dl className="fact-list">
-              <div>
-                <dt>{copy.path}</dt>
-                <dd><code>{token.path}</code></dd>
-              </div>
-              <div>
-                <dt>{copy.scope}</dt>
-                <dd>{language === 'ko' ? token.groupCountKo ?? token.groupCount : token.groupCount}</dd>
-              </div>
-            </dl>
-          </DataCard>
+            <div className="token-record__path" aria-label={copy.path}>
+              <InlineFile path={token.path} />
+            </div>
+          </article>
         ))}
       </div>
     </SectionBlock>
@@ -90,15 +81,24 @@ export function InspectionRulesSection({ language }: SectionProps) {
 
   return (
     <SectionBlock eyebrow={copy.rulesEyebrow} title={copy.rulesTitle}>
-      <div className="card-grid">
+      <div className="record-list rule-records">
         {ruleGroups.map((rule) => (
-          <DataCard key={rule.category} title={language === 'ko' ? rule.categoryKo ?? rule.category : rule.category}>
-            <p>{language === 'ko' ? rule.checkKo ?? rule.check : rule.check}</p>
-            <h4>{copy.runtime}</h4>
-            <FileList files={rule.runtimeFiles} />
-            <h4>{copy.tests}</h4>
-            <FileList files={rule.testFiles} />
-          </DataCard>
+          <article className="linear-record rule-record" key={rule.category}>
+            <div>
+              <h3>{language === 'ko' ? rule.categoryKo ?? rule.category : rule.category}</h3>
+              <p>{language === 'ko' ? rule.checkKo ?? rule.check : rule.check}</p>
+            </div>
+            <div className="linear-detail-list">
+              <div>
+                <h4>{copy.runtime}</h4>
+                <FileList files={rule.runtimeFiles} />
+              </div>
+              <div>
+                <h4>{copy.tests}</h4>
+                <FileList files={rule.testFiles} />
+              </div>
+            </div>
+          </article>
         ))}
       </div>
     </SectionBlock>
@@ -110,15 +110,15 @@ export function OverlaySection({ language }: SectionProps) {
 
   return (
     <SectionBlock eyebrow={copy.overlayEyebrow} title={copy.overlayTitle}>
-      <div className="wide-card">
+      <section className="reference-section">
         {language === 'ko' ? (
           <p>
-            오버레이 레이어는 <code>content.js</code>가 툴바 상태, 렌더링, 플로팅 이슈 카드,
+            오버레이 레이어는 <InlineFile path="content.js" />가 툴바 상태, 렌더링, 플로팅 이슈 카드,
             패널 측정, 스캔 요약, GSAP 기반 모션 helper를 조립해 구성합니다.
           </p>
         ) : (
           <p>
-            The overlay layer is assembled by <code>content.js</code> from smaller helpers for toolbar state,
+            The overlay layer is assembled by <InlineFile path="content.js" /> from smaller helpers for toolbar state,
             rendering, floating issue cards, panel measurement, scan summaries, and GSAP-backed motion.
           </p>
         )}
@@ -132,7 +132,7 @@ export function OverlaySection({ language }: SectionProps) {
             'overlay.css',
           ]}
         />
-      </div>
+      </section>
     </SectionBlock>
   );
 }
@@ -142,37 +142,42 @@ export function BuildReleaseSection({ language }: SectionProps) {
 
   return (
     <SectionBlock eyebrow={copy.buildEyebrow} title={copy.buildTitle}>
-      <div className="release-grid">
-        <DataCard title={copy.buildCommand} meta="manual">
-          <p><code>{buildMetadata.command}</code></p>
-          <p>
-            {language === 'ko'
-              ? '1단계에서는 UI에서 빌드를 실행하지 않고 명령어와 현재 산출물 경로만 표시합니다.'
-              : 'Phase 1 shows the command and current output paths without executing builds from the UI.'}
-          </p>
-        </DataCard>
-        <DataCard title={copy.outputs} meta={`${buildMetadata.runtimeFileCount} files`}>
+      <div className="reference-section">
+        <div className="build-reference">
+          <div>
+            <h3>{copy.buildCommand}</h3>
+            <code>{buildMetadata.command}</code>
+            <p>
+              {language === 'ko'
+                ? '1단계에서는 UI에서 빌드를 실행하지 않고 명령어와 현재 산출물 경로만 표시합니다.'
+                : 'Phase 1 shows the command and current output paths without executing builds from the UI.'}
+            </p>
+          </div>
           <dl className="fact-list">
             <div>
               <dt>{copy.directory}</dt>
-              <dd><code>{buildMetadata.outputDirectory}</code></dd>
+              <dd><InlineFile path={buildMetadata.outputDirectory} /></dd>
             </div>
             <div>
               <dt>{copy.zip}</dt>
-              <dd><code>{buildMetadata.outputZip}</code></dd>
+              <dd><InlineFile path={buildMetadata.outputZip} /></dd>
+            </div>
+            <div>
+              <dt>{copy.outputs}</dt>
+              <dd>{buildMetadata.runtimeFileCount} files</dd>
             </div>
           </dl>
-        </DataCard>
+        </div>
       </div>
-      <div className="card-grid">
+      <div className="record-list record-list--compact">
         {runtimeGroups.map((group) => (
-          <DataCard
-            key={group.label}
-            title={language === 'ko' ? group.labelKo ?? group.label : group.label}
-            meta={language === 'ko' ? group.noteKo ?? group.note : group.note}
-          >
+          <article className="record-row" key={group.label}>
+            <div>
+              <h3>{language === 'ko' ? group.labelKo ?? group.label : group.label}</h3>
+              <p>{language === 'ko' ? group.noteKo ?? group.note : group.note}</p>
+            </div>
             <FileList files={group.files} />
-          </DataCard>
+          </article>
         ))}
       </div>
     </SectionBlock>
@@ -184,11 +189,12 @@ export function DocumentsSection({ language }: SectionProps) {
 
   return (
     <SectionBlock eyebrow={copy.docsEyebrow} title={copy.docsTitle}>
-      <div className="card-grid">
+      <div className="record-list">
         {docGroups.map((group) => (
-          <DataCard key={group.label} title={group.label}>
+          <article className="record-row" key={group.label}>
+            <h3>{group.label}</h3>
             <FileList files={group.paths} />
-          </DataCard>
+          </article>
         ))}
       </div>
     </SectionBlock>
@@ -200,12 +206,15 @@ export function ModuleMapSection({ language }: SectionProps) {
 
   return (
     <SectionBlock eyebrow={copy.modulesEyebrow} title={copy.modulesTitle}>
-      <div className="card-grid">
+      <div className="record-list">
         {moduleGroups.map((group) => (
-          <DataCard key={group.label} title={language === 'ko' ? group.labelKo ?? group.label : group.label}>
-            <p>{language === 'ko' ? group.descriptionKo ?? group.description : group.description}</p>
+          <article className="record-row" key={group.label}>
+            <div>
+              <h3>{language === 'ko' ? group.labelKo ?? group.label : group.label}</h3>
+              <p>{language === 'ko' ? group.descriptionKo ?? group.description : group.description}</p>
+            </div>
             <FileList files={group.files} />
-          </DataCard>
+          </article>
         ))}
       </div>
     </SectionBlock>
