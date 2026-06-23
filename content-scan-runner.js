@@ -71,6 +71,7 @@
         filters.forEach((filterKey) => {
           const inspection = inspectElement({ filterKey, styles, element });
           const issues = Array.isArray(inspection?.issues) ? inspection.issues : [];
+          const issueDetails = Array.isArray(inspection?.issueDetails) ? inspection.issueDetails : [];
           const suggestions = Array.isArray(inspection?.suggestions) ? inspection.suggestions : [];
 
           if (!collectAllEntries && filterKey !== activeFilter) {
@@ -78,8 +79,13 @@
             return;
           }
 
-          issues.forEach((issue) => {
-            const entry = addIssueEntry({ category: filterKey, message: issue, element });
+          issues.forEach((issue, issueIndex) => {
+            const entry = addIssueEntry({
+              category: filterKey,
+              message: issue,
+              element,
+              metadata: issueDetails[issueIndex] || null,
+            });
             if (entry) {
               if (entry.key && scanData.issueEntries.some((candidate) => candidate.key === entry.key)) {
                 return;

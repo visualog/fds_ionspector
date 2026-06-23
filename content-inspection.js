@@ -51,17 +51,19 @@
       return Number.isFinite(parsed) ? parsed : 0;
     }
 
-    function addSpacingIssue({ issues, activeSpecs, label, value }) {
+    function addSpacingIssue({ issues, issueDetails, activeSpecs, label, value, metadata }) {
       if (value <= 0) return;
       const tokens = getSpacingTokens(activeSpecs, value);
       if (tokens.length) {
         issues.push(`${label} ${value}px (원시값 직접 사용${formatKnownTokenList(tokens)})`);
+        issueDetails.push(metadata);
       } else if (!activeSpecs.spacing.includes(value)) {
         issues.push(`${label} ${value}px (미등록)`);
+        issueDetails.push(metadata);
       }
     }
 
-    function inspectBoxSpacing({ issues, activeSpecs, styles, element, kind, sides }) {
+    function inspectBoxSpacing({ issues, issueDetails, activeSpecs, styles, element, kind, sides }) {
       const values = sides.map((side) => ({
         ...side,
         value: getPxValue(styles[side.styleKey]),
@@ -73,7 +75,14 @@
       if (allSidesEqual) {
         const tokenProps = [kind, ...sides.map((side) => side.cssProp)];
         if (!hasAuthoredTokenReference(element, tokenProps)) {
-          addSpacingIssue({ issues, activeSpecs, label: kind === 'padding' ? '패딩' : '마진', value: values[0].value });
+          addSpacingIssue({
+            issues,
+            issueDetails,
+            activeSpecs,
+            label: kind === 'padding' ? '패딩' : '마진',
+            value: values[0].value,
+            metadata: { spacing: { kind, sides: ['top', 'right', 'bottom', 'left'], value: values[0].value } },
+          });
         }
         return;
       }
@@ -81,14 +90,21 @@
       values.forEach((item) => {
         if (item.value <= 0) return;
         if (hasAuthoredTokenReference(element, [item.cssProp, kind])) return;
-        addSpacingIssue({ issues, activeSpecs, label: `${item.label} ${kind === 'padding' ? '패딩' : '마진'}`, value: item.value });
+        addSpacingIssue({
+          issues,
+          issueDetails,
+          activeSpecs,
+          label: `${item.label} ${kind === 'padding' ? '패딩' : '마진'}`,
+          value: item.value,
+          metadata: { spacing: { kind, sides: [item.side], value: item.value } },
+        });
       });
     }
 
-    function inspectGapSpacing({ issues, activeSpecs, styles, element }) {
+    function inspectGapSpacing({ issues, issueDetails, activeSpecs, styles, element }) {
       const gaps = [
-        { label: '행 갭', cssProp: 'row-gap', styleKey: 'rowGap' },
-        { label: '열 갭', cssProp: 'column-gap', styleKey: 'columnGap' },
+        { label: '행 갭', cssProp: 'row-gap', styleKey: 'rowGap', axis: 'row' },
+        { label: '열 갭', cssProp: 'column-gap', styleKey: 'columnGap', axis: 'column' },
       ].map((item) => ({
         ...item,
         value: getPxValue(styles[item.styleKey]),
@@ -99,19 +115,34 @@
       const allGapsEqual = gaps.every((item) => item.value === gaps[0].value);
       if (allGapsEqual) {
         if (!hasAuthoredTokenReference(element, ['gap', 'row-gap', 'column-gap'])) {
-          addSpacingIssue({ issues, activeSpecs, label: '갭', value: gaps[0].value });
+          addSpacingIssue({
+            issues,
+            issueDetails,
+            activeSpecs,
+            label: '갭',
+            value: gaps[0].value,
+            metadata: { spacing: { kind: 'gap', sides: ['row', 'column'], value: gaps[0].value } },
+          });
         }
         return;
       }
 
       positiveGaps.forEach((item) => {
         if (hasAuthoredTokenReference(element, [item.cssProp, 'gap'])) return;
-        addSpacingIssue({ issues, activeSpecs, label: item.label, value: item.value });
+        addSpacingIssue({
+          issues,
+          issueDetails,
+          activeSpecs,
+          label: item.label,
+          value: item.value,
+          metadata: { spacing: { kind: 'gap', sides: [item.axis], value: item.value } },
+        });
       });
     }
 
     function getInspectionForFilter(filter, styles, element = null) {
       const issues = [];
+      const issueDetails = [];
       const suggestions = [];
       const activeSpecs = getActiveInspectorSpecs();
 
@@ -144,21 +175,22 @@
           issues.push(tokens.length ? `보더색 ${borderColor} (원시값 직접 사용)` : `보더색 ${borderColor} (미등록)`);
         }
       } else if (filter === 'font') {
-        if (!hasDirectTextContent(element)) return { issues, suggestions };
+        if (!hasDirectTextContent(element)) return { issues, issueDetails, suggestions };
         const font = styles.fontFamily.split(',')[0].replace(/"/g, '');
         if (!activeSpecs.fonts.some((item) => font.includes(item))) {
           issues.push(`서체 '${font}' (차단)`);
         }
       } else if (filter === 'spacing') {
         const boxSides = [
-          { label: '상단', cssProp: 'padding-top', styleKey: 'paddingTop' },
-          { label: '오른쪽', cssProp: 'padding-right', styleKey: 'paddingRight' },
-          { label: '하단', cssProp: 'padding-bottom', styleKey: 'paddingBottom' },
-          { label: '왼쪽', cssProp: 'padding-left', styleKey: 'paddingLeft' },
+          { label: '상단', side: 'top', cssProp: 'padding-top', styleKey: 'paddingTop' },
+          { label: '오른쪽', side: 'right', cssProp: 'padding-right', styleKey: 'paddingRight' },
+          { label: '하단', side: 'bottom', cssProp: 'padding-bottom', styleKey: 'paddingBottom' },
+          { label: '왼쪽', side: 'left', cssProp: 'padding-left', styleKey: 'paddingLeft' },
         ];
-        inspectBoxSpacing({ issues, activeSpecs, styles, element, kind: 'padding', sides: boxSides });
+        inspectBoxSpacing({ issues, issueDetails, activeSpecs, styles, element, kind: 'padding', sides: boxSides });
         inspectBoxSpacing({
           issues,
+          issueDetails,
           activeSpecs,
           styles,
           element,
@@ -169,7 +201,7 @@
             styleKey: side.styleKey.replace('padding', 'margin'),
           })),
         });
-        inspectGapSpacing({ issues, activeSpecs, styles, element });
+        inspectGapSpacing({ issues, issueDetails, activeSpecs, styles, element });
       } else if (filter === 'radius') {
         const radius = styles.borderRadius;
         const radiusUsesToken = hasAuthoredTokenReference(element, ['border-radius']);
@@ -183,7 +215,7 @@
         }
       }
 
-      return { issues, suggestions };
+      return { issues, issueDetails, suggestions };
     }
 
     return { getInspectionForFilter };

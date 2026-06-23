@@ -26,6 +26,10 @@ const { createContentTheme } = globalThis.FDSContentTheme;
 const { createContentStateUtils } = globalThis.FDSContentStateUtils;
 const { createContentInspector } = globalThis.FDSContentInspection;
 const { createContentSummaryModel } = globalThis.FDSContentSummaryModel;
+const {
+  createViolationReportHtml,
+  createViolationReportFilename,
+} = globalThis.FDSContentViolationReport;
 const { createContentSummaryPanel } = globalThis.FDSContentSummaryPanel;
 const { createContentToolbarUI } = globalThis.FDSContentToolbarUI;
 const { createContentBridgeSpecs } = globalThis.FDSContentBridgeSpecs;
@@ -68,6 +72,7 @@ const {
   renderSummaryMetricCard,
   renderSummaryGroupItem,
   renderSummaryListItem,
+  getIssueElementLabel,
 } = createContentRenderers({
   iconPaths: ICON_PATHS,
   getUrl: safeRuntimeGetUrl,
@@ -127,6 +132,7 @@ const { getInspectionForFilter } = createContentInspector({
   rgbToHex,
 });
 const TOKEN_SOURCE_STORAGE_KEY = 'fdsTokenSource';
+const VIOLATION_NOTES_STORAGE_KEY = 'fdsViolationNotes';
 const SCAN_BATCH_BUDGET_MS = 12;
 const MAX_SCAN_ELEMENTS = 6000;
 const INSPECTOR_CARD_HIDE_DELAY_MS = 700;
@@ -186,6 +192,8 @@ let bridgeInspectorSpecOverrides = null;
 let bridgeColorTokenRegistry = { colors: {}, meta: { colorTokenCount: 0, colorVariableCount: 0 } };
 let bridgeTokenFileName = null;
 let bridgeTokenPageName = null;
+let violationNotesByKey = new Map();
+let hasLoadedViolationNotes = false;
 let snapshotInspectorSpecOverrides = null;
 let snapshotColorTokenRegistry = { colors: {}, meta: { colorTokenCount: 0 } };
 let snapshotTokenFileName = null;
@@ -338,6 +346,121 @@ function safeRuntimeGetUrl(path) {
   }
 }
 
+function getViolationNotesPageKey() {
+  try {
+    const url = new URL(window.location.href);
+    url.hash = '';
+    return url.toString();
+  } catch (_error) {
+    return String(window.location?.href || '').split('#')[0];
+  }
+}
+
+function getViolationNoteKey(entry) {
+  if (!entry) return '';
+  return [
+    getViolationNotesPageKey(),
+    entry.category || '',
+    entry.colorPart || '',
+    entry.message || '',
+    getIssueElementLabel(entry),
+    entry.key || '',
+  ].join('::');
+}
+
+function normalizeViolationNoteEntries(entries) {
+  return (Array.isArray(entries) ? entries : [entries])
+    .filter((entry) => entry?.key);
+}
+
+function getStoredViolationNotesContainer(value) {
+  return value && typeof value === 'object' && !Array.isArray(value) ? value : {};
+}
+
+async function loadViolationNotesForPage() {
+  if (!chrome.storage?.local || hasLoadedViolationNotes) return violationNotesByKey;
+  try {
+    const result = await chrome.storage?.local.get(VIOLATION_NOTES_STORAGE_KEY);
+    const allNotes = getStoredViolationNotesContainer(result?.[VIOLATION_NOTES_STORAGE_KEY]);
+    const pageKey = getViolationNotesPageKey();
+    violationNotesByKey = new Map(Object.entries(getStoredViolationNotesContainer(allNotes[pageKey])));
+    hasLoadedViolationNotes = true;
+  } catch (error) {
+    console.warn('[FDS Inspector] Failed to load violation notes', error);
+    violationNotesByKey = new Map();
+  }
+  return violationNotesByKey;
+}
+
+async function writeViolationNotesForPage(nextNotesByKey) {
+  if (!chrome.storage?.local) return false;
+  const result = await chrome.storage?.local.get(VIOLATION_NOTES_STORAGE_KEY);
+  const allNotes = getStoredViolationNotesContainer(result?.[VIOLATION_NOTES_STORAGE_KEY]);
+  allNotes[getViolationNotesPageKey()] = Object.fromEntries(nextNotesByKey.entries());
+  await chrome.storage?.local.set({ [VIOLATION_NOTES_STORAGE_KEY]: allNotes });
+  return true;
+}
+
+async function saveViolationNote(entry, text) {
+  const noteKey = getViolationNoteKey(entry);
+  const trimmedText = String(text || '').trim();
+  if (!noteKey || !trimmedText) return false;
+  await loadViolationNotesForPage();
+  const existing = violationNotesByKey.get(noteKey);
+  const now = new Date().toISOString();
+  violationNotesByKey.set(noteKey, {
+    category: entry.category || '',
+    message: entry.message || '',
+    elementLabel: getIssueElementLabel(entry),
+    text: trimmedText,
+    createdAt: existing?.createdAt || now,
+    updatedAt: now,
+  });
+  return writeViolationNotesForPage(violationNotesByKey);
+}
+
+async function saveViolationNotes(entries, text) {
+  const noteEntries = normalizeViolationNoteEntries(entries);
+  const trimmedText = String(text || '').trim();
+  if (!noteEntries.length || !trimmedText) return false;
+  await loadViolationNotesForPage();
+  const now = new Date().toISOString();
+  noteEntries.forEach((entry) => {
+    const noteKey = getViolationNoteKey(entry);
+    if (!noteKey) return;
+    const existing = violationNotesByKey.get(noteKey);
+    violationNotesByKey.set(noteKey, {
+      category: entry.category || '',
+      message: entry.message || '',
+      elementLabel: getIssueElementLabel(entry),
+      text: trimmedText,
+      createdAt: existing?.createdAt || now,
+      updatedAt: now,
+    });
+  });
+  return writeViolationNotesForPage(violationNotesByKey);
+}
+
+async function deleteViolationNote(entry) {
+  const noteKey = getViolationNoteKey(entry);
+  if (!noteKey) return false;
+  await loadViolationNotesForPage();
+  violationNotesByKey.delete(noteKey);
+  return writeViolationNotesForPage(violationNotesByKey);
+}
+
+async function deleteViolationNotes(entries) {
+  const noteEntries = normalizeViolationNoteEntries(entries);
+  if (!noteEntries.length) return false;
+  await loadViolationNotesForPage();
+  noteEntries.forEach((entry) => {
+    const noteKey = getViolationNoteKey(entry);
+    if (!noteKey) return;
+    violationNotesByKey.delete(noteKey);
+  });
+  return writeViolationNotesForPage(violationNotesByKey);
+}
+
 async function loadTokenSourceFromStorage() {
   if (!chrome.storage?.local) return null;
   try {
@@ -462,6 +585,50 @@ function getBridgeTokenContextLabel() {
   });
 }
 
+function createTextFileUrl({ content, type = 'text/html;charset=utf-8' }) {
+  const blob = new Blob([content], { type });
+  return URL.createObjectURL(blob);
+}
+
+function downloadTextFileFromUrl({ filename, url }) {
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = filename;
+  link.rel = 'noopener';
+  link.style.display = 'none';
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+}
+
+function openReportInNewTab(url) {
+  window.open(url, '_blank', 'noopener');
+}
+
+function scheduleObjectUrlRevoke(url) {
+  window.setTimeout(() => {
+    URL.revokeObjectURL(url);
+  }, 60000);
+}
+
+function saveViolationReport() {
+  const inspectedAt = new Date();
+  const content = createViolationReportHtml({
+    scanData,
+    pageTitle: document.title,
+    pageUrl: window.location.href,
+    inspectedAt,
+    tokenContextLabel: getBridgeTokenContextLabel(),
+    parseViolationItem,
+    getSuggestedTokensForIssue,
+  });
+  const filename = createViolationReportFilename(inspectedAt);
+  const url = createTextFileUrl({ content });
+  openReportInNewTab(url);
+  downloadTextFileFromUrl({ filename, url });
+  scheduleObjectUrlRevoke(url);
+}
+
 function setScanningState(nextScanning, reason = '') {
   isScanning = Boolean(nextScanning);
   scanStatusText = isScanning ? getScanStatusMessage(reason) : '';
@@ -527,7 +694,7 @@ function clearConnectedMessageTimer() {
   }
 }
 
-function addIssueEntry({ category, message, element }) {
+function addIssueEntry({ category, message, element, metadata = null }) {
   if (!message) return null;
   const normalizedCategory = getIssueCategoryFromMessage(message, category);
   const colorPart = getIssueColorPart(message);
@@ -545,6 +712,7 @@ function addIssueEntry({ category, message, element }) {
     tone,
     message,
     element,
+    metadata,
   };
   return entry;
 }
@@ -733,7 +901,11 @@ function showSummaryPanel({ anchorFilter = null, animatePosition = true } = {}) 
   const wasPanelVisible = isSummaryPanelVisible();
   activeSummaryTone = 'danger';
   setSummaryPanelVisible(panel);
-  updateSummaryUI();
+  if (!hasLoadedViolationNotes) {
+    loadViolationNotesForPage().then(() => updateSummaryUI()).catch(() => updateSummaryUI());
+  } else {
+    updateSummaryUI();
+  }
   const anchorElement = getToolbarFilterButton(anchorFilter || activeFilter);
   if (anchorElement && !isSummaryPanelDockedToToolbar) {
     positionSummaryPanelForToolbarButton(anchorElement, { animate: animatePosition && wasPanelVisible });
@@ -803,7 +975,7 @@ function clearViolationPins() {
 
 function clearGapHighlights() {
   const layer = getGapHighlightLayer();
-  layer?.querySelectorAll?.('.fds-gap-highlight, .fds-gap-item-highlight')?.forEach((marker) => marker.remove());
+  layer?.querySelectorAll?.('.fds-gap-highlight, .fds-gap-item-highlight, .fds-gap-box-highlight, .fds-spacing-box-highlight, .fds-spacing-area-highlight')?.forEach((marker) => marker.remove());
 }
 
 function clearRadiusHighlights() {
@@ -884,6 +1056,43 @@ function getTextColorIssueMetadata(entries = []) {
 }
 
 function getSpacingIssueMetadata(entries = []) {
+  const metadataEntries = entries
+    .map((entry) => entry?.metadata?.spacing)
+    .filter((spacing) => spacing?.kind && Array.isArray(spacing.sides) && spacing.sides.length);
+  if (metadataEntries.length) {
+    const kind = metadataEntries[0].kind;
+    const sideOrder = kind === 'gap' ? ['row', 'column'] : ['top', 'right', 'bottom', 'left'];
+    const sides = new Set();
+    let value = '';
+
+    metadataEntries
+      .filter((spacing) => spacing.kind === kind)
+      .forEach((spacing) => {
+        spacing.sides.forEach((side) => sides.add(side));
+        if (!value && Number.isFinite(spacing.value)) value = `${spacing.value}px`;
+      });
+
+    const normalizedSides = sideOrder.filter((side) => sides.has(side));
+    if (!normalizedSides.length) return null;
+    if (kind === 'gap') {
+      return {
+        kind,
+        sides: normalizedSides.join(' '),
+        value,
+        label: `g${normalizedSides.map((axis) => axis[0]).join('')} ${value}`.trim(),
+      };
+    }
+
+    const shortKind = kind === 'padding' ? 'p' : 'm';
+    const sideLabel = normalizedSides.length === 4 ? 'all' : normalizedSides.map((side) => side[0]).join('');
+    return {
+      kind,
+      sides: normalizedSides.join(' '),
+      value,
+      label: `${shortKind}${sideLabel} ${value}`.trim(),
+    };
+  }
+
   const spacingEntries = entries
     .map((entry) => ({ entry, parsed: parseViolationItem(entry?.message) }))
     .filter(({ entry, parsed }) => entry?.category === 'spacing' || ['패딩', '마진', '갭'].some((label) => String(parsed.chip || '').includes(label)));
@@ -987,7 +1196,37 @@ function applyElementSpacingHighlightMetadata(element, elementEntries = []) {
 }
 
 function getVisibleChildRects(element) {
-  return Array.from(element?.children || [])
+  return getVisibleGapParticipantRects(element);
+}
+
+function getDirectTextNodeRects(element) {
+  if (!element?.isConnected || typeof document.createRange !== 'function') return [];
+  const elementRect = element.getBoundingClientRect?.();
+  if (!elementRect || elementRect.width <= 0 || elementRect.height <= 0) return [];
+  const rects = [];
+
+  getDirectTextNodes(element).forEach((node) => {
+    const range = document.createRange();
+    try {
+      range.selectNodeContents(node);
+      Array.from(range.getClientRects?.() || []).forEach((rect) => {
+        const left = Math.max(elementRect.left, rect.left);
+        const top = Math.max(elementRect.top, rect.top);
+        const right = Math.min(elementRect.right, rect.right);
+        const bottom = Math.min(elementRect.bottom, rect.bottom);
+        if (right - left < 1 || bottom - top < 1) return;
+        rects.push({ left, top, right, bottom, width: right - left, height: bottom - top });
+      });
+    } finally {
+      range.detach?.();
+    }
+  });
+
+  return rects;
+}
+
+function getVisibleGapParticipantRects(element) {
+  const childRects = Array.from(element?.children || [])
     .slice(0, 96)
     .map((child) => {
       const rect = child.getBoundingClientRect?.();
@@ -995,6 +1234,9 @@ function getVisibleChildRects(element) {
       return rect;
     })
     .filter(Boolean);
+  return [...childRects, ...getDirectTextNodeRects(element)]
+    .sort((a, b) => a.top - b.top || a.left - b.left)
+    .slice(0, 128);
 }
 
 function getGapMarkerRects(element, spacingMetadata) {
@@ -1056,6 +1298,68 @@ function getGapMarkerRects(element, spacingMetadata) {
     .slice(0, 48);
 }
 
+function getContentBoxRect(element) {
+  const rect = element?.getBoundingClientRect?.();
+  if (!rect || rect.width <= 0 || rect.height <= 0) return null;
+  const styles = getComputedStyle(element);
+  const borderLeft = getBorderSideValue(styles, 'left');
+  const borderTop = getBorderSideValue(styles, 'top');
+  const borderRight = getBorderSideValue(styles, 'right');
+  const borderBottom = getBorderSideValue(styles, 'bottom');
+  const paddingLeft = getBoxSpacingSideValue(styles, 'padding', 'left');
+  const paddingTop = getBoxSpacingSideValue(styles, 'padding', 'top');
+  const paddingRight = getBoxSpacingSideValue(styles, 'padding', 'right');
+  const paddingBottom = getBoxSpacingSideValue(styles, 'padding', 'bottom');
+  const left = rect.left + borderLeft + paddingLeft;
+  const top = rect.top + borderTop + paddingTop;
+  const right = rect.right - borderRight - paddingRight;
+  const bottom = rect.bottom - borderBottom - paddingBottom;
+  return {
+    left,
+    top,
+    width: Math.max(1, right - left),
+    height: Math.max(1, bottom - top),
+  };
+}
+
+function getGapFallbackMarkerRects(element, spacingMetadata, existingMarkerRects = []) {
+  if (!element || spacingMetadata?.kind !== 'gap' || existingMarkerRects.length > 0) return [];
+  const contentRect = getContentBoxRect(element);
+  if (!contentRect) return [];
+  const styles = getComputedStyle(element);
+  const axes = new Set(String(spacingMetadata.sides || '').split(/\s+/).filter(Boolean));
+  const rowGap = Number.parseFloat(styles.rowGap || '0');
+  const columnGap = Number.parseFloat(styles.columnGap || '0');
+  const markerRects = [];
+  const minMarkerSize = 2;
+
+  if (axes.has('column') && Number.isFinite(columnGap) && columnGap > 0 && contentRect.width > minMarkerSize) {
+    const width = Math.max(1, Math.min(columnGap, contentRect.width));
+    markerRects.push({
+      axis: 'column',
+      fallback: true,
+      left: contentRect.left + Math.max(0, (contentRect.width - width) / 2),
+      top: contentRect.top,
+      width,
+      height: contentRect.height,
+    });
+  }
+
+  if (axes.has('row') && Number.isFinite(rowGap) && rowGap > 0 && contentRect.height > minMarkerSize) {
+    const height = Math.max(1, Math.min(rowGap, contentRect.height));
+    markerRects.push({
+      axis: 'row',
+      fallback: true,
+      left: contentRect.left,
+      top: contentRect.top + Math.max(0, (contentRect.height - height) / 2),
+      width: contentRect.width,
+      height,
+    });
+  }
+
+  return markerRects;
+}
+
 function getGapItemMarkerRects(element, spacingMetadata) {
   if (!element || spacingMetadata?.kind !== 'gap') return [];
   const containerRect = element.getBoundingClientRect?.();
@@ -1069,6 +1373,106 @@ function getGapItemMarkerRects(element, spacingMetadata) {
     }))
     .filter((rect) => rect.width >= 1 && rect.height >= 1)
     .slice(0, 96);
+}
+
+function getBoxSpacingSideValue(styles, kind, side) {
+  const propertyName = `${kind}${side.charAt(0).toUpperCase()}${side.slice(1)}`;
+  const value = Number.parseFloat(styles?.[propertyName] || '0');
+  return Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+function getBorderSideValue(styles, side) {
+  const propertyName = `border${side.charAt(0).toUpperCase()}${side.slice(1)}Width`;
+  const value = Number.parseFloat(styles?.[propertyName] || '0');
+  return Number.isFinite(value) && value > 0 ? value : 0;
+}
+
+function getBoxSpacingMarkerRects(element, spacingMetadata) {
+  if (!element || !['padding', 'margin'].includes(spacingMetadata?.kind)) return [];
+  const rect = element.getBoundingClientRect?.();
+  if (!rect || rect.width <= 0 || rect.height <= 0) return [];
+  const styles = getComputedStyle(element);
+  const activeSides = new Set(String(spacingMetadata.sides || '').split(/\s+/).filter(Boolean));
+  const sideValues = {
+    top: getBoxSpacingSideValue(styles, spacingMetadata.kind, 'top'),
+    right: getBoxSpacingSideValue(styles, spacingMetadata.kind, 'right'),
+    bottom: getBoxSpacingSideValue(styles, spacingMetadata.kind, 'bottom'),
+    left: getBoxSpacingSideValue(styles, spacingMetadata.kind, 'left'),
+  };
+  const borders = {
+    top: getBorderSideValue(styles, 'top'),
+    right: getBorderSideValue(styles, 'right'),
+    bottom: getBorderSideValue(styles, 'bottom'),
+    left: getBorderSideValue(styles, 'left'),
+  };
+  const markerRects = [];
+  const addRect = (side, candidate) => {
+    if (!activeSides.has(side) || sideValues[side] <= 0) return;
+    if (!candidate || candidate.width <= 0 || candidate.height <= 0) return;
+    markerRects.push({ ...candidate, side, kind: spacingMetadata.kind });
+  };
+
+  if (spacingMetadata.kind === 'margin') {
+    addRect('top', {
+      left: rect.left - sideValues.left,
+      top: rect.top - sideValues.top,
+      width: rect.width + sideValues.left + sideValues.right,
+      height: sideValues.top,
+    });
+    addRect('right', {
+      left: rect.right,
+      top: rect.top,
+      width: sideValues.right,
+      height: rect.height,
+    });
+    addRect('bottom', {
+      left: rect.left - sideValues.left,
+      top: rect.bottom,
+      width: rect.width + sideValues.left + sideValues.right,
+      height: sideValues.bottom,
+    });
+    addRect('left', {
+      left: rect.left - sideValues.left,
+      top: rect.top,
+      width: sideValues.left,
+      height: rect.height,
+    });
+    return markerRects;
+  }
+
+  const innerLeft = rect.left + borders.left;
+  const innerTop = rect.top + borders.top;
+  const innerRight = rect.right - borders.right;
+  const innerBottom = rect.bottom - borders.bottom;
+  const innerWidth = Math.max(0, innerRight - innerLeft);
+  const innerHeight = Math.max(0, innerBottom - innerTop);
+
+  addRect('top', {
+    left: innerLeft,
+    top: innerTop,
+    width: innerWidth,
+    height: Math.min(sideValues.top, innerHeight),
+  });
+  addRect('right', {
+    left: Math.max(innerLeft, innerRight - sideValues.right),
+    top: innerTop + Math.min(sideValues.top, innerHeight),
+    width: Math.min(sideValues.right, innerWidth),
+    height: Math.max(0, innerHeight - sideValues.top - sideValues.bottom),
+  });
+  addRect('bottom', {
+    left: innerLeft,
+    top: Math.max(innerTop, innerBottom - sideValues.bottom),
+    width: innerWidth,
+    height: Math.min(sideValues.bottom, innerHeight),
+  });
+  addRect('left', {
+    left: innerLeft,
+    top: innerTop + Math.min(sideValues.top, innerHeight),
+    width: Math.min(sideValues.left, innerWidth),
+    height: Math.max(0, innerHeight - sideValues.top - sideValues.bottom),
+  });
+
+  return markerRects;
 }
 
 function appendGapOverlayMarker(layer, className, rect, dataset = {}) {
@@ -1196,12 +1600,22 @@ function renderGapHighlights(entries = getVisibleIssueEntries()) {
 
   entriesByElement.forEach((elementEntries, element) => {
     const spacingMetadata = getSpacingIssueMetadata(elementEntries);
+    if (['padding', 'margin'].includes(spacingMetadata?.kind)) {
+      appendGapOverlayMarker(layer, 'fds-spacing-box-highlight', element.getBoundingClientRect(), { kind: spacingMetadata.kind });
+      getBoxSpacingMarkerRects(element, spacingMetadata).forEach((rect) => {
+        appendGapOverlayMarker(layer, 'fds-spacing-area-highlight', rect, { kind: rect.kind, side: rect.side });
+      });
+      return;
+    }
     if (spacingMetadata?.kind !== 'gap') return;
+    appendGapOverlayMarker(layer, 'fds-gap-box-highlight', element.getBoundingClientRect(), { kind: spacingMetadata.kind });
     getGapItemMarkerRects(element, spacingMetadata).forEach((rect) => {
       appendGapOverlayMarker(layer, 'fds-gap-item-highlight', rect);
     });
-    getGapMarkerRects(element, spacingMetadata).forEach((rect) => {
-      appendGapOverlayMarker(layer, 'fds-gap-highlight', rect, { axis: rect.axis });
+    const gapMarkerRects = getGapMarkerRects(element, spacingMetadata);
+    const fallbackMarkerRects = getGapFallbackMarkerRects(element, spacingMetadata, gapMarkerRects);
+    [...gapMarkerRects, ...fallbackMarkerRects].forEach((rect) => {
+      appendGapOverlayMarker(layer, 'fds-gap-highlight', rect, { axis: rect.axis, fallback: rect.fallback ? 'true' : 'false' });
     });
   });
 }
@@ -1390,6 +1804,34 @@ function getInspectorCardTitle(issueEntries = []) {
   return `위반 ${issueEntries.length}건`;
 }
 
+function getInspectorIssueDisplayKey(entry) {
+  return [
+    entry?.category || '',
+    entry?.colorPart || '',
+    entry?.tone || '',
+    entry?.message || '',
+  ].join('::');
+}
+
+function getUniqueInspectorIssueEntries(issueEntries = []) {
+  const entriesByDisplayKey = new Map();
+  issueEntries.forEach((entry) => {
+    const displayKey = getInspectorIssueDisplayKey(entry);
+    if (!entriesByDisplayKey.has(displayKey)) {
+      entriesByDisplayKey.set(displayKey, entry);
+    }
+  });
+  return [...entriesByDisplayKey.values()];
+}
+
+function getInspectorNoteEntries(issueEntries, representativeEntry) {
+  const representativeDisplayKey = getInspectorIssueDisplayKey(representativeEntry);
+  const matchingEntries = (issueEntries || []).filter((entry) => (
+    entry?.key && getInspectorIssueDisplayKey(entry) === representativeDisplayKey
+  ));
+  return matchingEntries.length ? matchingEntries : normalizeViolationNoteEntries(representativeEntry);
+}
+
 function getInspectorIssueDisplay(entry) {
   const parsedIssue = parseViolationItem(entry?.message);
   const value = parsedIssue.value || entry?.message || '확인 필요';
@@ -1432,6 +1874,98 @@ function renderSuggestedTokenRows(tokens = []) {
   `).join('');
 }
 
+function getViolationNoteForEntry(entry) {
+  return violationNotesByKey.get(getViolationNoteKey(entry)) || null;
+}
+
+function getViolationNoteForEntries(entries) {
+  return normalizeViolationNoteEntries(entries)
+    .map((entry) => getViolationNoteForEntry(entry))
+    .find(Boolean) || null;
+}
+
+function withViolationNoteState(entry) {
+  return {
+    ...entry,
+    hasNote: Boolean(getViolationNoteForEntry(entry)),
+  };
+}
+
+function renderViolationNoteControls(entries) {
+  const note = getViolationNoteForEntries(entries);
+  const noteText = note?.text || '';
+
+  return `
+    <div class="fds-card-note" data-note-mode="${note ? 'saved' : 'empty'}">
+      ${note
+        ? `<div class="fds-card-note-text">${escapeHtml(noteText)}</div>
+           <div class="fds-card-note-actions">
+             <button class="fds-card-note-action" type="button" data-note-action="edit">수정</button>
+             <button class="fds-card-note-action danger" type="button" data-note-action="delete">삭제</button>
+           </div>`
+        : `<button class="fds-card-note-action" type="button" data-note-action="edit">메모 추가</button>`}
+      <div class="fds-card-note-editor" hidden>
+        <textarea class="fds-card-note-input" rows="3" maxlength="300" placeholder="이 위반 요소에 남길 메모">${escapeHtml(noteText)}</textarea>
+        <div class="fds-card-note-actions">
+          <button class="fds-card-note-action primary" type="button" data-note-action="save">저장</button>
+          <button class="fds-card-note-action" type="button" data-note-action="cancel">취소</button>
+        </div>
+      </div>
+    </div>
+  `;
+}
+
+function renderViolationNoteEditor(card, entries) {
+  const note = getViolationNoteForEntries(entries);
+  const noteRoot = card.querySelector('.fds-card-note');
+  if (!noteRoot) return;
+  noteRoot.innerHTML = `
+    <textarea class="fds-card-note-input" rows="3" maxlength="300" placeholder="이 위반 요소에 남길 메모">${escapeHtml(note?.text || '')}</textarea>
+    <div class="fds-card-note-actions">
+      <button class="fds-card-note-action primary" type="button" data-note-action="save">저장</button>
+      <button class="fds-card-note-action" type="button" data-note-action="cancel">취소</button>
+    </div>
+  `;
+  const textarea = noteRoot.querySelector('.fds-card-note-input');
+  textarea?.focus?.();
+  textarea?.setSelectionRange?.(textarea.value.length, textarea.value.length);
+  bindViolationNoteControls(card, entries);
+}
+
+function refreshInspectorCardForEntries(entries) {
+  const refreshEntry = normalizeViolationNoteEntries(entries).find((entry) => entry?.element?.isConnected);
+  if (!refreshEntry) return;
+  showInspectorCardForEntries(refreshEntry.element, getVisibleIssueEntriesForElement(refreshEntry.element), refreshEntry.element, { ignoreCustomPosition: true });
+}
+
+function bindViolationNoteControls(card, entries) {
+  if (!card || !normalizeViolationNoteEntries(entries).length) return;
+  card.querySelector('[data-note-action="edit"]')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    renderViolationNoteEditor(card, entries);
+  });
+  card.querySelector('[data-note-action="cancel"]')?.addEventListener('click', (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    refreshInspectorCardForEntries(entries);
+  });
+  card.querySelector('[data-note-action="save"]')?.addEventListener('click', async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const textarea = card.querySelector('.fds-card-note-input');
+    if (!textarea) return;
+    const ok = await saveViolationNotes(entries, textarea.value);
+    if (ok) refreshInspectorCardForEntries(entries);
+  });
+  card.querySelector('[data-note-action="delete"]')?.addEventListener('click', async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+    const ok = await deleteViolationNotes(entries);
+    if (ok) refreshInspectorCardForEntries(entries);
+  });
+}
+
 function showInspectorCardForEntries(target, issueEntries, anchorElement = target, { ignoreCustomPosition = false } = {}) {
   const card = document.getElementById('fds-inspector-card');
   if (!target?.isConnected || !card || !issueEntries?.length) {
@@ -1447,8 +1981,10 @@ function showInspectorCardForEntries(target, issueEntries, anchorElement = targe
   const hasDanger = issueEntries.some((entry) => entry.tone === 'danger');
   const hasWarning = issueEntries.some((entry) => entry.tone === 'warning');
   const toneClass = hasDanger ? 'danger' : hasWarning ? 'warning' : 'success';
-  const cardTitle = getInspectorCardTitle(issueEntries);
-  const previewEntries = issueEntries.slice(0, 4);
+  const displayEntries = getUniqueInspectorIssueEntries(issueEntries);
+  const cardTitle = getInspectorCardTitle(displayEntries);
+  const previewEntries = displayEntries.slice(0, 4);
+  const noteEntries = getInspectorNoteEntries(issueEntries, displayEntries[0]);
   const nextIssueKeys = issueEntries.map((entry) => entry.key).join('\n');
   const shouldAnimateCard = card.style.display !== 'block' || card.dataset.issueKeys !== nextIssueKeys;
   card.dataset.issueKeys = nextIssueKeys;
@@ -1479,9 +2015,11 @@ function showInspectorCardForEntries(target, issueEntries, anchorElement = targe
           </div>
         `;
       }).join('')}
-      ${issueEntries.length > 4 ? `<div class="fds-card-more">외 ${issueEntries.length - 4}건</div>` : ''}
+      ${displayEntries.length > 4 ? `<div class="fds-card-more">외 ${displayEntries.length - 4}건</div>` : ''}
+      ${renderViolationNoteControls(noteEntries)}
     </div>
   `;
+  bindViolationNoteControls(card, noteEntries);
   card.querySelectorAll('.fds-token-copy').forEach((button) => {
     button.onclick = async (event) => {
       event.preventDefault();
@@ -1546,7 +2084,8 @@ function renderViolationPin(entry) {
 function getLucideIconSvg(name, className = 'fds-icon-inline') {
   const iconMap = {
     copy: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"></rect><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"></path>',
-    check: '<path d="M20 6 9 17l-5-5"></path>'
+    check: '<path d="M20 6 9 17l-5-5"></path>',
+    download: '<path d="M12 15V3"></path><path d="m7 10 5 5 5-5"></path><path d="M5 21h14"></path>'
   };
   const paths = iconMap[name] || iconMap.copy;
   return `<svg class="${escapeHtml(className)}" data-lucide="${escapeHtml(name)}" xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false">${paths}</svg>`;
@@ -1729,6 +2268,7 @@ function positionViolationPin(
 
     visiblePinCount += 1;
     pin.style.display = 'inline-flex';
+    pin.classList.toggle('has-note', Boolean(getViolationNoteForEntry(targetEntry)));
     const pinWidth = pin.offsetWidth || 28;
     const pinHeight = pin.offsetHeight || 24;
     const avoidRect = avoidElement?.style?.display !== 'none' ? avoidElement?.getBoundingClientRect?.() : null;
@@ -1743,7 +2283,7 @@ function positionViolationPin(
     pin.style.top = `${Math.round(candidate.top)}px`;
   });
 
-  if (!visiblePinCount) {
+  if (!visiblePinCount && !lockedPinnedIssueKey && lockedPinnedIssueKeys.length === 0) {
     clearActiveViolationPin();
   }
 }
@@ -1825,18 +2365,38 @@ function setActiveViolationPins(entries = [], { locked = false } = {}) {
   renderViolationPins(connectedEntries);
 }
 
-function scheduleIssuePreviewAfterScroll(entry, { ignoreCustomPosition = false } = {}) {
+function scheduleIssuePreviewAfterScroll(entry, { ignoreCustomPosition = false, issueEntries = null } = {}) {
+  const previewEntries = Array.isArray(issueEntries) && issueEntries.length ? issueEntries : [entry];
+  const startedAt = typeof performance !== 'undefined' && typeof performance.now === 'function'
+    ? performance.now()
+    : Date.now();
+  const maxWaitMs = 900;
+  const getElapsedMs = () => {
+    const now = typeof performance !== 'undefined' && typeof performance.now === 'function'
+      ? performance.now()
+      : Date.now();
+    return now - startedAt;
+  };
   const updateIssuePreview = () => {
     if (!entry?.element?.isConnected) return;
-    positionViolationPin(entry);
-    showInspectorCardForEntries(entry.element, [entry], entry.element, { ignoreCustomPosition });
+    const connectedPreviewEntries = previewEntries.filter((item) => item?.element?.isConnected);
+    const entriesForPreview = connectedPreviewEntries.length ? connectedPreviewEntries : [entry];
+    positionViolationPin(entriesForPreview);
+    const rect = entry.element.getBoundingClientRect?.();
+    const isTargetReady = rect && isViolationPinTargetVisible(rect);
+    if (!isTargetReady && getElapsedMs() < maxWaitMs) {
+      window.setTimeout?.(updateIssuePreview, 80);
+      return;
+    }
+    showInspectorCardForEntries(entry.element, entriesForPreview, entry.element, { ignoreCustomPosition });
   };
 
   window.requestAnimationFrame?.(updateIssuePreview);
   window.setTimeout?.(updateIssuePreview, 240);
+  window.setTimeout?.(updateIssuePreview, maxWaitMs);
 }
 
-function scrollToIssueElement(entry, { ignoreCustomPosition = false } = {}) {
+function scrollToIssueElement(entry, { ignoreCustomPosition = false, issueEntries = null } = {}) {
   if (!entry?.element?.isConnected) return;
   const prefersReducedMotion = window.matchMedia?.('(prefers-reduced-motion: reduce)')?.matches;
   const behavior = prefersReducedMotion ? 'auto' : 'smooth';
@@ -1848,7 +2408,7 @@ function scrollToIssueElement(entry, { ignoreCustomPosition = false } = {}) {
         inline: 'center',
         behavior,
       });
-      scheduleIssuePreviewAfterScroll(entry, { ignoreCustomPosition });
+      scheduleIssuePreviewAfterScroll(entry, { ignoreCustomPosition, issueEntries });
       return;
     } catch (error) {
       // Fall back to the document scroll path for older scrollIntoView implementations.
@@ -1869,7 +2429,7 @@ function scrollToIssueElement(entry, { ignoreCustomPosition = false } = {}) {
     behavior,
   });
 
-  scheduleIssuePreviewAfterScroll(entry, { ignoreCustomPosition });
+  scheduleIssuePreviewAfterScroll(entry, { ignoreCustomPosition, issueEntries });
 }
 
 function restoreLockedViolationPin(visibleEntries) {
@@ -1885,7 +2445,7 @@ function restoreLockedViolationPin(visibleEntries) {
     return;
   }
   setActiveViolationPins(lockedEntries, { locked: true });
-  showInspectorCardForEntries(lockedEntries[0].element, [lockedEntries[0]]);
+  showInspectorCardForEntries(lockedEntries[0].element, lockedEntries);
 }
 
 function hideInspectorCard() {
@@ -2029,7 +2589,7 @@ function moveInspectorCardDrag(event) {
 }
 
 function beginSummaryPanelDrag(event) {
-  if (event.target?.closest?.('.fds-panel-close')) return;
+  if (event.target?.closest?.('.fds-panel-actions')) return;
   const panelHead = event.target?.closest?.('#fds-summary-panel .fds-panel-head');
   if (!panelHead) return;
 
@@ -2954,6 +3514,7 @@ async function runSingleScanPass() {
   }
 
   refreshActiveScanBreakdown();
+  await loadViolationNotesForPage();
   markScannedElementsFromEntries();
   updateToolbarIndicators();
   if (isSummaryPanelVisible()) {
@@ -3113,7 +3674,6 @@ function hasCompletedScanForSummary() {
   const isSummaryLoading = !scanErrorText && (isScanning || isPendingInitialSummaryScan);
   const hasViolations = activeIssueEntries.length > 0;
   const summaryTitle = isIdle ? '검사 정보' : `${activeFilterLabel} 위반 정보`;
-  const scanScopeText = formatScanScopeText();
   const scanStatusMarkup = isScanning
     ? `<div class="fds-summary-loading" role="status" aria-live="polite">${escapeHtml(scanStatusText || getScanStatusMessage())}</div>`
     : scanErrorText
@@ -3160,7 +3720,7 @@ function hasCompletedScanForSummary() {
           ${renderSummaryGroupItem(group)}
           ${group.expanded
             ? `<div class="fds-list-group-details" role="group" aria-label="${escapeHtml(`${group.chip} ${group.value} 상세 항목`)}">
-                ${(group.detailEntries || group.entries).map((item) => renderSummaryListItem(item)).join('')}
+                ${(group.detailEntries || group.entries).map((item) => renderSummaryListItem(withViolationNoteState(item))).join('')}
               </div>`
             : ''}
         `).join('')
@@ -3214,9 +3774,11 @@ function hasCompletedScanForSummary() {
     <div class="fds-panel-head">
       <div class="fds-panel-title-wrap">
         <span class="fds-panel-title">${escapeHtml(summaryTitle)}</span>
-        ${scanScopeText ? `<span class="fds-panel-meta" title="${escapeHtml(scanScopeText)}">${escapeHtml(scanScopeText)}</span>` : ''}
       </div>
-      <button class="fds-panel-close" type="button" aria-label="패널 닫기" title="패널 닫기">${renderAssetIcon('close', 'close')}</button>
+      <div class="fds-panel-actions">
+        <button class="fds-panel-report" type="button" aria-label="전체 위반 요소 리포트 저장" title="전체 위반 요소 리포트 저장"${isSummaryLoading || hasScanError ? ' disabled' : ''}>${getLucideIconSvg('download', 'fds-panel-action-icon')}<span>리포트 저장</span></button>
+        <button class="fds-panel-close" type="button" aria-label="패널 닫기" title="패널 닫기">${renderAssetIcon('close', 'close')}</button>
+      </div>
     </div>
     <section class="fds-summary-section" aria-label="요약 및 탐색"${isSummaryLoading ? ' aria-busy="true"' : ''}>
       ${scanStatusMarkup}
@@ -3294,6 +3856,16 @@ function hasCompletedScanForSummary() {
       dismissSummaryPanel();
     },
   });
+
+  const reportButton = panel.querySelector('.fds-panel-report');
+  if (reportButton) {
+    reportButton.onclick = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      if (reportButton.disabled) return;
+      saveViolationReport();
+    };
+  }
 
   panel.querySelectorAll('.fds-summary-tab[data-filter]').forEach((tab) => {
       tab.onclick = () => {
@@ -3397,7 +3969,12 @@ function hasCompletedScanForSummary() {
       }
       activeIsolatedIssueKey = issueKey;
       const entry = showPin({ locked: true, isolate: true });
-      scrollToIssueElement(entry, { ignoreCustomPosition: true });
+      const issueKeys = parseIssueKeysDataset(item.dataset.issueKeys);
+      const isolatedEntries = getVisibleIssueEntriesByKeys(issueKeys);
+      scrollToIssueElement(entry, {
+        ignoreCustomPosition: true,
+        issueEntries: isolatedEntries.length ? isolatedEntries : entry ? [entry] : [],
+      });
     };
     item.onmouseleave = hideTooltip;
     item.onblur = hideTooltip;

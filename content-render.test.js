@@ -156,6 +156,23 @@ test('renderSummaryListItem shows aggregated class detail counts', () => {
   assert.match(markup, /대표 요소로 이동합니다/);
 });
 
+test('renderSummaryListItem marks violations that have personal notes', () => {
+  const markup = renderers.renderSummaryListItem({
+    key: 'color-1',
+    message: '배경색 #41c6a0 (미등록)',
+    tone: 'danger',
+    hasNote: true,
+    element: {
+      tagName: 'DIV',
+      className: 'target',
+    },
+  });
+
+  assert.match(markup, /class="fds-list-item danger has-note"/);
+  assert.match(markup, /fds-list-note-badge/);
+  assert.match(markup, />메모</);
+});
+
 test('renderSummaryGroupItem can summarize all-side padding violations', () => {
   const parsed = renderers.parseViolationItem('패딩 14px (미등록)');
 

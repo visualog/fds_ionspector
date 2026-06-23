@@ -204,6 +204,7 @@ body.fds-panel-resizing {
 .fds-btn:focus-visible,
 .fds-btn-static:focus-visible,
 .fds-panel-close:focus-visible,
+.fds-panel-report:focus-visible,
 .fds-summary-tab:focus-visible,
 .fds-stat-box.is-toggle:focus-visible {
   outline: 2px solid rgba(120, 166, 255, 0.95);
@@ -524,6 +525,7 @@ body.fds-panel-resizing {
 
 .fds-violation[data-fds-category="spacing"]::before {
   content: '';
+  display: none;
   position: absolute;
   inset: 0;
   z-index: 2147483641;
@@ -611,6 +613,9 @@ body.fds-panel-resizing {
 
 .fds-gap-item-highlight,
 .fds-gap-highlight,
+.fds-gap-box-highlight,
+.fds-spacing-box-highlight,
+.fds-spacing-area-highlight,
 .fds-text-color-highlight {
   position: fixed;
   z-index: 2147483644;
@@ -641,6 +646,36 @@ body.fds-panel-resizing {
       rgba(161, 120, 255, 0.14) 4px 8px
     );
   box-shadow: none;
+}
+
+.fds-gap-box-highlight {
+  border: 1px solid rgba(161, 120, 255, 0.82);
+  border-radius: 2px;
+  background: transparent;
+}
+
+.fds-gap-highlight[data-fallback="true"] {
+  opacity: 0.82;
+}
+
+.fds-spacing-box-highlight {
+  border: 1px solid var(--fds-devtools-content-line, rgba(111, 168, 220, 0.95));
+  border-radius: 2px;
+  background: transparent;
+}
+
+.fds-spacing-area-highlight {
+  border: none;
+  border-radius: 2px;
+  box-shadow: none;
+}
+
+.fds-spacing-area-highlight[data-kind="padding"] {
+  background: var(--fds-devtools-padding-fill, rgba(147, 196, 125, 0.36));
+}
+
+.fds-spacing-area-highlight[data-kind="margin"] {
+  background: var(--fds-devtools-margin-fill, rgba(246, 178, 107, 0.34));
 }
 
 .fds-inspected.fds-hover-target {
@@ -733,6 +768,13 @@ body.fds-panel-resizing {
   --fds-issue-pin-bg: #D49C13;
   background: var(--fds-issue-pin-bg);
   color: rgba(255, 255, 255, 0.98);
+}
+
+.fds-issue-pin.has-note {
+  box-shadow:
+    0 0 0 1px rgba(0, 0, 0, 0.8),
+    0 0 0 3px rgba(47, 111, 243, 0.72),
+    0 6px 14px rgba(0, 0, 0, 0.22);
 }
 
 @keyframes fds-pin-pop {
@@ -963,6 +1005,92 @@ body.fds-panel-resizing {
   text-align: right;
 }
 
+.fds-card-note {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin-top: 2px;
+  padding: 8px;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.fds-card-note-text {
+  color: rgba(255, 255, 255, 0.92);
+  font-size: 11px;
+  line-height: 15px;
+  font-weight: 650;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.fds-card-note-editor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fds-card-note-editor[hidden] {
+  display: none;
+}
+
+.fds-card-note-input {
+  width: 100%;
+  min-height: 64px;
+  box-sizing: border-box;
+  resize: vertical;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 8px;
+  padding: 7px 8px;
+  background: rgba(8, 10, 14, 0.72);
+  color: rgba(255, 255, 255, 0.94);
+  font-family: var(--fds-font-family-base, sans-serif);
+  font-size: 11px;
+  line-height: 15px;
+  outline: none;
+}
+
+.fds-card-note-input:focus-visible {
+  border-color: var(--fds-brand, #2F6FF3);
+  box-shadow: 0 0 0 2px rgba(47, 111, 243, 0.26);
+}
+
+.fds-card-note-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.fds-card-note-action {
+  appearance: none;
+  border: none;
+  border-radius: 6px;
+  padding: 5px 8px;
+  background: rgba(255, 255, 255, 0.1);
+  color: rgba(255, 255, 255, 0.86);
+  font-size: 11px;
+  line-height: 14px;
+  font-weight: 800;
+  cursor: pointer;
+}
+
+.fds-card-note-action:hover,
+.fds-card-note-action:focus-visible {
+  outline: none;
+  background: rgba(255, 255, 255, 0.16);
+  color: rgba(255, 255, 255, 0.98);
+}
+
+.fds-card-note-action.primary {
+  background: var(--fds-brand, #2F6FF3);
+  color: white;
+}
+
+.fds-card-note-action.danger {
+  color: #FFB8B8;
+}
+
 /* Summary Card */
 .fds-summary-card {
   position: fixed;
@@ -1067,10 +1195,11 @@ body.fds-panel-resizing {
 
 .fds-panel-title-wrap {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 0;
+  flex-direction: row;
+  align-items: center;
+  gap: 8px;
   min-width: 0;
+  height: 22px;
 }
 
 .fds-panel-title {
@@ -1080,16 +1209,47 @@ body.fds-panel-resizing {
   letter-spacing: -0.01em;
 }
 
-.fds-panel-meta {
-  display: block;
-  min-width: 0;
-  color: rgba(120, 166, 255, 0.92);
+.fds-panel-actions {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-shrink: 0;
+  height: 22px;
+}
+
+.fds-panel-report {
+  height: 22px;
+  min-height: 22px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  border-radius: 6px;
+  background: rgba(255, 255, 255, 0.08);
+  color: rgba(255, 255, 255, 0.86);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 0 8px;
   font-size: 10px;
-  line-height: 12px;
-  font-weight: 500;
+  line-height: 14px;
+  font-weight: 600;
+  cursor: pointer;
   white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+}
+
+.fds-panel-report:hover {
+  background: rgba(255, 255, 255, 0.13);
+  color: white;
+}
+
+.fds-panel-report:disabled {
+  cursor: default;
+  opacity: 0.42;
+}
+
+.fds-panel-action-icon {
+  width: 12px;
+  height: 12px;
+  flex: 0 0 auto;
 }
 
 .fds-panel-close {
@@ -1104,7 +1264,6 @@ body.fds-panel-resizing {
   justify-content: center;
   cursor: pointer;
   flex-shrink: 0;
-  transform: translateY(-2px);
 }
 
 .fds-panel-close .fds-icon-svg {
@@ -1649,7 +1808,7 @@ body.fds-panel-resizing {
   background: rgba(255, 255, 255, 0.028);
   border: none;
   border-radius: 8px;
-  height: 32px;
+  height: 28px;
   min-height: 32px;
   padding: 0 6px;
   display: grid !important;
@@ -1882,6 +2041,27 @@ body.fds-panel-resizing {
 }
 
 .fds-list-item.is-pin-active .fds-list-label-text {
+  color: #fff;
+}
+
+.fds-list-item.has-note {
+  box-shadow: inset 2px 0 0 var(--fds-brand, #2F6FF3);
+}
+
+.fds-list-note-badge {
+  flex: none;
+  height: 16px;
+  padding: 0 5px;
+  border-radius: 999px;
+  background: rgba(47, 111, 243, 0.18);
+  color: #9FBEFF;
+  font-size: 10px;
+  line-height: 16px;
+  font-weight: 800;
+}
+
+.fds-list-item.is-pin-active .fds-list-note-badge {
+  background: rgba(255, 255, 255, 0.18);
   color: #fff;
 }
 

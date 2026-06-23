@@ -34,6 +34,19 @@ test('content exposes a localhost-only scan error fixture trigger', () => {
   assert.match(contentSource, /Forced scan error for local verification/);
 });
 
+test('content stores personal violation notes in chrome storage by page and issue key', () => {
+  const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
+
+  assert.match(contentSource, /const VIOLATION_NOTES_STORAGE_KEY = 'fdsViolationNotes'/);
+  assert.match(contentSource, /function\s+getViolationNotesPageKey\(\)/);
+  assert.match(contentSource, /function\s+getViolationNoteKey\(entry\)/);
+  assert.match(contentSource, /async function\s+loadViolationNotesForPage\(\)/);
+  assert.match(contentSource, /async function\s+saveViolationNote\(entry,\s*text\)/);
+  assert.match(contentSource, /async function\s+deleteViolationNote\(entry\)/);
+  assert.match(contentSource, /chrome\.storage\?\.local\.get\(VIOLATION_NOTES_STORAGE_KEY\)/);
+  assert.match(contentSource, /chrome\.storage\?\.local\.set\(\{ \[VIOLATION_NOTES_STORAGE_KEY\]:/);
+});
+
 test('content summary hides completed scan metrics from the persistent panel UI', () => {
   const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
   const styleSource = fs.readFileSync(path.join(__dirname, 'overlay.css'), 'utf8');
@@ -45,18 +58,31 @@ test('content summary hides completed scan metrics from the persistent panel UI'
   assert.doesNotMatch(styleSource, /\.fds-panel-info/);
 });
 
-test('content summary explains scan scope without changing badge counts', () => {
+test('content summary keeps scan scope out of the persistent panel while preserving badge context', () => {
   const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
   const styleSource = fs.readFileSync(path.join(__dirname, 'overlay.css'), 'utf8');
   const toolbarStateSource = fs.readFileSync(path.join(__dirname, 'toolbar-state.js'), 'utf8');
 
   assert.match(contentSource, /function\s+formatScanScopeText\(meta = scanData\?\.meta\)/);
   assert.match(contentSource, /렌더링 기준 · 검사됨 \$\{scanned\.toLocaleString\('ko-KR'\)\}개 · 제외됨 \$\{skipped\.toLocaleString\('ko-KR'\)\}개/);
-  assert.match(contentSource, /class="fds-panel-meta"[\s\S]*scanScopeText/);
-  assert.match(styleSource, /\.fds-panel-meta\s*\{[\s\S]*color:\s*rgba\(120,\s*166,\s*255,\s*0\.92\)/);
-  assert.match(styleSource, /\.fds-panel-close\s*\{[\s\S]*transform:\s*translateY\(-2px\)/);
+  assert.doesNotMatch(contentSource, /const scanScopeText = formatScanScopeText\(\)/);
+  assert.doesNotMatch(contentSource, /class="fds-panel-meta"/);
+  assert.doesNotMatch(styleSource, /\.fds-panel-meta\s*\{/);
   assert.match(toolbarStateSource, /function\s+formatScanScopeText\(scanData = \{\}\)/);
   assert.match(toolbarStateSource, /badgeFullCount[\s\S]*scanScopeText[\s\S]*filter\(Boolean\)\.join\(' · '\)/);
+});
+
+test('content opens saved violation reports in a new tab while keeping the download', () => {
+  const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
+
+  assert.match(contentSource, /function\s+createTextFileUrl\(\{ content,\s*type = 'text\/html;charset=utf-8' \}\)/);
+  assert.match(contentSource, /function\s+downloadTextFileFromUrl\(\{ filename,\s*url \}\)/);
+  assert.match(contentSource, /function\s+openReportInNewTab\(url\)/);
+  assert.match(contentSource, /window\.open\(url,\s*'_blank',\s*'noopener'\)/);
+  assert.match(contentSource, /downloadTextFileFromUrl\(\{\s*filename,\s*url\s*\}\)/);
+  assert.doesNotMatch(contentSource, /downloadTextFileFromUrl\(\{\s*filename: aiRequestFilename,\s*url: aiRequestUrl\s*\}\)/);
+  assert.match(contentSource, /openReportInNewTab\(url\)/);
+  assert.match(contentSource, /URL\.revokeObjectURL\(url\)/);
 });
 
 test('content summary selects warning color results when danger count is empty', () => {
@@ -103,18 +129,22 @@ test('content summary groups toggle details while child rows navigate issues on 
   assert.doesNotMatch(contentSource, /item\.onmouseenter = \(\) => \{[\s\S]*showPin\(\)/);
   assert.doesNotMatch(contentSource, /const showPin = \(\{ locked = false \} = \{\}\) => \{[\s\S]*?showInspectorCardForEntries\(entry\.element, \[entry\]\)[\s\S]*?return entry;/);
   assert.match(contentSource, /const entry = showPin\(\{ locked: true,\s*isolate: true \}\);/);
-  assert.match(contentSource, /scrollToIssueElement\(entry,\s*\{\s*ignoreCustomPosition:\s*true\s*\}\)/);
+  assert.match(contentSource, /scrollToIssueElement\(entry,\s*\{[\s\S]*ignoreCustomPosition:\s*true,[\s\S]*issueEntries:/);
 });
 
 test('content scrolls issue elements through nested app containers before window fallback', () => {
   const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
 
-  assert.match(contentSource, /function\s+scheduleIssuePreviewAfterScroll\(entry,\s*\{\s*ignoreCustomPosition\s*=\s*false\s*\}\s*=\s*\{\}\)/);
+  assert.match(contentSource, /function\s+scheduleIssuePreviewAfterScroll\(entry,\s*\{\s*ignoreCustomPosition\s*=\s*false,\s*issueEntries\s*=\s*null\s*\}\s*=\s*\{\}\)/);
   assert.match(contentSource, /entry\.element\.scrollIntoView\(\{[\s\S]*block:\s*'center'[\s\S]*inline:\s*'center'[\s\S]*behavior/);
-  assert.match(contentSource, /scheduleIssuePreviewAfterScroll\(entry,\s*\{\s*ignoreCustomPosition\s*\}\);[\s\S]*return;[\s\S]*catch \(error\)/);
-  assert.match(contentSource, /function\s+scheduleIssuePreviewAfterScroll\(entry,[\s\S]*showInspectorCardForEntries\(entry\.element,\s*\[entry\],\s*entry\.element,\s*\{\s*ignoreCustomPosition\s*\}\)/);
+  assert.match(contentSource, /scheduleIssuePreviewAfterScroll\(entry,\s*\{\s*ignoreCustomPosition,\s*issueEntries\s*\}\);[\s\S]*return;[\s\S]*catch \(error\)/);
+  assert.match(contentSource, /function\s+scheduleIssuePreviewAfterScroll\(entry,[\s\S]*const maxWaitMs = 900/);
+  assert.match(contentSource, /const isTargetReady = rect && isViolationPinTargetVisible\(rect\)/);
+  assert.match(contentSource, /if \(!isTargetReady && getElapsedMs\(\) < maxWaitMs\) \{[\s\S]*window\.setTimeout\?\.?\(updateIssuePreview,\s*80\)/);
+  assert.match(contentSource, /function\s+scheduleIssuePreviewAfterScroll\(entry,[\s\S]*showInspectorCardForEntries\(entry\.element,\s*entriesForPreview,\s*entry\.element,\s*\{\s*ignoreCustomPosition\s*\}\)/);
   assert.match(contentSource, /if \(typeof window\.scrollTo !== 'function'\) return;[\s\S]*window\.scrollTo\(\{/);
   assert.match(contentSource, /window\.setTimeout\?\.?\(updateIssuePreview,\s*240\)/);
+  assert.match(contentSource, /window\.setTimeout\?\.?\(updateIssuePreview,\s*maxWaitMs\)/);
 });
 
 test('overlay exposes visible keyboard focus states for summary controls', () => {
@@ -131,6 +161,7 @@ test('spacing violations expose directional padding and margin markers', () => {
   const styleSource = fs.readFileSync(path.join(__dirname, 'overlay.css'), 'utf8');
 
   assert.match(contentSource, /function\s+getSpacingIssueMetadata\(entries = \[\]\)/);
+  assert.match(contentSource, /entry\?\.metadata\?\.spacing/);
   assert.match(contentSource, /function\s+markScannedElementsFromEntries\(\)[\s\S]*renderGapHighlights\(scanData\.issueEntries\)/);
   assert.match(contentSource, /function\s+clearInspectionMarks\(\)\s*\{[\s\S]*clearGapHighlights\(\)/);
   assert.match(contentSource, /data-fds-spacing-kind/);
@@ -160,10 +191,21 @@ test('spacing violations expose directional padding and margin markers', () => {
   assert.match(contentSource, /function\s+appendRadiusCornerMarker\(layer, rect\)/);
   assert.match(contentSource, /function\s+renderViolationPins\(entries = \[\]\)[\s\S]*const layer = getViolationPinLayer\(\)/);
   assert.match(contentSource, /function\s+getGapMarkerRects\(element, spacingMetadata\)/);
+  assert.match(contentSource, /function\s+getVisibleGapParticipantRects\(element\)/);
+  assert.match(contentSource, /function\s+getDirectTextNodeRects\(element\)/);
+  assert.match(contentSource, /return getVisibleGapParticipantRects\(element\)/);
+  assert.match(contentSource, /range\.selectNodeContents\(node\)/);
+  assert.match(contentSource, /function\s+getGapFallbackMarkerRects\(element, spacingMetadata, existingMarkerRects = \[\]\)/);
+  assert.match(contentSource, /function\s+getContentBoxRect\(element\)/);
   assert.match(contentSource, /function\s+getGapItemMarkerRects\(element, spacingMetadata\)/);
+  assert.match(contentSource, /function\s+getBoxSpacingMarkerRects\(element, spacingMetadata\)/);
   assert.match(contentSource, /function\s+appendGapOverlayMarker\(layer, className, rect, dataset = \{\}\)/);
+  assert.match(contentSource, /appendGapOverlayMarker\(layer, 'fds-spacing-box-highlight', element\.getBoundingClientRect\(\), \{ kind: spacingMetadata\.kind \}\)/);
+  assert.match(contentSource, /appendGapOverlayMarker\(layer, 'fds-spacing-area-highlight', rect, \{ kind: rect\.kind, side: rect\.side \}\)/);
+  assert.match(contentSource, /appendGapOverlayMarker\(layer, 'fds-gap-box-highlight', element\.getBoundingClientRect\(\), \{ kind: spacingMetadata\.kind \}\)/);
   assert.match(contentSource, /appendGapOverlayMarker\(layer, 'fds-gap-item-highlight', rect\)/);
-  assert.match(contentSource, /appendGapOverlayMarker\(layer, 'fds-gap-highlight', rect, \{ axis: rect\.axis \}\)/);
+  assert.match(contentSource, /const fallbackMarkerRects = getGapFallbackMarkerRects\(element, spacingMetadata, gapMarkerRects\)/);
+  assert.match(contentSource, /appendGapOverlayMarker\(layer, 'fds-gap-highlight', rect, \{ axis: rect\.axis, fallback: rect\.fallback \? 'true' : 'false' \}\)/);
   assert.match(contentSource, /scheduleGapHighlightUpdate\(\)/);
   assert.match(contentSource, /scheduleRadiusHighlightUpdate\(\)/);
   assert.match(contentSource, /element\.style\.position = 'relative'/);
@@ -185,8 +227,14 @@ test('spacing violations expose directional padding and margin markers', () => {
   assert.match(styleSource, /\[data-fds-spacing-kind="margin"\]::before\s*\{[\s\S]*border:\s*none/);
   assert.match(styleSource, /\.fds-gap-item-highlight\s*\{[\s\S]*background:\s*transparent/);
   assert.match(styleSource, /\.fds-gap-item-highlight\s*\{[\s\S]*border:\s*none/);
+  assert.match(styleSource, /\.fds-gap-box-highlight\s*\{[\s\S]*border:\s*1px solid rgba\(161,\s*120,\s*255,\s*0\.82\)/);
   assert.match(styleSource, /\.fds-gap-highlight\s*\{[\s\S]*border:\s*none/);
   assert.match(styleSource, /\.fds-gap-highlight\s*\{[\s\S]*repeating-linear-gradient\(\s*45deg/);
+  assert.match(styleSource, /\.fds-gap-highlight\[data-fallback="true"\]\s*\{[\s\S]*opacity:\s*0\.82/);
+  assert.match(styleSource, /\.fds-spacing-box-highlight,\s*\.fds-spacing-area-highlight,\s*\.fds-text-color-highlight\s*\{[\s\S]*position:\s*fixed/);
+  assert.match(styleSource, /\.fds-violation\[data-fds-category="spacing"\]::before\s*\{[\s\S]*display:\s*none/);
+  assert.match(styleSource, /\.fds-spacing-area-highlight\[data-kind="padding"\]\s*\{[\s\S]*background:\s*var\(--fds-devtools-padding-fill/);
+  assert.match(styleSource, /\.fds-spacing-area-highlight\[data-kind="margin"\]\s*\{[\s\S]*background:\s*var\(--fds-devtools-margin-fill/);
   assert.match(styleSource, /--fds-devtools-content-line:\s*rgba\(111,\s*168,\s*220,\s*0\.95\)/);
   assert.match(styleSource, /--fds-devtools-padding-fill:\s*rgba\(147,\s*196,\s*125,\s*0\.36\)/);
   assert.match(styleSource, /--fds-devtools-radius-line:\s*rgba\(255,\s*229,\s*153,\s*0\.98\)/);
@@ -205,6 +253,34 @@ test('spacing violations expose directional padding and margin markers', () => {
   assert.match(styleSource, /right \/ var\(--fds-spacing-area-right, 0px\) 100% no-repeat/);
   assert.match(styleSource, /calc\(var\(--fds-spacing-area-top, 0px\) \* -1\)/);
   assert.doesNotMatch(styleSource, /\.fds-violation\[data-fds-category="spacing"\][^{]*::after/);
+});
+
+test('scan runner preserves issue metadata on visible entries', async () => {
+  const runner = createContentScanRunner({
+    batchSize: 10,
+    getElements: () => [{ visible: true }],
+    isElementVisible: () => true,
+    getStyles: () => ({}),
+    inspectElement: () => ({
+      issues: ['갭 3px (미등록)'],
+      issueDetails: [{ spacing: { kind: 'gap', sides: ['row', 'column'], value: 3 } }],
+      suggestions: [],
+    }),
+    addIssueEntry: ({ category, message, metadata }) => ({
+      key: `${category}-${message}`,
+      category,
+      message,
+      metadata,
+    }),
+    markElement: () => {},
+    yieldToBrowser: async () => {},
+  });
+
+  const result = await runner.run({ filters: ['spacing'], activeFilter: 'spacing' });
+
+  assert.deepEqual(result.issueEntries[0].metadata, {
+    spacing: { kind: 'gap', sides: ['row', 'column'], value: 3 },
+  });
 });
 
 test('overlay shields the page from hover and click interactions while inspecting results', () => {
@@ -488,8 +564,13 @@ test('summary panel reserves toolbar clearance so short collapsed lists are not 
   assert.match(contentSource, /Math\.max\(previousPanelHeight,\s*SUMMARY_PANEL_MIN_HEIGHT\)/);
   assert.match(styleSource, /\.fds-panel-head\s*\{[\s\S]*height:\s*auto/);
   assert.match(styleSource, /\.fds-panel-head\s*\{[\s\S]*min-height:\s*28px/);
-  assert.match(styleSource, /\.fds-panel-title-wrap\s*\{[\s\S]*gap:\s*0/);
+  assert.match(styleSource, /\.fds-panel-head\s*\{[\s\S]*align-items:\s*center/);
+  assert.match(styleSource, /\.fds-panel-title-wrap\s*\{[\s\S]*flex-direction:\s*row/);
+  assert.match(styleSource, /\.fds-panel-title-wrap\s*\{[\s\S]*align-items:\s*center/);
   assert.match(styleSource, /\.fds-panel-title\s*\{[\s\S]*line-height:\s*16px/);
+  assert.match(styleSource, /\.fds-panel-actions\s*\{[\s\S]*height:\s*22px/);
+  assert.match(styleSource, /\.fds-panel-report\s*\{[\s\S]*height:\s*22px/);
+  assert.doesNotMatch(styleSource, /\.fds-panel-close\s*\{[\s\S]*transform:\s*translateY\(-2px\)/);
   assert.match(styleSource, /#fds-root \.fds-panel-head \+ \.fds-summary-section\s*\{[\s\S]*margin-top:\s*8px/);
   assert.match(styleSource, /\.fds-summary-section\s*\{[\s\S]*gap:\s*4px/);
   assert.match(styleSource, /\.fds-summary-tabbar\s*\{[\s\S]*height:\s*28px/);
@@ -615,7 +696,8 @@ test('inspector hover card uses the violation type as its title', () => {
   assert.match(contentSource, /function\s+getInspectorCardTitle\(issueEntries = \[\]\)/);
   assert.match(contentSource, /return `\$\{parsedIssue\.chip \|\| '속성'\} 위반`/);
   assert.match(contentSource, /return `\$\{categoryLabel\} 위반 \$\{issueEntries\.length\}건`/);
-  assert.match(contentSource, /const cardTitle = getInspectorCardTitle\(issueEntries\)/);
+  assert.match(contentSource, /const displayEntries = getUniqueInspectorIssueEntries\(issueEntries\)/);
+  assert.match(contentSource, /const cardTitle = getInspectorCardTitle\(displayEntries\)/);
   assert.match(contentSource, /<div class="fds-card-title" title="\$\{escapeHtml\(cardTitle\)\}">\$\{escapeHtml\(cardTitle\)\}<\/div>/);
   assert.doesNotMatch(contentSource, /<div class="fds-card-title">INSPECTOR<\/div>/);
   assert.doesNotMatch(contentSource, /fds-card-tone/);
@@ -639,6 +721,17 @@ test('inspector hover card uses the violation type as its title', () => {
   assert.doesNotMatch(styleSource, /\.fds-card\.(danger|success|warning)\s+\.fds-issue-item\s*\{[^}]*border-color:/);
   assert.doesNotMatch(styleSource, /\.fds-card-tone/);
   assert.match(styleSource, /\.fds-card-title\s*\{[\s\S]*text-overflow:\s*ellipsis/);
+});
+
+test('inspector hover card deduplicates repeated issue messages across elements', () => {
+  const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
+
+  assert.match(contentSource, /function\s+getInspectorIssueDisplayKey\(entry\)/);
+  assert.match(contentSource, /entry\?\.message \|\| ''/);
+  assert.match(contentSource, /function\s+getUniqueInspectorIssueEntries\(issueEntries = \[\]\)/);
+  assert.match(contentSource, /if \(!entriesByDisplayKey\.has\(displayKey\)\) \{/);
+  assert.match(contentSource, /const previewEntries = displayEntries\.slice\(0, 4\)/);
+  assert.match(contentSource, /displayEntries\.length > 4 \? `<div class="fds-card-more">외 \$\{displayEntries\.length - 4\}건<\/div>` : ''/);
 });
 
 test('inspector hover card separates issue value from repeated violation type copy', () => {
@@ -698,7 +791,77 @@ test('inspector hover card anchors to violation elements instead of summary list
   assert.match(contentSource, /const shouldAnimateCard = card\.style\.display !== 'block' \|\| card\.dataset\.issueKeys !== nextIssueKeys/);
   assert.match(contentSource, /if \(shouldAnimateCard\) \{[\s\S]*getFDSMotion\(\)\?\.animateInspectorCard\?\.?\(card\)/);
   assert.doesNotMatch(contentSource, /showInspectorCardForEntries\(entry\.element,\s*\[entry\],\s*item\)/);
-  assert.match(contentSource, /showInspectorCardForEntries\(entry\.element,\s*\[entry\],\s*entry\.element,\s*\{\s*ignoreCustomPosition\s*\}\)/);
+  assert.match(contentSource, /showInspectorCardForEntries\(entry\.element,\s*entriesForPreview,\s*entry\.element,\s*\{\s*ignoreCustomPosition\s*\}\)/);
+});
+
+test('inspector card renders personal note controls for selected violations', () => {
+  const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
+
+  assert.match(contentSource, /function\s+renderViolationNoteControls\(entries\)/);
+  assert.match(contentSource, /class="fds-card-note"/);
+  assert.match(contentSource, /data-note-action="edit"/);
+  assert.match(contentSource, /data-note-action="save"/);
+  assert.match(contentSource, /data-note-action="delete"/);
+  assert.match(contentSource, /const noteEntries = getInspectorNoteEntries\(issueEntries,\s*displayEntries\[0\]\)/);
+  assert.match(contentSource, /bindViolationNoteControls\(card,\s*noteEntries\)/);
+});
+
+test('inspector card binds personal note edit save and delete actions', () => {
+  const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
+  const styleSource = fs.readFileSync(path.join(__dirname, 'overlay.css'), 'utf8');
+
+  assert.match(contentSource, /function\s+normalizeViolationNoteEntries\(entries\)/);
+  assert.match(contentSource, /function\s+bindViolationNoteControls\(card,\s*entries\)/);
+  assert.match(contentSource, /card\.querySelector\('\[data-note-action="edit"\]'\)/);
+  assert.match(contentSource, /saveViolationNotes\(entries,\s*textarea\.value\)/);
+  assert.match(contentSource, /deleteViolationNotes\(entries\)/);
+  assert.match(contentSource, /showInspectorCardForEntries\(refreshEntry\.element,\s*getVisibleIssueEntriesForElement\(refreshEntry\.element\)/);
+  assert.match(styleSource, /\.fds-card-note\s*\{/);
+  assert.match(styleSource, /\.fds-card-note-text\s*\{/);
+  assert.match(styleSource, /\.fds-card-note-action\s*\{/);
+});
+
+test('inspector notes apply to every matching entry represented by the card', () => {
+  const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
+
+  assert.match(contentSource, /function\s+getInspectorNoteEntries\(issueEntries,\s*representativeEntry\)/);
+  assert.match(contentSource, /getInspectorIssueDisplayKey\(entry\) === representativeDisplayKey/);
+  assert.match(contentSource, /const noteEntries = normalizeViolationNoteEntries\(entries\)/);
+  assert.match(contentSource, /noteEntries\.forEach\(\(entry\) => \{/);
+  assert.match(contentSource, /violationNotesByKey\.set\(noteKey,/);
+  assert.match(contentSource, /noteEntries\.forEach\(\(entry\) => \{[\s\S]*violationNotesByKey\.delete\(noteKey\)/);
+});
+
+test('summary rows and violation pins expose note state', () => {
+  const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
+  const styleSource = fs.readFileSync(path.join(__dirname, 'overlay.css'), 'utf8');
+
+  assert.match(contentSource, /function\s+withViolationNoteState\(entry\)/);
+  assert.match(contentSource, /renderSummaryListItem\(withViolationNoteState\(item\)\)/);
+  assert.match(contentSource, /pin\.classList\.toggle\('has-note'/);
+  assert.match(styleSource, /\.fds-list-item\.has-note/);
+  assert.match(styleSource, /\.fds-issue-pin\.has-note/);
+});
+
+test('content loads violation notes before refreshing visible scan results', () => {
+  const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
+
+  assert.match(contentSource, /await loadViolationNotesForPage\(\)/);
+  assert.match(contentSource, /loadViolationNotesForPage\(\)\.then\(\(\) => updateSummaryUI\(\)\)/);
+});
+
+test('summary detail clicks keep aggregated issue entries for locked inspector previews', () => {
+  const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
+
+  assert.match(contentSource, /function\s+scheduleIssuePreviewAfterScroll\(entry,\s*\{\s*ignoreCustomPosition\s*=\s*false,\s*issueEntries\s*=\s*null\s*\}\s*=\s*\{\}\)/);
+  assert.match(contentSource, /const previewEntries = Array\.isArray\(issueEntries\) && issueEntries\.length \? issueEntries : \[entry\]/);
+  assert.match(contentSource, /const entriesForPreview = connectedPreviewEntries\.length \? connectedPreviewEntries : \[entry\]/);
+  assert.match(contentSource, /positionViolationPin\(entriesForPreview\)/);
+  assert.match(contentSource, /const isTargetReady = rect && isViolationPinTargetVisible\(rect\)/);
+  assert.match(contentSource, /if \(!isTargetReady && getElapsedMs\(\) < maxWaitMs\) \{[\s\S]*window\.setTimeout\?\.?\(updateIssuePreview,\s*80\)/);
+  assert.match(contentSource, /showInspectorCardForEntries\(entry\.element,\s*entriesForPreview,\s*entry\.element,\s*\{\s*ignoreCustomPosition\s*\}\)/);
+  assert.match(contentSource, /showInspectorCardForEntries\(lockedEntries\[0\]\.element,\s*lockedEntries\)/);
+  assert.match(contentSource, /scrollToIssueElement\(entry,\s*\{\s*[\s\S]*issueEntries:\s*isolatedEntries\.length \? isolatedEntries : entry \? \[entry\] : \[\],[\s\S]*\}\)/);
 });
 
 test('inspector card can be moved by dragging its header', () => {
@@ -779,13 +942,13 @@ test('active violation pin follows nested app scroll and clears stale targets', 
   assert.match(contentSource, /function\s+clearActiveViolationPin\(\) \{[\s\S]*document\.querySelectorAll\('\.fds-spacing-focus'\)/);
   assert.match(contentSource, /const lockedKeySet = new Set\(lockedPinnedIssueKeys\.length \? lockedPinnedIssueKeys : \[lockedPinnedIssueKey\]\)/);
   assert.match(contentSource, /setActiveViolationPins\(lockedEntries,\s*\{\s*locked:\s*true\s*\}\)/);
-  assert.match(contentSource, /showInspectorCardForEntries\(lockedEntries\[0\]\.element,\s*\[lockedEntries\[0\]\]\)/);
+  assert.match(contentSource, /showInspectorCardForEntries\(lockedEntries\[0\]\.element,\s*lockedEntries\)/);
   assert.match(contentSource, /const shouldReplacePins = layer\.dataset\.issueKeys !== nextIssueKeys/);
   assert.match(contentSource, /if \(shouldReplacePins\) \{[\s\S]*layer\.innerHTML = connectedEntries\.map/);
   assert.match(contentSource, /if \(shouldReplacePins\) \{[\s\S]*getFDSMotion\(\)\?\.animatePin\?\.?\(pin\)/);
   assert.match(contentSource, /if \(!targetEntries\.length\) \{[\s\S]*clearActiveViolationPin\(\);[\s\S]*return;[\s\S]*\}/);
   assert.match(contentSource, /if \(!isViolationPinTargetVisible\(rect\)\) \{[\s\S]*pin\.style\.display = 'none';[\s\S]*return;/);
-  assert.match(contentSource, /if \(!visiblePinCount\) \{[\s\S]*clearActiveViolationPin\(\);[\s\S]*\}/);
+  assert.match(contentSource, /if \(!visiblePinCount && !lockedPinnedIssueKey && lockedPinnedIssueKeys\.length === 0\) \{[\s\S]*clearActiveViolationPin\(\);[\s\S]*\}/);
 });
 
 test('inspector card hover area is protected from document-level mouse clearing', () => {

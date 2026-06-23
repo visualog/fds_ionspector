@@ -22,6 +22,7 @@ export const BUILD_FILES = Object.freeze([
   'content-state-utils.js',
   'content-inspection.js',
   'content-summary-model.js',
+  'content-violation-report.js',
   'content-summary-panel.js',
   'content-toolbar-ui.js',
   'content-bridge-specs.js',
@@ -142,4 +143,3 @@ if (import.meta.url === `file://${process.argv[1]}`) {
       process.exitCode = 1;
     });
 }
-

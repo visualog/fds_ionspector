@@ -333,12 +333,14 @@
       const displayElementLabel = `${elementLabel}${countSuffix}`;
       const itemLabel = `${displayElementLabel}, ${parsed.chip} ${badgeLabel}, ${parsed.value}. 클릭하면 대표 요소로 이동합니다.`;
       const tooltipLabel = '요소로 이동';
+      const hasNote = Boolean(typeof item === 'object' && item?.hasNote);
       return `
-    <button class="fds-list-item ${tone}" type="button" role="listitem" data-issue-key="${escapeHtml(issueKey)}" data-issue-keys="${escapeHtml(JSON.stringify(issueKeys))}" data-tooltip="${escapeHtml(tooltipLabel)}" aria-label="${escapeHtml(itemLabel)}">
+    <button class="fds-list-item ${tone}${hasNote ? ' has-note' : ''}" type="button" role="listitem" data-issue-key="${escapeHtml(issueKey)}" data-issue-keys="${escapeHtml(JSON.stringify(issueKeys))}" data-tooltip="${escapeHtml(tooltipLabel)}" aria-label="${escapeHtml(itemLabel)}">
       <span class="fds-list-label">
         <span class="fds-list-label-icon" aria-hidden="true">${renderStatusIcon(tone === 'warning' ? 'circle-alert' : 'triangle-alert', tone)}</span>
         <span class="fds-list-label-text">
           <span class="fds-list-element">${escapeHtml(displayElementLabel)}</span>
+          ${hasNote ? '<span class="fds-list-note-badge">메모</span>' : ''}
         </span>
       </span>
     </button>
