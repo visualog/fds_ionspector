@@ -109,6 +109,12 @@ test('createViolationReportHtml groups every violation into a styled savable rep
       if (entry.message.includes('#f9fafb')) return ['Color.bg.surface'];
       return [];
     },
+    getViolationNoteForEntry: (entry) => {
+      if (entry.key === 'color-1') {
+        return { text: '공통 카드 컨테이너 스타일에서 수정 필요' };
+      }
+      return null;
+    },
   });
 
   assert.match(report, /^<!doctype html>/);
@@ -142,6 +148,7 @@ test('createViolationReportHtml groups every violation into a styled savable rep
   assert.match(report, /<tr><th>라운드<\/th><td>1<\/td><td>0<\/td><td>1<\/td><\/tr>/);
   assert.match(report, /<section class="violation-detail-section" aria-labelledby="violation-detail-title">/);
   assert.match(report, /<h2 id="violation-detail-title">검사 결과<\/h2>/);
+  assert.match(report, /<p class="location-guidance"><strong>위치 정보 안내<\/strong> DOM 클래스명은 빌드 과정에서 생성된 불안정한 값일 수 있습니다\./);
   assert.match(report, /<div class="report-tabs" role="tablist" aria-label="위반 카테고리">/);
   assert.match(report, /<button class="report-tab is-active" type="button" role="tab" aria-selected="true" aria-controls="report-panel-color-bg" id="report-tab-color-bg" data-report-tab="color-bg">배경색 <span>3<\/span><\/button>/);
   assert.match(report, /<button class="report-tab" type="button" role="tab" aria-selected="false" aria-controls="report-panel-color-border" id="report-tab-color-border" data-report-tab="color-border">보더색 <span>1<\/span><\/button>/);
@@ -163,7 +170,8 @@ test('createViolationReportHtml groups every violation into a styled savable rep
   assert.match(report, /<div class="issue-token-hint"><span>대체 토큰<\/span><code>Color\.bg\.surface<\/code><\/div>/);
   assert.doesNotMatch(report, /<details class="issue-group danger" open>/);
   assert.doesNotMatch(report, /issue-table-summary-row/);
-  assert.match(report, /<tr class="path-row" tabindex="0" aria-expanded="false" data-path-row data-compact-path="div#root &gt; … &gt; div\.card" data-full-path="div#root &gt; main\.app-main &gt; section\.hero-section &gt; div\.card"><td><code class="path-compact"><span class="path-view path-view-compact">[\s\S]*<span class="path-segment path-segment-impact danger">div\.card<\/span>[\s\S]*<span class="path-view path-view-full">[\s\S]*<span class="path-segment path-segment-impact danger">div\.card<\/span>[\s\S]*<\/code><\/td><\/tr>/);
+  assert.match(report, /<tr class="path-row" tabindex="0" aria-expanded="false" data-path-row data-compact-path="div#root &gt; … &gt; div\.card" data-full-path="div#root &gt; main\.app-main &gt; section\.hero-section &gt; div\.card"><td><code class="path-compact"><span class="path-view path-view-compact">[\s\S]*<span class="path-segment path-segment-impact danger">div\.card<\/span>[\s\S]*<span class="path-view path-view-full">[\s\S]*<span class="path-segment path-segment-impact danger">div\.card<\/span>[\s\S]*<\/code>[\s\S]*<\/td><\/tr>/);
+  assert.match(report, /<div class="path-note"><span>사용자 메모<\/span><p>공통 카드 컨테이너 스타일에서 수정 필요<\/p><\/div>/);
   assert.match(report, /<tr class="path-row" tabindex="0" aria-expanded="false" data-path-row data-compact-path="button\.cta" data-full-path="button\.cta"><td><code class="path-compact"><span class="path-view path-view-compact"><span class="path-segment path-segment-impact danger">button\.cta<\/span><\/span><span class="path-view path-view-full"><span class="path-segment path-segment-impact danger">button\.cta<\/span><\/span><\/code><\/td><\/tr>/);
   assert.match(report, /<tr class="path-row" tabindex="0" aria-expanded="false" data-path-row data-compact-path="div\.panel" data-full-path="div\.panel"><td><code class="path-compact"><span class="path-view path-view-compact"><span class="path-segment path-segment-impact warning">div\.panel<\/span><\/span><span class="path-view path-view-full"><span class="path-segment path-segment-impact warning">div\.panel<\/span><\/span><\/code><\/td><\/tr>/);
   assert.doesNotMatch(report, /<code class="path-compact" title=/);
@@ -260,17 +268,24 @@ test('createViolationReportAiRequestMarkdown summarizes violations for AI handof
       if (entry.message.includes('#d0d7e2')) return ['Color.border.default'];
       return [];
     },
+    getViolationNoteForEntry: (entry) => {
+      if (entry.key === 'spacing-1') {
+        return { text: 'Stack 컴포넌트 gap token으로 정리' };
+      }
+      return null;
+    },
   });
 
   assert.match(markdown, /^# FDS 디자인 토큰 위반 수정 요청서/);
   assert.match(markdown, /- URL: https:\/\/example\.test\/page/);
   assert.match(markdown, /- 검사 시각: 2026-06-18 09:30/);
-  assert.match(markdown, /- 리포트에는 DOM 위치만 있고 소스 파일\/라인은 없으므로/);
+  assert.match(markdown, /- 위치 정보 안내: DOM 클래스명은 빌드 과정에서 생성된 불안정한 값일 수 있습니다\./);
   assert.match(markdown, /## 배경색[\s\S]*### 미등록 \/ #ffffff \/ 1개 요소에 영향/);
   assert.match(markdown, /## 배경색[\s\S]*### 원시값 직접 사용 \/ #f9fafb \/ 1개 요소에 영향[\s\S]*대체 토큰: Color\.bg\.surface/);
   assert.match(markdown, /## 보더색[\s\S]*### 원시값 직접 사용 \/ #d0d7e2 \/ 1개 요소에 영향[\s\S]*대체 토큰: Color\.border\.default/);
   assert.match(markdown, /영향 요소 위치:\n1\. div\.card/);
   assert.match(markdown, /## 스페이싱[\s\S]*### 원시값 직접 사용 \/ 13px \/ 1개 요소에 영향[\s\S]*대체 토큰: spacing\/13/);
+  assert.match(markdown, /1\. section\.stack\n   - 사용자 메모: Stack 컴포넌트 gap token으로 정리/);
   assert.doesNotMatch(markdown, /- 검사 탭:/);
   assert.doesNotMatch(markdown, /- 위반 상태:/);
   assert.doesNotMatch(markdown, /- 위반 값:/);

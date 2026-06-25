@@ -81,6 +81,7 @@ test('content opens saved violation reports in a new tab while keeping the downl
   assert.match(contentSource, /window\.open\(url,\s*'_blank',\s*'noopener'\)/);
   assert.match(contentSource, /downloadTextFileFromUrl\(\{\s*filename,\s*url\s*\}\)/);
   assert.doesNotMatch(contentSource, /downloadTextFileFromUrl\(\{\s*filename: aiRequestFilename,\s*url: aiRequestUrl\s*\}\)/);
+  assert.match(contentSource, /getViolationNoteForEntry,\s*\n\s*\}\)/);
   assert.match(contentSource, /openReportInNewTab\(url\)/);
   assert.match(contentSource, /URL\.revokeObjectURL\(url\)/);
 });

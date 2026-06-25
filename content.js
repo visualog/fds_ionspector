@@ -621,6 +621,7 @@ function saveViolationReport() {
     tokenContextLabel: getBridgeTokenContextLabel(),
     parseViolationItem,
     getSuggestedTokensForIssue,
+    getViolationNoteForEntry,
   });
   const filename = createViolationReportFilename(inspectedAt);
   const url = createTextFileUrl({ content });

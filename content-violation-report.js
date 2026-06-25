@@ -20,6 +20,7 @@
     success: '정상',
   });
   const TONE_ORDER = Object.freeze(['danger', 'warning', 'success']);
+  const LOCATION_GUIDANCE_TEXT = 'DOM 클래스명은 빌드 과정에서 생성된 불안정한 값일 수 있습니다. 수정 위치는 요소 텍스트, role, aria-label, name, data-* 속성, 화면 구조를 기준으로 확인하세요.';
 
   function normalizeEntries(scanData = {}) {
     return Array.isArray(scanData.issueEntries) ? scanData.issueEntries : [];
@@ -188,6 +189,32 @@
     return normalizeTokenList([...entryTokens, ...tagTokens, ...resolverTokens]);
   }
 
+  function normalizeReportNote(note) {
+    if (!note) return null;
+    if (typeof note === 'string') {
+      const text = note.trim();
+      return text ? { text } : null;
+    }
+    if (typeof note !== 'object') return null;
+    const text = String(note.text || note.memo || '').trim();
+    if (!text) return null;
+    return {
+      ...note,
+      text,
+    };
+  }
+
+  function getReportEntryNote(entry = {}, getViolationNoteForEntry) {
+    const directNote = normalizeReportNote(entry.note || entry.userNote || entry.memo);
+    if (directNote) return directNote;
+    if (typeof getViolationNoteForEntry !== 'function') return null;
+    return normalizeReportNote(getViolationNoteForEntry(entry));
+  }
+
+  function formatMarkdownLine(value) {
+    return String(value || '').replace(/\s+/g, ' ').trim();
+  }
+
   function createCategoryCounts(entries = []) {
     const counts = {};
     CATEGORY_ORDER.forEach((category) => {
@@ -321,10 +348,15 @@
       : '확인 필요';
   }
 
-  function createAiRequestGroupMarkdown({ group }) {
+  function createAiRequestGroupMarkdown({ group, getViolationNoteForEntry }) {
     const groupValue = group.value || group.chip;
     const groupTone = getStatusLabel(group.tag, group.tone);
-    const locations = group.entries.map((entry, index) => `${index + 1}. ${getEntryPageLocation(entry)}`).join('\n');
+    const locations = group.entries.map((entry, index) => {
+      const note = getReportEntryNote(entry, getViolationNoteForEntry);
+      const lines = [`${index + 1}. ${getEntryPageLocation(entry)}`];
+      if (note) lines.push(`   - 사용자 메모: ${formatMarkdownLine(note.text)}`);
+      return lines.join('\n');
+    }).join('\n');
     return [
       `### ${groupTone} / ${groupValue} / ${formatNumber(group.entries.length)}개 요소에 영향`,
       '',
@@ -343,6 +375,7 @@
     tokenContextLabel = '',
     parseViolationItem,
     getSuggestedTokensForIssue,
+    getViolationNoteForEntry,
   } = {}) {
     const entries = normalizeEntries(scanData);
     const sections = REPORT_TABS.map((tab) => {
@@ -352,7 +385,7 @@
       return [
         `## ${tab.label}`,
         '',
-        groups.map((group) => createAiRequestGroupMarkdown({ group })).join('\n\n'),
+        groups.map((group) => createAiRequestGroupMarkdown({ group, getViolationNoteForEntry })).join('\n\n'),
       ].join('\n');
     }).filter(Boolean).join('\n\n');
 
@@ -367,7 +400,7 @@
       '- 원시값 직접 사용 값은 대응 가능한 FDS 토큰으로 교체',
       '- 실제 영향 요소 위치를 기준으로 수정',
       '- 같은 값이 여러 요소에 반복되면 공통 스타일 또는 컴포넌트 단위로 정리',
-      '- 리포트에는 DOM 위치만 있고 소스 파일/라인은 없으므로, DOM 클래스명과 컴포넌트 구조를 단서로 repo에서 실제 스타일 선언 위치를 추적',
+      `- 위치 정보 안내: ${LOCATION_GUIDANCE_TEXT}`,
       '- 확실하지 않은 위치는 추정이라고 표시하고 수정 전 관련 파일을 먼저 확인',
       '- 변경 후 동일 검사를 다시 실행했을 때 아래 위반이 줄어들어야 함',
       '',
@@ -386,7 +419,7 @@
     ].join('\n');
   }
 
-  function createGroupHtml(group) {
+  function createGroupHtml(group, { getViolationNoteForEntry } = {}) {
     const groupValue = group.value
       ? `<code>${escapeHtml(group.value)}</code>`
       : escapeHtml(group.chip);
@@ -397,7 +430,11 @@
       const compactLocation = formatCompactPageLocation(pageLocation);
       const compactPathHtml = createPageLocationPathHtml(pageLocation, group.tone, true);
       const fullPathHtml = createPageLocationPathHtml(pageLocation, group.tone, false);
-      return `<tr class="path-row" tabindex="0" aria-expanded="false" data-path-row data-compact-path="${escapeHtml(compactLocation)}" data-full-path="${escapeHtml(pageLocation)}"><td><code class="path-compact"><span class="path-view path-view-compact">${compactPathHtml}</span><span class="path-view path-view-full">${fullPathHtml}</span></code></td></tr>`;
+      const note = getReportEntryNote(entry, getViolationNoteForEntry);
+      const noteHtml = note
+        ? `<div class="path-note"><span>사용자 메모</span><p>${escapeHtml(note.text)}</p></div>`
+        : '';
+      return `<tr class="path-row" tabindex="0" aria-expanded="false" data-path-row data-compact-path="${escapeHtml(compactLocation)}" data-full-path="${escapeHtml(pageLocation)}"><td><code class="path-compact"><span class="path-view path-view-compact">${compactPathHtml}</span><span class="path-view path-view-full">${fullPathHtml}</span></code>${noteHtml}</td></tr>`;
     }).join('');
 
     return `
@@ -449,7 +486,14 @@
     `;
   }
 
-  function createReportTabSectionHtml({ tab, entries = [], activeTabKey, parseViolationItem, getSuggestedTokensForIssue }) {
+  function createReportTabSectionHtml({
+    tab,
+    entries = [],
+    activeTabKey,
+    parseViolationItem,
+    getSuggestedTokensForIssue,
+    getViolationNoteForEntry,
+  }) {
     const isActive = tab.key === activeTabKey;
     const groups = groupEntries(entries, parseViolationItem, getSuggestedTokensForIssue);
     const sectionAttrs = [
@@ -461,7 +505,7 @@
       isActive ? '' : 'hidden',
     ].filter(Boolean).join(' ');
     const body = groups.length
-      ? groups.map((group) => createGroupHtml(group)).join('')
+      ? groups.map((group) => createGroupHtml(group, { getViolationNoteForEntry })).join('')
       : '<p class="empty-state">이 카테고리의 위반 요소가 없습니다.</p>';
 
     return `
@@ -656,6 +700,16 @@
         overflow: visible;
         text-overflow: clip;
       }
+      .location-guidance {
+        margin: -4px 0 12px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 18px;
+      }
+      .location-guidance strong {
+        color: var(--text);
+        font-weight: 700;
+      }
       .path-segment-impact.danger {
         color: var(--danger);
       }
@@ -817,6 +871,25 @@
       .path-row:focus-visible {
         outline: 2px solid rgba(47, 111, 243, 0.34);
         outline-offset: -2px;
+      }
+      .path-note {
+        display: grid;
+        grid-template-columns: auto 1fr;
+        gap: 8px;
+        margin-top: 6px;
+        color: var(--muted);
+        font-size: 12px;
+        line-height: 16px;
+      }
+      .path-note span {
+        color: var(--text);
+        font-weight: 700;
+        white-space: nowrap;
+      }
+      .path-note p {
+        margin: 0;
+        color: var(--text);
+        white-space: pre-wrap;
       }
       tr:last-child th,
       tr:last-child td {
@@ -1009,6 +1082,7 @@
     tokenContextLabel = '',
     parseViolationItem,
     getSuggestedTokensForIssue,
+    getViolationNoteForEntry,
   } = {}) {
     const entries = normalizeEntries(scanData);
     const aiRequestMarkdown = createViolationReportAiRequestMarkdown({
@@ -1019,6 +1093,7 @@
       tokenContextLabel,
       parseViolationItem,
       getSuggestedTokensForIssue,
+      getViolationNoteForEntry,
     });
     const activeTabKey = getInitialReportTabKey(entries);
     const issueSections = entries.length
@@ -1028,6 +1103,7 @@
         activeTabKey,
         parseViolationItem,
         getSuggestedTokensForIssue,
+        getViolationNoteForEntry,
       })).join('')
       : '<p class="empty-state">검출된 위반 요소가 없습니다.</p>';
     const reportTitle = 'FDS 디자인 토큰 위반 요소 리포트';
@@ -1063,6 +1139,7 @@
       </section>
       <section class="violation-detail-section" aria-labelledby="violation-detail-title">
         <h2 id="violation-detail-title">검사 결과</h2>
+        <p class="location-guidance"><strong>위치 정보 안내</strong> ${escapeHtml(LOCATION_GUIDANCE_TEXT)}</p>
         ${createReportTabsHtml(entries, activeTabKey)}
         ${issueSections}
       </section>
