@@ -462,8 +462,8 @@
       kill(card);
       gsap.fromTo(
         card,
-        { autoAlpha: 0, y: 6, scale: 0.985 },
-        { autoAlpha: 1, y: 0, scale: 1, duration: 0.16, ease: DEFAULT_EASE, overwrite: 'auto' }
+        { opacity: 0, y: 6, scale: 0.985 },
+        { opacity: 1, y: 0, scale: 1, duration: 0.16, ease: DEFAULT_EASE, overwrite: 'auto' }
       );
       recordMotion('inspector-card');
       return true;

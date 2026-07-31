@@ -2,17 +2,110 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 
 const {
+  getAuthoredStyleEvidence,
   hasAuthoredTokenReference,
   isCssVariableReference,
 } = require('./style-token-detection.js');
 
 function createStyle(declarations = {}) {
   return {
+    length: Object.keys(declarations).length,
+    item(index) {
+      return Object.keys(declarations)[index] || '';
+    },
     getPropertyValue(property) {
       return declarations[property] || '';
     },
+    getPropertyPriority() {
+      return '';
+    },
   };
 }
+
+test('getAuthoredStyleEvidence captures property, values, selector, and stylesheet source', () => {
+  const element = {
+    matches(selector) {
+      return selector === '.card';
+    },
+  };
+  const root = {
+    styleSheets: [
+      {
+        href: 'https://example.test/assets/layout.css',
+        cssRules: [
+          {
+            selectorText: '.card',
+            style: createStyle({ 'padding-right': '14px' }),
+          },
+        ],
+      },
+    ],
+  };
+
+  assert.deepEqual(
+    getAuthoredStyleEvidence(element, ['padding-right', 'padding'], '14px', root),
+    {
+      property: 'padding-right',
+      computedValue: '14px',
+      authoredProperty: 'padding-right',
+      authoredValue: '14px',
+      declaration: 'padding-right: 14px',
+      selector: '.card',
+      source: 'https://example.test/assets/layout.css',
+    }
+  );
+});
+
+test('getAuthoredStyleEvidence prefers a more specific matching selector over a later rule', () => {
+  const element = {
+    matches(selector) {
+      return selector === '#checkout' || selector === '.card';
+    },
+  };
+  const root = {
+    styleSheets: [
+      {
+        ownerNode: { tagName: 'STYLE', id: 'checkout-styles' },
+        cssRules: [
+          { selectorText: '#checkout', style: createStyle({ color: '#172033' }) },
+          { selectorText: '.card', style: createStyle({ color: '#ffffff' }) },
+        ],
+      },
+    ],
+  };
+
+  assert.deepEqual(
+    getAuthoredStyleEvidence(element, ['color'], 'rgb(23, 32, 51)', root),
+    {
+      property: 'color',
+      computedValue: 'rgb(23, 32, 51)',
+      authoredProperty: 'color',
+      authoredValue: '#172033',
+      declaration: 'color: #172033',
+      selector: '#checkout',
+      source: '<style id="checkout-styles">',
+    }
+  );
+});
+
+test('getAuthoredStyleEvidence reports inline declarations as the source', () => {
+  const element = {
+    style: createStyle({ 'border-radius': '10px' }),
+  };
+
+  assert.deepEqual(
+    getAuthoredStyleEvidence(element, ['border-radius'], '10px', { styleSheets: [] }),
+    {
+      property: 'border-radius',
+      computedValue: '10px',
+      authoredProperty: 'border-radius',
+      authoredValue: '10px',
+      declaration: 'border-radius: 10px',
+      selector: 'style attribute',
+      source: 'inline style',
+    }
+  );
+});
 
 test('isCssVariableReference detects authored CSS variable values', () => {
   assert.equal(isCssVariableReference('var(--chakra-colors-bg-secondary)'), true);

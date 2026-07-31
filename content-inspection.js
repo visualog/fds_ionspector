@@ -2,10 +2,18 @@
   function createContentInspector({
     getActiveInspectorSpecs,
     getKnownColorTokens,
+    getAuthoredStyleEvidence,
     hasAuthoredTokenReference,
     hasDirectTextContent,
     rgbToHex,
   }) {
+    function withCssEvidence(metadata, element, properties, computedValue) {
+      const evidence = typeof getAuthoredStyleEvidence === 'function'
+        ? getAuthoredStyleEvidence(element, properties, computedValue)
+        : null;
+      return evidence ? { ...(metadata || {}), cssEvidence: evidence } : metadata;
+    }
+
     function formatKnownTokenList(tokens) {
       return Array.isArray(tokens) && tokens.length ? `: ${tokens.slice(0, 3).join(', ')}` : '';
     }
@@ -81,7 +89,12 @@
             activeSpecs,
             label: kind === 'padding' ? '패딩' : '마진',
             value: values[0].value,
-            metadata: { spacing: { kind, sides: ['top', 'right', 'bottom', 'left'], value: values[0].value } },
+            metadata: withCssEvidence(
+              { spacing: { kind, sides: ['top', 'right', 'bottom', 'left'], value: values[0].value } },
+              element,
+              tokenProps,
+              `${values[0].value}px`
+            ),
           });
         }
         return;
@@ -96,7 +109,12 @@
           activeSpecs,
           label: `${item.label} ${kind === 'padding' ? '패딩' : '마진'}`,
           value: item.value,
-          metadata: { spacing: { kind, sides: [item.side], value: item.value } },
+          metadata: withCssEvidence(
+            { spacing: { kind, sides: [item.side], value: item.value } },
+            element,
+            [item.cssProp, kind],
+            `${item.value}px`
+          ),
         });
       });
     }
@@ -121,7 +139,12 @@
             activeSpecs,
             label: '갭',
             value: gaps[0].value,
-            metadata: { spacing: { kind: 'gap', sides: ['row', 'column'], value: gaps[0].value } },
+            metadata: withCssEvidence(
+              { spacing: { kind: 'gap', sides: ['row', 'column'], value: gaps[0].value } },
+              element,
+              ['gap', 'row-gap', 'column-gap'],
+              `${gaps[0].value}px`
+            ),
           });
         }
         return;
@@ -135,7 +158,12 @@
           activeSpecs,
           label: item.label,
           value: item.value,
-          metadata: { spacing: { kind: 'gap', sides: [item.axis], value: item.value } },
+          metadata: withCssEvidence(
+            { spacing: { kind: 'gap', sides: [item.axis], value: item.value } },
+            element,
+            [item.cssProp, 'gap'],
+            `${item.value}px`
+          ),
         });
       });
     }
@@ -163,22 +191,26 @@
         if (bg && !bgUsesToken) {
           const tokens = getKnownColorTokensForPart(bg, 'bg');
           issues.push(tokens.length ? `배경색 ${bg} (원시값 직접 사용)` : `배경색 ${bg} (미등록)`);
+          issueDetails.push(withCssEvidence(null, element, ['background-color', 'background'], styles.backgroundColor));
         }
 
         if (text && !textUsesToken) {
           const tokens = getKnownColorTokensForPart(text, 'text');
           issues.push(tokens.length ? `글자색 ${text} (원시값 직접 사용)` : `글자색 ${text} (미등록)`);
+          issueDetails.push(withCssEvidence(null, element, ['color'], styles.color));
         }
 
         if (borderWidth > 0 && borderColor && !borderUsesToken) {
           const tokens = getKnownColorTokensForPart(borderColor, 'border');
           issues.push(tokens.length ? `보더색 ${borderColor} (원시값 직접 사용)` : `보더색 ${borderColor} (미등록)`);
+          issueDetails.push(withCssEvidence(null, element, ['border-top-color', 'border-color', 'border-top', 'border'], styles.borderTopColor));
         }
       } else if (filter === 'font') {
         if (!hasDirectTextContent(element)) return { issues, issueDetails, suggestions };
         const font = styles.fontFamily.split(',')[0].replace(/"/g, '');
         if (!activeSpecs.fonts.some((item) => font.includes(item))) {
           issues.push(`서체 '${font}' (차단)`);
+          issueDetails.push(withCssEvidence(null, element, ['font-family'], styles.fontFamily));
         }
       } else if (filter === 'spacing') {
         const boxSides = [
@@ -209,8 +241,10 @@
           const tokens = getRadiusTokens(activeSpecs, radius);
           if (tokens.length) {
             issues.push(`라운드 ${radius} (원시값 직접 사용${formatKnownTokenList(tokens)})`);
+            issueDetails.push(withCssEvidence(null, element, ['border-radius'], radius));
           } else if (!activeSpecs.radius.includes(radius)) {
             issues.push(`라운드 ${radius} (미준수)`);
+            issueDetails.push(withCssEvidence(null, element, ['border-radius'], radius));
           }
         }
       }

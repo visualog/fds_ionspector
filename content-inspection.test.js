@@ -8,7 +8,20 @@ const scanUtils = createContentScanUtils({
   parseViolationItem: () => ({}),
 });
 
-function createInspector({ tokenReference = false, getKnownColorTokens = () => [], rgbToHex = (value) => value } = {}) {
+function createInspector({
+  tokenReference = false,
+  getKnownColorTokens = () => [],
+  rgbToHex = (value) => value,
+  getAuthoredStyleEvidence = (_element, properties, computedValue) => ({
+    property: properties[0],
+    computedValue,
+    authoredProperty: properties[0],
+    authoredValue: computedValue,
+    declaration: `${properties[0]}: ${computedValue}`,
+    selector: '.target',
+    source: 'https://example.test/app.css',
+  }),
+} = {}) {
   return createContentInspector({
     getActiveInspectorSpecs: () => ({
       colors: {},
@@ -24,6 +37,7 @@ function createInspector({ tokenReference = false, getKnownColorTokens = () => [
       },
     }),
     getKnownColorTokens,
+    getAuthoredStyleEvidence,
     hasAuthoredTokenReference: () => tokenReference,
     hasDirectTextContent: () => true,
     rgbToHex,
@@ -73,6 +87,41 @@ test('spacing inspection labels directional padding when sides differ', () => {
   }, {});
 
   assert.deepEqual(result.issues, ['오른쪽 패딩 14px (미등록)']);
+  assert.deepEqual(result.issueDetails, [
+    {
+      spacing: { kind: 'padding', sides: ['right'], value: 14 },
+      cssEvidence: {
+        property: 'padding-right',
+        computedValue: '14px',
+        authoredProperty: 'padding-right',
+        authoredValue: '14px',
+        declaration: 'padding-right: 14px',
+        selector: '.target',
+        source: 'https://example.test/app.css',
+      },
+    },
+  ]);
+});
+
+test('color, font, and radius violations include CSS evidence metadata', () => {
+  const inspector = createInspector();
+  const element = {};
+
+  const color = inspector.getInspectionForFilter('color', {
+    backgroundColor: '#ffffff',
+    color: 'rgba(0, 0, 0, 0)',
+    borderTopWidth: '0px',
+    borderTopColor: 'rgba(0, 0, 0, 0)',
+  }, element);
+  const font = inspector.getInspectionForFilter('font', { fontFamily: 'Inter, sans-serif' }, element);
+  const radius = inspector.getInspectionForFilter('radius', { borderRadius: '10px' }, element);
+
+  assert.equal(color.issueDetails[0].cssEvidence.property, 'background-color');
+  assert.equal(color.issueDetails[0].cssEvidence.computedValue, '#ffffff');
+  assert.equal(font.issueDetails[0].cssEvidence.property, 'font-family');
+  assert.equal(font.issueDetails[0].cssEvidence.computedValue, 'Inter, sans-serif');
+  assert.equal(radius.issueDetails[0].cssEvidence.property, 'border-radius');
+  assert.equal(radius.issueDetails[0].cssEvidence.computedValue, '10px');
 });
 
 test('spacing inspection labels equal four-side margin as margin', () => {
@@ -95,8 +144,8 @@ test('spacing inspection includes gap values outside the token scale', () => {
   }, {});
 
   assert.deepEqual(result.issues, ['갭 11px (미등록)']);
-  assert.deepEqual(result.issueDetails, [
-    { spacing: { kind: 'gap', sides: ['row', 'column'], value: 11 } },
+  assert.deepEqual(result.issueDetails.map((detail) => detail.spacing), [
+    { kind: 'gap', sides: ['row', 'column'], value: 11 },
   ]);
 });
 
@@ -111,9 +160,9 @@ test('spacing inspection labels directional gap values when row and column diffe
     '행 갭 12px (미등록)',
     '열 갭 8px (원시값 직접 사용: spacing/8)',
   ]);
-  assert.deepEqual(result.issueDetails, [
-    { spacing: { kind: 'gap', sides: ['row'], value: 12 } },
-    { spacing: { kind: 'gap', sides: ['column'], value: 8 } },
+  assert.deepEqual(result.issueDetails.map((detail) => detail.spacing), [
+    { kind: 'gap', sides: ['row'], value: 12 },
+    { kind: 'gap', sides: ['column'], value: 8 },
   ]);
 });
 

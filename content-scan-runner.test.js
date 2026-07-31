@@ -744,6 +744,23 @@ test('inspector hover card deduplicates repeated issue messages across elements'
   assert.match(contentSource, /displayEntries\.length > 4 \? `<div class="fds-card-more">외 \$\{displayEntries\.length - 4\}건<\/div>` : ''/);
 });
 
+test('inspector hover card renders captured CSS evidence', () => {
+  const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
+  const styleSource = fs.readFileSync(path.join(__dirname, 'overlay.css'), 'utf8');
+
+  assert.match(contentSource, /function\s+renderCssEvidence\(entry\)/);
+  assert.match(contentSource, /entry\?\.metadata\?\.cssEvidence/);
+  assert.match(contentSource, /\['속성', evidence\.property\]/);
+  assert.match(contentSource, /\['계산값', evidence\.computedValue\]/);
+  assert.match(contentSource, /\['작성 선언', evidence\.declaration \|\| '확인 불가'\]/);
+  assert.match(contentSource, /\['선택자', evidence\.selector \|\| '확인 불가'\]/);
+  assert.match(contentSource, /\['출처', evidence\.source \|\| '확인 불가'\]/);
+  assert.match(contentSource, /\$\{renderCssEvidence\(entry\)\}/);
+  assert.match(styleSource, /\.fds-css-evidence\s*\{[\s\S]*display:\s*grid/);
+  assert.match(styleSource, /\.fds-css-evidence-label\s*\{[\s\S]*color:/);
+  assert.match(styleSource, /\.fds-css-evidence-value\s*\{[\s\S]*overflow-wrap:\s*anywhere/);
+});
+
 test('inspector hover card separates issue value from repeated violation type copy', () => {
   const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
   const styleSource = fs.readFileSync(path.join(__dirname, 'overlay.css'), 'utf8');

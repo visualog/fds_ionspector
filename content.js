@@ -17,7 +17,7 @@ const {
   computeToolbarDragPosition,
   shouldStartToolbarDrag: shouldStartToolbarDragByState,
 } = globalThis.FDSToolbarDrag;
-const { hasAuthoredTokenReference } = globalThis.FDSStyleTokenDetection;
+const { getAuthoredStyleEvidence, hasAuthoredTokenReference } = globalThis.FDSStyleTokenDetection;
 const { buildTokenRegistry } = globalThis.FDSTokenSource;
 const { escapeHtml } = globalThis.FDSHtmlUtils;
 const { createContentRenderers } = globalThis.FDSContentRender;
@@ -127,6 +127,7 @@ const {
 const { getInspectionForFilter } = createContentInspector({
   getActiveInspectorSpecs,
   getKnownColorTokens,
+  getAuthoredStyleEvidence,
   hasAuthoredTokenReference,
   hasDirectTextContent,
   rgbToHex,
@@ -1873,6 +1874,26 @@ function renderSuggestedTokenRows(tokens = []) {
   `).join('');
 }
 
+function renderCssEvidence(entry) {
+  const evidence = entry?.metadata?.cssEvidence;
+  if (!evidence) return '';
+  const rows = [
+    ['속성', evidence.property],
+    ['계산값', evidence.computedValue],
+    ['작성 선언', evidence.declaration || '확인 불가'],
+    ['선택자', evidence.selector || '확인 불가'],
+    ['출처', evidence.source || '확인 불가'],
+  ];
+  return `
+    <dl class="fds-css-evidence" aria-label="CSS 근거">
+      ${rows.map(([label, value]) => `
+        <dt class="fds-css-evidence-label">${escapeHtml(label)}</dt>
+        <dd class="fds-css-evidence-value"><code>${escapeHtml(value || '확인 불가')}</code></dd>
+      `).join('')}
+    </dl>
+  `;
+}
+
 function getViolationNoteForEntry(entry) {
   return violationNotesByKey.get(getViolationNoteKey(entry)) || null;
 }
@@ -2006,6 +2027,7 @@ function showInspectorCardForEntries(target, issueEntries, anchorElement = targe
               <span class="fds-issue-description">${escapeHtml(issueDisplay.description)}</span>
               ${issueDisplay.tip ? `<span class="fds-issue-tip"><svg class="fds-issue-tip-icon" data-lucide="info" xmlns="http://www.w3.org/2000/svg" width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.25" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true" focusable="false"><circle cx="12" cy="12" r="10"></circle><path d="M12 16v-4"></path><path d="M12 8h.01"></path></svg><span>${escapeHtml(issueDisplay.tip)}</span></span>` : ''}
             </div>
+            ${renderCssEvidence(entry)}
             ${suggestedTokens.length
               ? `<div class="fds-issue-replacement">
                   ${renderSuggestedTokenRows(suggestedTokens)}
