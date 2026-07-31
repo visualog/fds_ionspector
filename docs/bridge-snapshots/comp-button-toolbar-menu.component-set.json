@@ -1,0 +1,163 @@
+{
+  "_note": "live bridge snapshot captured on 2026-04-14 from local xbridge",
+  "source": {
+    "nodeName": "comp/button/toolbar.menu",
+    "nodeType": "COMPONENT_SET",
+    "nodeRole": "component-set",
+    "sourceContext": "FDS_Inspector > Page 1"
+  },
+  "identity": {
+    "figmaNodeId": "1:30",
+    "variantProperties": {
+      "active": {
+        "name": "active",
+        "type": "VARIANT",
+        "defaultValue": "False",
+        "variantOptions": [
+          "True",
+          "False"
+        ]
+      },
+      "hovered": {
+        "name": "hovered",
+        "type": "VARIANT",
+        "defaultValue": "False",
+        "variantOptions": [
+          "False",
+          "True"
+        ]
+      },
+      "disabled": {
+        "name": "disabled",
+        "type": "VARIANT",
+        "defaultValue": "False",
+        "variantOptions": [
+          "False",
+          "True"
+        ]
+      }
+    },
+    "componentProperties": {
+      "show_tooltip#1:0": {
+        "name": "show_tooltip#1:0",
+        "type": "BOOLEAN",
+        "defaultValue": false
+      },
+      "show_count#115:0": {
+        "name": "show_count#115:0",
+        "type": "BOOLEAN",
+        "defaultValue": true
+      },
+      "active": {
+        "name": "active",
+        "type": "VARIANT",
+        "defaultValue": "False",
+        "variantOptions": [
+          "True",
+          "False"
+        ]
+      },
+      "hovered": {
+        "name": "hovered",
+        "type": "VARIANT",
+        "defaultValue": "False",
+        "variantOptions": [
+          "False",
+          "True"
+        ]
+      },
+      "disabled": {
+        "name": "disabled",
+        "type": "VARIANT",
+        "defaultValue": "False",
+        "variantOptions": [
+          "False",
+          "True"
+        ]
+      }
+    }
+  },
+  "layout": {
+    "variantCount": 5
+  },
+  "children": [
+    {
+      "name": "active=False, hovered=False, disabled=False",
+      "type": "COMPONENT",
+      "x": "__pending_node_detail__",
+      "y": "__pending_node_detail__",
+      "width": "__pending_node_detail__",
+      "height": "__pending_node_detail__",
+      "visible": true
+    },
+    {
+      "name": "active=False, hovered=True, disabled=False",
+      "type": "COMPONENT",
+      "x": "__pending_node_detail__",
+      "y": "__pending_node_detail__",
+      "width": "__pending_node_detail__",
+      "height": "__pending_node_detail__",
+      "visible": true
+    },
+    {
+      "name": "active=True, hovered=False, disabled=False",
+      "type": "COMPONENT",
+      "x": "__pending_node_detail__",
+      "y": "__pending_node_detail__",
+      "width": "__pending_node_detail__",
+      "height": "__pending_node_detail__",
+      "visible": true
+    },
+    {
+      "name": "active=True, hovered=True, disabled=False",
+      "type": "COMPONENT",
+      "x": "__pending_node_detail__",
+      "y": "__pending_node_detail__",
+      "width": "__pending_node_detail__",
+      "height": "__pending_node_detail__",
+      "visible": true
+    },
+    {
+      "name": "active=False, hovered=False, disabled=True",
+      "type": "COMPONENT",
+      "x": "__pending_node_detail__",
+      "y": "__pending_node_detail__",
+      "width": "__pending_node_detail__",
+      "height": "__pending_node_detail__",
+      "visible": true
+    }
+  ],
+  "notes": {
+    "comments": [],
+    "warnings": [
+      "child geometry still needs a follow-up get-node-details pass if pixel coordinates are required"
+    ],
+    "variants": [
+      {
+        "id": "1:31",
+        "name": "active=False, hovered=False, disabled=False",
+        "opacity": 1
+      },
+      {
+        "id": "1:34",
+        "name": "active=False, hovered=True, disabled=False",
+        "opacity": 1
+      },
+      {
+        "id": "1:37",
+        "name": "active=True, hovered=False, disabled=False",
+        "opacity": 1
+      },
+      {
+        "id": "1:40",
+        "name": "active=True, hovered=True, disabled=False",
+        "opacity": 1
+      },
+      {
+        "id": "16:693",
+        "name": "active=False, hovered=False, disabled=True",
+        "opacity": 0.4000000059604645
+      }
+    ]
+  }
+}

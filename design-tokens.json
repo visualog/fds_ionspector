@@ -1,0 +1,1882 @@
+{
+  "name": "Agent_skill_test",
+  "source": {
+    "file": "Agent_skill_test",
+    "origin": "Figma local variable catalog via xbridge search-design-system",
+    "generatedAt": "2026-04-28T00:07:40.496Z"
+  },
+  "notes": {
+    "naming": "Original FDS token names and slash-based hierarchy are preserved.",
+    "colorValues": "Current xbridge local-file search exposes token names, types, and collections but not resolved color hex values for the full file catalog. Color value fields remain null until a value-capable export is used.",
+    "preferredUsage": "Use semantic tokens first, component-scoped families second, and raw palette tokens only when semantic tokens are unavailable."
+  },
+  "colors": {
+    "semantic": {
+      "avatar": [
+        {
+          "name": "Color/avatar/cool gray/bg",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar or club badge semantic token"
+        },
+        {
+          "name": "Color/avatar/cool gray/bg-bold",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar or club badge semantic token"
+        },
+        {
+          "name": "Color/avatar/cool gray/border",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar or club badge semantic token"
+        },
+        {
+          "name": "Color/avatar/cool gray/border-black",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar or club badge semantic token"
+        },
+        {
+          "name": "Color/avatar/cool gray/icon",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar or club badge semantic token"
+        },
+        {
+          "name": "Color/avatar/cool gray/icon-inverse",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar or club badge semantic token"
+        },
+        {
+          "name": "Color/avatar/cool gray/text",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar or club badge semantic token"
+        },
+        {
+          "name": "Color/avatar/cool gray/text-inverse",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar or club badge semantic token"
+        },
+        {
+          "name": "Color/avatar/inverse",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar or club badge semantic token"
+        },
+        {
+          "name": "Color/avatar/orange/bg",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar or club badge semantic token"
+        },
+        {
+          "name": "Color/avatar/red/bg",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar or club badge semantic token"
+        },
+        {
+          "name": "Color/avatar/red/bg-bold",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar or club badge semantic token"
+        },
+        {
+          "name": "Color/avatar/red/border",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar or club badge semantic token"
+        },
+        {
+          "name": "Color/avatar/red/border-black",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar or club badge semantic token"
+        },
+        {
+          "name": "Color/avatar/red/icon",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar or club badge semantic token"
+        },
+        {
+          "name": "Color/avatar/red/icon-inverse",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar or club badge semantic token"
+        },
+        {
+          "name": "Color/avatar/red/text",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar or club badge semantic token"
+        },
+        {
+          "name": "Color/avatar/red/text-inverse",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar or club badge semantic token"
+        }
+      ],
+      "background": [
+        {
+          "name": "Color/bg/brand",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Semantic background or surface"
+        },
+        {
+          "name": "Color/bg/error",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Semantic background or surface"
+        },
+        {
+          "name": "Color/bg/error_disabled",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Semantic background or surface"
+        },
+        {
+          "name": "Color/bg/interactive/brand",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Interactive background state"
+        },
+        {
+          "name": "Color/bg/interactive/brand-disabled",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Interactive background state"
+        },
+        {
+          "name": "Color/bg/interactive/brand-hover",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Interactive background state"
+        }
+      ],
+      "border": [
+        {
+          "name": "Color/border/info",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Semantic border and divider"
+        },
+        {
+          "name": "Color/border/interactive/card",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Interactive border state"
+        },
+        {
+          "name": "Color/border/interactive/error",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Interactive border state"
+        },
+        {
+          "name": "Color/border/interactive/input",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Interactive border state"
+        },
+        {
+          "name": "Color/border/interactive/input-hover",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Interactive border state"
+        },
+        {
+          "name": "Color/border/interactive/popup",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Interactive border state"
+        },
+        {
+          "name": "Color/border/interactive/selected",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Interactive border state"
+        },
+        {
+          "name": "Color/border/inverse",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Semantic border and divider"
+        },
+        {
+          "name": "Color/border/primary",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Semantic border and divider"
+        },
+        {
+          "name": "Color/border/secondary",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Semantic border and divider"
+        },
+        {
+          "name": "Color/border/tertiary",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Semantic border and divider"
+        }
+      ],
+      "icon": [
+        {
+          "name": "Color/icon/brand",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Semantic icon color"
+        },
+        {
+          "name": "Color/icon/error",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Semantic icon color"
+        },
+        {
+          "name": "Color/icon/info",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Semantic icon color"
+        },
+        {
+          "name": "Color/icon/interactive/brand",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Interactive icon state"
+        },
+        {
+          "name": "Color/icon/interactive/brand-disabled",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Interactive icon state"
+        },
+        {
+          "name": "Color/icon/interactive/brand-hovered",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Interactive icon state"
+        },
+        {
+          "name": "Color/icon/interactive/error",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Interactive icon state"
+        },
+        {
+          "name": "Color/icon/interactive/inverse",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Interactive icon state"
+        },
+        {
+          "name": "Color/icon/interactive/primary",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Interactive icon state"
+        },
+        {
+          "name": "Color/icon/interactive/primary-disabled",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Interactive icon state"
+        },
+        {
+          "name": "Color/icon/interactive/secondary",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Interactive icon state"
+        },
+        {
+          "name": "Color/icon/interactive/secondary-disabled",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Interactive icon state"
+        },
+        {
+          "name": "Color/icon/interactive/selected",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Interactive icon state"
+        },
+        {
+          "name": "Color/icon/interactive/tertiary",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Interactive icon state"
+        },
+        {
+          "name": "Color/icon/inverse",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Semantic icon color"
+        },
+        {
+          "name": "Color/icon/loading",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Semantic icon color"
+        },
+        {
+          "name": "Color/icon/primary",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Semantic icon color"
+        },
+        {
+          "name": "Color/icon/success",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Semantic icon color"
+        }
+      ],
+      "text": [
+        {
+          "name": "Color/text/brand",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Semantic text color"
+        },
+        {
+          "name": "Color/text/disabled",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Semantic text color"
+        },
+        {
+          "name": "Color/text/error",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Semantic text color"
+        },
+        {
+          "name": "Color/text/error-light",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Semantic text color"
+        },
+        {
+          "name": "Color/text/info",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Semantic text color"
+        },
+        {
+          "name": "Color/text/interactive/brand",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Interactive text state"
+        },
+        {
+          "name": "Color/text/interactive/brand-disabled",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Interactive text state"
+        },
+        {
+          "name": "Color/text/interactive/brand-hover",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Interactive text state"
+        },
+        {
+          "name": "Color/text/interactive/error",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Interactive text state"
+        },
+        {
+          "name": "Color/text/interactive/error-disabled",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Interactive text state"
+        },
+        {
+          "name": "Color/text/interactive/inverse",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Interactive text state"
+        },
+        {
+          "name": "Color/text/interactive/primary",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Interactive text state"
+        },
+        {
+          "name": "Color/text/interactive/primary-disabled",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Interactive text state"
+        },
+        {
+          "name": "Color/text/inverse",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Semantic text color"
+        },
+        {
+          "name": "Color/text/loading",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Semantic text color"
+        },
+        {
+          "name": "Color/text/primary",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Semantic text color"
+        },
+        {
+          "name": "Color/text/secondary",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Semantic text color"
+        },
+        {
+          "name": "Color/text/success",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Semantic text color"
+        },
+        {
+          "name": "Color/text/success-light",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Semantic text color"
+        }
+      ]
+    },
+    "raw": {
+      "avatar": [
+        {
+          "name": "color/avatar/20",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/30",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/40",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/50",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/60",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/70",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/80",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/90",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/100",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/Black alpha/10",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/cool gray/20",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/cool gray/30",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/cool gray/50",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/cool gray/70",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/cool gray/90",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/cool gray/alpha",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/cyan/20",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/cyan/30",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/cyan/50",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/cyan/70",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/cyan/90",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/cyan/alpha",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/deep blue/20",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/deep blue/30",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/deep blue/50",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/deep blue/70",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/deep blue/90",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/deep blue/alpha",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/deep green/20",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/deep green/30",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/deep green/50",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/deep green/70",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/deep green/90",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/deep green/alpha",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/green/20",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/green/30",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/green/50",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/green/60",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/green/80",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/green/alpha",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/light blue/20",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/light blue/30",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/light blue/50",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/light blue/70",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/light blue/90",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/light blue/alpha",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/orange/20",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/orange/30",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/orange/50",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/orange/60",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/orange/80",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/orange/alpha",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/pink/20",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/pink/30",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/pink/50",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/pink/70",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/pink/90",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/pink/alpha",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/purple/20",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/purple/30",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/purple/50",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/purple/70",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/purple/90",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/purple/alpha",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/red/20",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/red/30",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/red/50",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/red/60",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/red/80",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/red/alpha",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/yellow orange/20",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/yellow orange/30",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/yellow orange/50",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/yellow orange/70",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/yellow orange/90",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        },
+        {
+          "name": "color/avatar/yellow orange/alpha",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Avatar raw palette token"
+        }
+      ],
+      "light/Black alpha": [
+        {
+          "name": "light/Black alpha/10",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Black alpha/20",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Black alpha/30",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Black alpha/40",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Black alpha/50",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Black alpha/60",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Black alpha/70",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Black alpha/80",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Black alpha/90",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        }
+      ],
+      "light/Blue": [
+        {
+          "name": "light/Blue/10",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Blue/20",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Blue/30",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Blue/40",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Blue/50",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Blue/60",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Blue/70",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Blue/80",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Blue/90",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Blue/100",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        }
+      ],
+      "light/CoolGray": [
+        {
+          "name": "light/CoolGray/20",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/CoolGray/30",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/CoolGray/50",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/CoolGray/70",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/CoolGray/90",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/CoolGray/alpha",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        }
+      ],
+      "light/Cyan": [
+        {
+          "name": "light/Cyan/20",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Cyan/30",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Cyan/50",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Cyan/70",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Cyan/90",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Cyan/alpha",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        }
+      ],
+      "light/DeepBlue": [
+        {
+          "name": "light/DeepBlue/20",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/DeepBlue/30",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/DeepBlue/50",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/DeepBlue/70",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/DeepBlue/90",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/DeepBlue/alpha",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        }
+      ],
+      "light/DeepGreen": [
+        {
+          "name": "light/DeepGreen/20",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/DeepGreen/30",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/DeepGreen/50",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/DeepGreen/70",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/DeepGreen/90",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/DeepGreen/alpha",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        }
+      ],
+      "light/Gray": [
+        {
+          "name": "light/Gray/10",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Gray/20",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Gray/30",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Gray/40",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Gray/50",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Gray/60",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Gray/70",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Gray/80",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Gray/90",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Gray/100",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Gray/white",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        }
+      ],
+      "light/Green": [
+        {
+          "name": "light/Green/10",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Green/20",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Green/30",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Green/40",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Green/50",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Green/60",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Green/70",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Green/80",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Green/90",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Green/100",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Green/alpha",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        }
+      ],
+      "light/LightBlue": [
+        {
+          "name": "light/LightBlue/20",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/LightBlue/30",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/LightBlue/50",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/LightBlue/60",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/LightBlue/70",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/LightBlue/90",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/LightBlue/alpha",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        }
+      ],
+      "light/Orange": [
+        {
+          "name": "light/Orange/20",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Orange/30",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Orange/50",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Orange/60",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Orange/80",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Orange/alpha",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        }
+      ],
+      "light/Pink": [
+        {
+          "name": "light/Pink/20",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Pink/30",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Pink/50",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Pink/70",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Pink/90",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Pink/alpha",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        }
+      ],
+      "light/Purple": [
+        {
+          "name": "light/Purple/20",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Purple/30",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Purple/50",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Purple/70",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Purple/90",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Purple/alpha",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        }
+      ],
+      "light/Red": [
+        {
+          "name": "light/Red/20",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Red/30",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Red/50",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Red/60",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Red/80",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/Red/alpha",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        }
+      ],
+      "light/YellowOrange": [
+        {
+          "name": "light/YellowOrange/20",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/YellowOrange/30",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/YellowOrange/50",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        },
+        {
+          "name": "light/YellowOrange/70",
+          "value": null,
+          "valueStatus": "unresolved-from-current-bridge-read",
+          "usage": "Light theme raw palette token"
+        }
+      ]
+    }
+  },
+  "spacing": [
+    {
+      "name": "spacing/0",
+      "value": "0px",
+      "usage": "Spacing scale token"
+    },
+    {
+      "name": "spacing/2",
+      "value": "2px",
+      "usage": "Spacing scale token"
+    },
+    {
+      "name": "spacing/4",
+      "value": "4px",
+      "usage": "Spacing scale token"
+    },
+    {
+      "name": "spacing/6",
+      "value": "6px",
+      "usage": "Spacing scale token"
+    },
+    {
+      "name": "spacing/8",
+      "value": "8px",
+      "usage": "Spacing scale token"
+    },
+    {
+      "name": "spacing/10",
+      "value": "10px",
+      "usage": "Spacing scale token"
+    },
+    {
+      "name": "spacing/12",
+      "value": "12px",
+      "usage": "Spacing scale token"
+    },
+    {
+      "name": "spacing/16",
+      "value": "16px",
+      "usage": "Spacing scale token"
+    },
+    {
+      "name": "spacing/20",
+      "value": "20px",
+      "usage": "Spacing scale token"
+    },
+    {
+      "name": "spacing/24",
+      "value": "24px",
+      "usage": "Spacing scale token"
+    },
+    {
+      "name": "spacing/28",
+      "value": "28px",
+      "usage": "Spacing scale token"
+    },
+    {
+      "name": "spacing/32",
+      "value": "32px",
+      "usage": "Spacing scale token"
+    },
+    {
+      "name": "spacing/36",
+      "value": "36px",
+      "usage": "Spacing scale token"
+    },
+    {
+      "name": "spacing/40",
+      "value": "40px",
+      "usage": "Spacing scale token"
+    },
+    {
+      "name": "spacing/48",
+      "value": "48px",
+      "usage": "Spacing scale token"
+    },
+    {
+      "name": "spacing/64",
+      "value": "64px",
+      "usage": "Spacing scale token"
+    },
+    {
+      "name": "spacing/80",
+      "value": "80px",
+      "usage": "Spacing scale token"
+    },
+    {
+      "name": "spacing/144",
+      "value": "144px",
+      "usage": "Spacing scale token"
+    }
+  ],
+  "radius": [
+    {
+      "name": "radius/0",
+      "value": "0px",
+      "usage": "Corner radius scale token"
+    },
+    {
+      "name": "radius/2",
+      "value": "2px",
+      "usage": "Corner radius scale token"
+    },
+    {
+      "name": "radius/4",
+      "value": "4px",
+      "usage": "Corner radius scale token"
+    },
+    {
+      "name": "radius/6",
+      "value": "6px",
+      "usage": "Corner radius scale token"
+    },
+    {
+      "name": "radius/8",
+      "value": "8px",
+      "usage": "Corner radius scale token"
+    },
+    {
+      "name": "radius/10",
+      "value": "10px",
+      "usage": "Corner radius scale token"
+    },
+    {
+      "name": "radius/12",
+      "value": "12px",
+      "usage": "Corner radius scale token"
+    },
+    {
+      "name": "radius/16",
+      "value": "16px",
+      "usage": "Corner radius scale token"
+    },
+    {
+      "name": "radius/20",
+      "value": "20px",
+      "usage": "Corner radius scale token"
+    },
+    {
+      "name": "radius/circle",
+      "value": "9999px",
+      "usage": "Full-round or pill radius"
+    }
+  ],
+  "styles": {
+    "text": [
+      {
+        "name": "Server/Body1/medium",
+        "usage": "Body copy"
+      },
+      {
+        "name": "Server/Body1/regular",
+        "usage": "Body copy"
+      },
+      {
+        "name": "Server/Body1/underline",
+        "usage": "Body copy"
+      },
+      {
+        "name": "Server/Body2/long/medium",
+        "usage": "Body copy"
+      },
+      {
+        "name": "Server/Body2/long/regular",
+        "usage": "Body copy"
+      },
+      {
+        "name": "Server/Body2/long/underline",
+        "usage": "Body copy"
+      },
+      {
+        "name": "Server/Body2/medium",
+        "usage": "Body copy"
+      },
+      {
+        "name": "Server/Body2/regular",
+        "usage": "Body copy"
+      },
+      {
+        "name": "Server/Body2/underline",
+        "usage": "Body copy"
+      },
+      {
+        "name": "Server/Body3/medium",
+        "usage": "Body copy"
+      },
+      {
+        "name": "Server/Body3/regular",
+        "usage": "Body copy"
+      },
+      {
+        "name": "Server/Body3/underline",
+        "usage": "Body copy"
+      },
+      {
+        "name": "Server/Body4/medium",
+        "usage": "Body copy"
+      },
+      {
+        "name": "Server/Body4/regular",
+        "usage": "Body copy"
+      },
+      {
+        "name": "Server/Body4/underline",
+        "usage": "Body copy"
+      },
+      {
+        "name": "Server/Caption1/regular",
+        "usage": "Caption and helper text"
+      },
+      {
+        "name": "Server/Caption2/bold",
+        "usage": "Caption and helper text"
+      },
+      {
+        "name": "Server/Caption2/regular",
+        "usage": "Caption and helper text"
+      },
+      {
+        "name": "Server/Heading/H1",
+        "usage": "Heading hierarchy"
+      },
+      {
+        "name": "Server/Heading/H2",
+        "usage": "Heading hierarchy"
+      },
+      {
+        "name": "Server/Heading/H3",
+        "usage": "Heading hierarchy"
+      },
+      {
+        "name": "Server/Sub title/Subtitle1",
+        "usage": "Section subtitle"
+      },
+      {
+        "name": "Server/Sub title/Subtitle2",
+        "usage": "Section subtitle"
+      },
+      {
+        "name": "Server/Sub title/Subtitle3",
+        "usage": "Section subtitle"
+      }
+    ],
+    "breakpoint": [
+      {
+        "name": "Breakpoint/1-480/Column_3",
+        "usage": "Grid breakpoint rule"
+      },
+      {
+        "name": "Breakpoint/1-480/Column_4",
+        "usage": "Grid breakpoint rule"
+      },
+      {
+        "name": "Breakpoint/481-767/Column_6",
+        "usage": "Grid breakpoint rule"
+      },
+      {
+        "name": "Breakpoint/768-1000/Column_6",
+        "usage": "Grid breakpoint rule"
+      },
+      {
+        "name": "Breakpoint/768-1000/Column_8",
+        "usage": "Grid breakpoint rule"
+      },
+      {
+        "name": "Breakpoint/1001-1366/Column_8_LNB_fold",
+        "usage": "Grid breakpoint rule"
+      },
+      {
+        "name": "Breakpoint/1001-1366/Column_12",
+        "usage": "Grid breakpoint rule"
+      },
+      {
+        "name": "Breakpoint/1367+/Column_12_Center",
+        "usage": "Grid breakpoint rule"
+      },
+      {
+        "name": "Breakpoint/1367+/Column_12_LNB_fold",
+        "usage": "Grid breakpoint rule"
+      },
+      {
+        "name": "Breakpoint/1367+/Column_12_LNB_open",
+        "usage": "Grid breakpoint rule"
+      }
+    ],
+    "elevation": [
+      {
+        "name": "Elevation/shadow100",
+        "usage": "Shadow or elevation"
+      },
+      {
+        "name": "Elevation/shadow200",
+        "usage": "Shadow or elevation"
+      },
+      {
+        "name": "Elevation/shadow300",
+        "usage": "Shadow or elevation"
+      },
+      {
+        "name": "Elevation/shadow400",
+        "usage": "Shadow or elevation"
+      },
+      {
+        "name": "Elevation/shadow500",
+        "usage": "Shadow or elevation"
+      }
+    ],
+    "table": [
+      {
+        "name": "테이블 행 52px",
+        "usage": "Table layout guidance"
+      },
+      {
+        "name": "테이블/리스트 박스 여백",
+        "usage": "Table layout guidance"
+      },
+      {
+        "name": "테이블/테이블 셀 상, 하 패딩",
+        "usage": "Table layout guidance"
+      },
+      {
+        "name": "테이블/테이블 첫번째 컬럼 여백",
+        "usage": "Table layout guidance"
+      },
+      {
+        "name": "테이블/테이블 체크박스 컬럼 여백",
+        "usage": "Table layout guidance"
+      },
+      {
+        "name": "테이블/테이블 컬럼 여백",
+        "usage": "Table layout guidance"
+      }
+    ],
+    "other": []
+  }
+}

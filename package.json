@@ -1,0 +1,14 @@
+{
+  "name": "fds-inspector",
+  "version": "1.0.1",
+  "private": true,
+  "scripts": {
+    "build:extension": "node scripts/build-extension.mjs",
+    "check:all": "npm test",
+    "test": "node --test",
+    "qa:uiux": "node scripts/run-uiux-fixture-qa.mjs"
+  },
+  "dependencies": {
+    "gsap": "3.15.0"
+  }
+}

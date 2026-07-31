@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <title>FDS Inspector Spacing Direction Fixture</title>
+  <style>
+    body {
+      font-family: system-ui, sans-serif;
+      margin: 32px;
+      background: #f5f7fa;
+      color: #252d38;
+    }
+
+    .fixture-grid {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(160px, 1fr));
+      gap: 24px;
+    }
+
+    .all-padding {
+      padding: 14px;
+      background: #ffffff;
+    }
+
+    .right-padding {
+      padding: 0 14px 0 0;
+      background: #ffffff;
+    }
+
+    .all-margin {
+      margin: 14px;
+      padding: 8px;
+      background: #ffffff;
+    }
+
+    .duplicate-shell {
+      padding: 14px;
+      background: #ffffff;
+    }
+
+    .duplicate-shell .duplicate-inner {
+      padding: 14px;
+      background: #ffffff;
+    }
+  </style>
+</head>
+<body>
+  <h1>Spacing Direction Fixture</h1>
+  <main class="fixture-grid">
+    <section class="all-padding">상하좌우 패딩 14px</section>
+    <section class="right-padding">오른쪽 패딩 14px</section>
+    <section class="all-margin">상하좌우 마진 14px</section>
+    <section class="duplicate-shell">
+      <div class="duplicate-inner">중첩 DOM 패딩 14px</div>
+    </section>
+  </main>
+</body>
+</html>

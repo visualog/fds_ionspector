@@ -3,7 +3,7 @@
   "name": "FDS Inspector DEV 20260410",
   "version": "1.0.1",
   "description": "Fasoo Design System validation tool",
-  "permissions": ["activeTab", "scripting"],
+  "permissions": ["activeTab", "scripting", "storage"],
   "action": {},
   "background": {
     "service_worker": "background.js",
@@ -13,11 +13,10 @@
     "http://localhost:3846/*",
     "http://127.0.0.1:3846/*"
   ],
-  "content_scripts": [
+  "web_accessible_resources": [
     {
-      "matches": ["<all_urls>"],
-      "js": ["toolbar-state.js", "content.js"],
-      "css": ["overlay.css"]
+      "resources": ["assets/*.svg"],
+      "matches": ["<all_urls>"]
     }
   ]
 }

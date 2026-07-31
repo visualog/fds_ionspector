@@ -1,0 +1,156 @@
+{
+  "_note": "live bridge snapshot captured on 2026-04-14 from local xbridge",
+  "source": {
+    "nodeName": "pattern/toolbar",
+    "nodeType": "INSTANCE",
+    "nodeRole": "instance",
+    "sourceContext": "Frame 12"
+  },
+  "identity": {
+    "figmaNodeId": "2:203",
+    "variantProperties": {
+      "status": "color",
+      "error": "False",
+      "success": "True",
+      "active": "True",
+      "hovered": "False"
+    },
+    "componentProperties": {
+      "status": {
+        "name": "status",
+        "type": "VARIANT",
+        "value": "color"
+      },
+      "error": {
+        "name": "error",
+        "type": "VARIANT",
+        "value": "False"
+      },
+      "success": {
+        "name": "success",
+        "type": "VARIANT",
+        "value": "True"
+      },
+      "active": {
+        "name": "active",
+        "type": "VARIANT",
+        "value": "True"
+      },
+      "hovered": {
+        "name": "hovered",
+        "type": "VARIANT",
+        "value": "False"
+      }
+    },
+    "sourceComponent": {
+      "id": "1:546",
+      "key": "e208274189917919f33f316f211de271310ff959",
+      "name": "status=color, error=False, success=True, active=True, hovered=False",
+      "type": "COMPONENT"
+    },
+    "sourceComponentSet": {
+      "id": "1:43",
+      "name": "pattern/toolbar",
+      "type": "COMPONENT_SET"
+    }
+  },
+  "layout": {},
+  "children": [
+    {
+      "name": "comp/button/toolbar.menu",
+      "type": "INSTANCE",
+      "x": "__pending_node_detail__",
+      "y": "__pending_node_detail__",
+      "width": "__pending_node_detail__",
+      "height": "__pending_node_detail__",
+      "visible": true
+    },
+    {
+      "name": "divide",
+      "type": "VECTOR",
+      "x": "__pending_node_detail__",
+      "y": "__pending_node_detail__",
+      "width": "__pending_node_detail__",
+      "height": "__pending_node_detail__",
+      "visible": true
+    },
+    {
+      "name": "comp/button/toolbar.menu",
+      "type": "INSTANCE",
+      "x": "__pending_node_detail__",
+      "y": "__pending_node_detail__",
+      "width": "__pending_node_detail__",
+      "height": "__pending_node_detail__",
+      "visible": true
+    },
+    {
+      "name": "comp/button/toolbar.menu",
+      "type": "INSTANCE",
+      "x": "__pending_node_detail__",
+      "y": "__pending_node_detail__",
+      "width": "__pending_node_detail__",
+      "height": "__pending_node_detail__",
+      "visible": true
+    },
+    {
+      "name": "comp/button/toolbar.menu",
+      "type": "INSTANCE",
+      "x": "__pending_node_detail__",
+      "y": "__pending_node_detail__",
+      "width": "__pending_node_detail__",
+      "height": "__pending_node_detail__",
+      "visible": true
+    },
+    {
+      "name": "comp/button/toolbar.menu",
+      "type": "INSTANCE",
+      "x": "__pending_node_detail__",
+      "y": "__pending_node_detail__",
+      "width": "__pending_node_detail__",
+      "height": "__pending_node_detail__",
+      "visible": true
+    },
+    {
+      "name": "divide",
+      "type": "VECTOR",
+      "x": "__pending_node_detail__",
+      "y": "__pending_node_detail__",
+      "width": "__pending_node_detail__",
+      "height": "__pending_node_detail__",
+      "visible": true
+    },
+    {
+      "name": "comp/button/toolbar.menu",
+      "type": "INSTANCE",
+      "x": "__pending_node_detail__",
+      "y": "__pending_node_detail__",
+      "width": "__pending_node_detail__",
+      "height": "__pending_node_detail__",
+      "visible": true
+    },
+    {
+      "name": "divide",
+      "type": "VECTOR",
+      "x": "__pending_node_detail__",
+      "y": "__pending_node_detail__",
+      "width": "__pending_node_detail__",
+      "height": "__pending_node_detail__",
+      "visible": true
+    },
+    {
+      "name": "comp/button/toolbar.menu",
+      "type": "INSTANCE",
+      "x": "__pending_node_detail__",
+      "y": "__pending_node_detail__",
+      "width": "__pending_node_detail__",
+      "height": "__pending_node_detail__",
+      "visible": true
+    }
+  ],
+  "notes": {
+    "comments": [],
+    "warnings": [
+      "child geometry still needs a follow-up get-node-details pass if pixel coordinates are required"
+    ]
+  }
+}
