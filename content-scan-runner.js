@@ -41,6 +41,7 @@
         },
       };
       const elements = Array.from(getElements());
+      const seenIssueKeys = new Set();
       scanData.meta.totalElementCount = elements.length;
       let batchStartedAt = now();
 
@@ -87,9 +88,10 @@
               metadata: issueDetails[issueIndex] || null,
             });
             if (entry) {
-              if (entry.key && scanData.issueEntries.some((candidate) => candidate.key === entry.key)) {
+              if (entry.key && seenIssueKeys.has(entry.key)) {
                 return;
               }
+              if (entry.key) seenIssueKeys.add(entry.key);
               const nextEntry = {
                 ...entry,
                 id: scanData.issueEntries.length + 1,

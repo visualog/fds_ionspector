@@ -7,13 +7,22 @@ const {
   createContentScanRunner,
 } = require('./content-scan-runner.js');
 
-test('content initial scan asks the runner to collect entries before a filter is active', () => {
+test('content scans keep detailed entries for every filter after a filter is active', () => {
   const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
 
   assert.match(
     contentSource,
-    /runner\.run\(\{\s*filters:\s*FILTER_KEYS,\s*activeFilter,\s*collectAllEntries:\s*!activeFilter\s*\}\)/
+    /runner\.run\(\{\s*filters:\s*FILTER_KEYS,\s*activeFilter,\s*collectAllEntries:\s*true\s*\}\)/
   );
+});
+
+test('content scan deduplicates large result sets without repeatedly scanning prior entries', () => {
+  const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
+  const runnerSource = fs.readFileSync(path.join(__dirname, 'content-scan-runner.js'), 'utf8');
+
+  assert.match(runnerSource, /const seenIssueKeys = new Set\(\)/);
+  assert.doesNotMatch(runnerSource, /scanData\.issueEntries\.some/);
+  assert.doesNotMatch(contentSource, /const existingEntry = scanData\.issueEntries\.find/);
 });
 
 test('content scan clears loading state and exposes an error message when scan fails', () => {

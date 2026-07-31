@@ -22,21 +22,21 @@ test('toolbar spec centralizes reusable geometry values', () => {
 });
 
 test('toolbar spec centralizes reusable variant widths', () => {
-  assert.equal(TOOLBAR_SPEC.variants[TOOLBAR_MODES.DEFAULT].width, 336);
+  assert.equal(TOOLBAR_SPEC.variants[TOOLBAR_MODES.DEFAULT].width, 384);
   assert.equal(TOOLBAR_SPEC.variants[TOOLBAR_MODES.DISCONNECTED_MESSAGE].width, 401);
   assert.equal(TOOLBAR_SPEC.variants[TOOLBAR_MODES.CONNECTED_MESSAGE].width, 310);
   assert.equal(TOOLBAR_SPEC.variants[TOOLBAR_MODES.COMPACT].width, 96);
   assert.equal(TOOLBAR_SPEC.variants[TOOLBAR_MODES.SINGLE_BUTTON].width, 48);
 });
 
-test('toolbar spec preserves the default child order from figma', () => {
+test('toolbar spec preserves the default control order', () => {
   assert.deepEqual(
     TOOLBAR_SPEC.variants[TOOLBAR_MODES.DEFAULT].items.map((item) => {
       if (item.type === 'button') return item.ref;
       if (item.type === 'static') return item.kind;
       return item.type;
     }),
-    ['move', 'divider', 'color', 'font', 'spacing', 'radius', 'divider', 'close']
+    ['move', 'divider', 'color', 'font', 'spacing', 'radius', 'refresh', 'divider', 'close']
   );
 });
 
@@ -168,7 +168,7 @@ test('getToolbarVariantState keeps large badge counts numeric and preserves full
   assert.equal(state.color.badge, '2003');
   assert.equal(state.color.badgeCount, '2003');
   assert.equal(state.color.badgeFullCount, '2,003');
-  assert.equal(state.color.badgeLabel, '컬러 검사 2,003개 위반 요소');
+  assert.equal(state.color.badgeLabel, '컬러 검사 2,003개 위반 항목');
 });
 
 test('getToolbarVariantState adds scan scope context to violation badge labels', () => {
@@ -189,7 +189,7 @@ test('getToolbarVariantState adds scan scope context to violation badge labels',
 
   assert.equal(
     state.color.badgeLabel,
-    '컬러 검사 154개 위반 요소 · 현재 렌더링 기준 · 검사됨 408개 · 제외됨 336개'
+    '컬러 검사 154개 위반 항목 · 현재 렌더링 기준 · 검사됨 408개 · 제외됨 336개'
   );
 });
 
@@ -233,7 +233,7 @@ test('createToolbarModel uses figma compact disconnected structure', () => {
   assert.deepEqual(model.items.map((item) => item.type === 'button' ? item.ref : item.kind || item.type), ['plug', 'close']);
 });
 
-test('createToolbarModel uses flat figma child order for default toolbar variant', () => {
+test('createToolbarModel uses the default toolbar control order', () => {
   const model = createToolbarModel({ mode: TOOLBAR_MODES.DEFAULT });
 
   assert.deepEqual(
@@ -242,7 +242,7 @@ test('createToolbarModel uses flat figma child order for default toolbar variant
       if (item.type === 'static') return item.kind;
       return item.type;
     }),
-    ['move', 'divider', 'color', 'font', 'spacing', 'radius', 'divider', 'close']
+    ['move', 'divider', 'color', 'font', 'spacing', 'radius', 'refresh', 'divider', 'close']
   );
 });
 

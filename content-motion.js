@@ -52,10 +52,21 @@
       return Boolean(target && gsap && !prefersReducedMotion());
     }
 
+    function resetInterruptedSummaryPanelMotion(target) {
+      if (!hasClass(target, 'fds-summary-card')) return;
+      target.classList?.remove?.('is-resizing');
+      if (!target.style) return;
+      target.style.opacity = '';
+      target.style.visibility = '';
+      target.style.transform = '';
+      target.style.willChange = '';
+    }
+
     function kill(targets) {
       if (gsap?.killTweensOf && targets) {
         gsap.killTweensOf(targets);
       }
+      (Array.isArray(targets) ? targets : [targets]).forEach(resetInterruptedSummaryPanelMotion);
     }
 
     function animatePanelOpen(panel) {

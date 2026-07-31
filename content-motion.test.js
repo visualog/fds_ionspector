@@ -199,6 +199,61 @@ test('FDSMotion animates summary refresh with panel and list height transitions'
   assert.equal(Object.prototype.hasOwnProperty.call(listHeightTween[3], 'transform'), false);
 });
 
+test('FDSMotion restores a summary panel left invisible by an interrupted animation', () => {
+  const { gsap } = createGsapRecorder();
+  const motion = createFDSMotion({
+    gsap,
+    matchMedia: () => ({ matches: false }),
+  });
+  const summaryList = { className: 'fds-summary-list', scrollHeight: 120, children: [] };
+  const panelClasses = new Set(['fds-summary-card', 'is-resizing']);
+  const panel = {
+    className: 'fds-summary-card is-resizing',
+    classList: {
+      add(...names) {
+        names.forEach((name) => panelClasses.add(name));
+      },
+      remove(...names) {
+        names.forEach((name) => panelClasses.delete(name));
+      },
+      contains(name) {
+        return panelClasses.has(name);
+      },
+    },
+    querySelector(selector) {
+      if (selector === '.fds-summary-list') return summaryList;
+      return null;
+    },
+    querySelectorAll() {
+      return [];
+    },
+    getBoundingClientRect() {
+      return { height: 120 };
+    },
+    scrollHeight: 160,
+    style: {
+      opacity: '0',
+      visibility: 'hidden',
+      transform: 'matrix(0.985, 0, 0, 0.985, -92, 0)',
+      willChange: 'height,opacity,transform',
+    },
+  };
+
+  assert.equal(motion.animateSummaryRefresh(panel, {
+    listChanged: true,
+    fromPanelHeight: 120,
+    toPanelHeight: 160,
+    fromListHeight: 80,
+    toListHeight: 120,
+    shouldAnimateListHeight: true,
+  }), true);
+
+  assert.equal(panel.style.opacity, '');
+  assert.equal(panel.style.visibility, '');
+  assert.equal(panel.style.transform, '');
+  assert.equal(panel.style.willChange, '');
+});
+
 test('FDSMotion stacks growing list items during summary refresh', () => {
   const { calls, gsap } = createGsapRecorder();
   const motion = createFDSMotion({

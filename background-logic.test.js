@@ -143,6 +143,18 @@ test('content injection file lists preserve dependency order', () => {
   ]);
 });
 
+test('UI fixture loads the violation report dependency before the content script', () => {
+  const fixtureSource = fs.readFileSync(
+    path.join(__dirname, 'scripts', 'run-uiux-fixture-qa.mjs'),
+    'utf8'
+  );
+
+  assert.match(
+    fixtureSource,
+    /'content-summary-model\.js',\s*'content-violation-report\.js',\s*'content-summary-panel\.js'/
+  );
+});
+
 test('browser action toggles from the content script visible state', () => {
   const backgroundSource = fs.readFileSync(path.join(__dirname, 'background.js'), 'utf8');
   const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');

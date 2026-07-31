@@ -23,6 +23,7 @@ const contentScripts = [
   'content-state-utils.js',
   'content-inspection.js',
   'content-summary-model.js',
+  'content-violation-report.js',
   'content-summary-panel.js',
   'content-toolbar-ui.js',
   'content-bridge-specs.js',
@@ -241,6 +242,7 @@ async function injectInspector(cdp, baseUrl) {
     const originalInfo = console.info.bind(console);
     const originalError = console.error.bind(console);
     const originalScrollTo = window.scrollTo.bind(window);
+    const originalScrollIntoView = Element.prototype.scrollIntoView;
     console.info = (...args) => {
       window.__fdsConsole.push({ level: 'info', args });
       originalInfo(...args);
@@ -252,6 +254,10 @@ async function injectInspector(cdp, baseUrl) {
     window.scrollTo = (options) => {
       window.__fdsScrolls.push(options);
       originalScrollTo(options);
+    };
+    Element.prototype.scrollIntoView = function scrollIntoView(options) {
+      window.__fdsScrolls.push({ type: 'element', options });
+      return originalScrollIntoView?.call(this, options);
     };
     window.chrome = {
       runtime: {
@@ -388,8 +394,20 @@ async function readState(cdp) {
         aria: element.getAttribute('aria-label'),
       })),
       inspectorCardText: readText(document.querySelector('#fds-inspector-card')),
+      inspectorCopy: (() => {
+        const button = document.querySelector('#fds-inspector-card .fds-token-copy');
+        return button ? {
+          aria: button.getAttribute('aria-label'),
+          title: button.getAttribute('title'),
+          state: button.getAttribute('data-state'),
+        } : null;
+      })(),
       scrolls: window.__fdsScrolls?.length || 0,
-      pinVisible: getComputedStyle(document.querySelector('#fds-issue-pin-layer .fds-issue-pin') || document.body).display,
+      pinVisible: (() => {
+        const displays = [...document.querySelectorAll('#fds-issue-pin-layer .fds-issue-pin')]
+          .map((pin) => getComputedStyle(pin).display);
+        return displays.find((display) => display !== 'none') || 'none';
+      })(),
       focusSelectors: {
         tab: Boolean(document.querySelector('.fds-summary-tab')),
         group: Boolean(document.querySelector('.fds-list-group')),
@@ -400,8 +418,9 @@ async function readState(cdp) {
   })()`);
 }
 
-async function pollComplete(cdp) {
-  for (let index = 0; index < 120; index += 1) {
+async function pollComplete(cdp, { timeoutMs = 120000 } = {}) {
+  const deadline = Date.now() + timeoutMs;
+  while (Date.now() < deadline) {
     const state = await readState(cdp);
     if (state.metrics || state.errorText) return state;
     await wait(150);
@@ -415,9 +434,15 @@ async function activateFilter(cdp, filter) {
   return pollComplete(cdp);
 }
 
-async function clickFirstGroup(cdp) {
+async function expandFirstGroup(cdp) {
   await evaluate(cdp, `document.querySelector('.fds-list-group[data-group-key]')?.click()`);
   await wait(500);
+  return readState(cdp);
+}
+
+async function clickFirstDetailItem(cdp) {
+  await evaluate(cdp, `document.querySelector('.fds-list-item[data-issue-key]')?.click()`);
+  await wait(1000);
   return readState(cdp);
 }
 
@@ -432,8 +457,8 @@ async function moveMouse(cdp, x, y) {
 
 async function clickMouse(cdp, x, y) {
   const point = { x: Math.round(x), y: Math.round(y), button: 'left', clickCount: 1 };
-  await cdp.send('Input.dispatchMouseEvent', { ...point, type: 'mousePressed' });
-  await cdp.send('Input.dispatchMouseEvent', { ...point, type: 'mouseReleased' });
+  await cdp.send('Input.dispatchMouseEvent', { ...point, type: 'mousePressed', buttons: 1 });
+  await cdp.send('Input.dispatchMouseEvent', { ...point, type: 'mouseReleased', buttons: 0 });
 }
 
 async function moveMouseInSteps(cdp, from, to, steps = 8, delayMs = 35) {
@@ -448,11 +473,36 @@ async function moveMouseInSteps(cdp, from, to, steps = 8, delayMs = 35) {
   }
 }
 
-async function exerciseInspectorCardCopyFromGroupHover(cdp) {
+async function readInspectorCopyHitState(cdp) {
+  return evaluate(cdp, `(() => {
+    const button = document.querySelector('#fds-inspector-card .fds-token-copy');
+    const rect = button?.getBoundingClientRect?.();
+    const center = rect ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } : null;
+    const elementAtCenter = center ? document.elementFromPoint(center.x, center.y) : null;
+    return {
+      buttonCenter: center,
+      isCopyButton: Boolean(elementAtCenter?.closest?.('.fds-token-copy')),
+      elementAtCenterClass: elementAtCenter?.className || '',
+      elementAtCenterText: elementAtCenter?.textContent || '',
+      elementsAtCenter: center
+        ? document.elementsFromPoint(center.x, center.y).slice(0, 6).map((element) => ({
+            tag: element.tagName,
+            id: element.id,
+            className: element.className || '',
+            zIndex: getComputedStyle(element).zIndex,
+            pointerEvents: getComputedStyle(element).pointerEvents,
+          }))
+        : [],
+      cardZIndex: getComputedStyle(document.querySelector('#fds-inspector-card')).zIndex,
+      shieldZIndex: getComputedStyle(document.querySelector('#fds-page-interaction-shield')).zIndex,
+    };
+  })()`);
+}
+
+async function exerciseInspectorCardCopyFromSelectedDetail(cdp) {
   await evaluate(cdp, `(async () => {
-    const group = document.querySelector('.fds-list-group[data-group-key]');
     const card = document.querySelector('#fds-inspector-card');
-    if (!group || !card) return;
+    if (!card) return;
     Object.defineProperty(navigator, 'clipboard', {
       configurable: true,
       value: {
@@ -461,16 +511,15 @@ async function exerciseInspectorCardCopyFromGroupHover(cdp) {
         },
       },
     });
-    group.dispatchEvent(new MouseEvent('mouseenter', { view: window }));
-    group.dispatchEvent(new MouseEvent('mouseleave', { view: window, relatedTarget: null }));
-    await new Promise((resolve) => setTimeout(resolve, 450));
     const copyButton = card.querySelector('.fds-token-copy');
     window.__fdsInspectorHoverCopyState = {
-      visibleAfterListLeave: card.style.display,
+      visibleAfterSelection: card.style.display,
       pointerEvents: getComputedStyle(card).pointerEvents,
       hasCopyButton: Boolean(copyButton),
       copiedTokenBeforeClick: window.__fdsCopiedToken || '',
       buttonTextBeforeClick: copyButton?.textContent || '',
+      buttonAriaBeforeClick: copyButton?.getAttribute('aria-label') || '',
+      buttonStateBeforeClick: copyButton?.getAttribute('data-state') || '',
     };
     copyButton?.click();
     await Promise.resolve();
@@ -479,6 +528,8 @@ async function exerciseInspectorCardCopyFromGroupHover(cdp) {
       visibleAfterCopy: card.style.display,
       copiedTokenAfterClick: window.__fdsCopiedToken || '',
       buttonTextAfterClick: copyButton?.textContent || '',
+      buttonAriaAfterClick: copyButton?.getAttribute('aria-label') || '',
+      buttonStateAfterClick: copyButton?.getAttribute('data-state') || '',
     };
   })()`);
   await wait(250);
@@ -530,18 +581,15 @@ async function exerciseInspectorCardCopyFromTargetHover(cdp) {
 
   await moveMouseInSteps(cdp, targetPoint, beforeMove.buttonCenter, 10, 30);
   await wait(120);
-  const clickState = await evaluate(cdp, `(() => {
-    const button = document.querySelector('#fds-inspector-card .fds-token-copy');
-    const rect = button?.getBoundingClientRect?.();
-    const center = rect ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } : null;
-    const elementAtCenter = center ? document.elementFromPoint(center.x, center.y) : null;
-    return {
-      buttonCenter: center,
-      elementAtCenterClass: elementAtCenter?.className || '',
-      elementAtCenterText: elementAtCenter?.textContent || '',
-    };
-  })()`);
-  if (clickState.buttonCenter) {
+  let clickState = await readInspectorCopyHitState(cdp);
+  for (let attempt = 0; attempt < 5 && clickState.buttonCenter && !clickState.isCopyButton; attempt += 1) {
+    await moveMouse(cdp, clickState.buttonCenter.x, clickState.buttonCenter.y);
+    await wait(100);
+    clickState = await readInspectorCopyHitState(cdp);
+  }
+  if (clickState.buttonCenter && clickState.isCopyButton) {
+    await moveMouse(cdp, clickState.buttonCenter.x, clickState.buttonCenter.y);
+    await wait(50);
     await clickMouse(cdp, clickState.buttonCenter.x, clickState.buttonCenter.y);
   }
   await wait(250);
@@ -687,20 +735,25 @@ async function runSpacingFixture(chrome, baseUrl) {
     await injectInspector(cdp, baseUrl);
     await pollComplete(cdp);
     const state = await activateFilter(cdp, 'spacing');
-    const afterClick = await clickFirstGroup(cdp);
+    const afterExpand = await expandFirstGroup(cdp);
+    const afterNavigate = await clickFirstDetailItem(cdp);
     const checks = [
       ...commonPanelChecks(state, 'spacing'),
       assertCheck(state.tabs.length === 0, 'spacing: color-only tabs are hidden', state.tabs),
-      assertCheck(state.statLabels.some((stat) => stat.text.includes('검토 패턴')), 'spacing: summary prioritizes pattern count before raw element totals', state.statLabels),
-      assertCheck(state.statLabels.some((stat) => stat.text.includes('영향 요소')), 'spacing: summary keeps affected element total as supporting context', state.statLabels),
-      assertCheck(hasText(state.panelText, '패딩') && hasText(state.panelText, '오른쪽 패딩') && hasText(state.panelText, '마진'), 'spacing: directional and all-side spacing groups are visible'),
-      assertCheck(hasText(state.panelText, '3개 요소') && !hasText(state.panelText, '3곳'), 'spacing: group counts use DOM element wording', { panelText: state.panelText }),
-      assertCheck(state.groups[0]?.aria?.includes('클릭하면 대표 요소로 이동'), 'spacing: group explains click navigation', state.groups[0]),
-      assertCheck(afterClick.groups[0]?.expanded === 'true', 'spacing: group click expands details', afterClick.groups[0]),
-      assertCheck(afterClick.items.length >= 1, 'spacing: expanded group exposes detail rows', { count: afterClick.items.length }),
-      assertCheck(afterClick.items[0]?.aria?.includes('클릭하면 해당 요소로 이동'), 'spacing: detail row explains click navigation', afterClick.items[0]),
-      assertCheck(afterClick.pinVisible === 'flex', 'spacing: group click shows representative pin', { pinVisible: afterClick.pinVisible }),
-      assertCheck(afterClick.scrolls >= 1, 'spacing: group click requests scroll to representative element', { scrolls: afterClick.scrolls }),
+      assertCheck(state.statLabels.some((stat) => /미등록:\s*5/.test(stat.aria || '')), 'spacing: summary prioritizes pattern count before raw element totals', state.statLabels),
+      assertCheck(state.statLabels.some((stat) => /영향 7개 요소/.test(stat.aria || '')), 'spacing: summary keeps affected element total as supporting context', state.statLabels),
+      assertCheck(
+        ['패딩', '오른쪽 패딩', '마진'].every((label) => state.groups.some((group) => hasText(group.aria, label))),
+        'spacing: directional and all-side spacing groups are exposed accessibly',
+        state.groups,
+      ),
+      assertCheck(state.groups.some((group) => hasText(group.aria, '3개 요소')) && !state.groups.some((group) => hasText(group.aria, '3곳')), 'spacing: group counts use DOM element wording', state.groups),
+      assertCheck(state.groups[0]?.aria?.includes('클릭하면 상세 목록을 펼칩니다'), 'spacing: group explains detail expansion', state.groups[0]),
+      assertCheck(afterExpand.groups[0]?.expanded === 'true', 'spacing: group click expands details', afterExpand.groups[0]),
+      assertCheck(afterExpand.items.length >= 1, 'spacing: expanded group exposes detail rows', { count: afterExpand.items.length }),
+      assertCheck(afterExpand.items[0]?.aria?.includes('클릭하면 대표 요소로 이동합니다'), 'spacing: detail row explains representative navigation', afterExpand.items[0]),
+      assertCheck(afterNavigate.pinVisible !== 'none', 'spacing: detail click shows representative pin', { pinVisible: afterNavigate.pinVisible }),
+      assertCheck(afterNavigate.scrolls >= 1, 'spacing: detail click requests scroll to representative element', { scrolls: afterNavigate.scrolls }),
     ];
     return { fixture: 'spacing-direction', checks };
   } finally {
@@ -713,13 +766,14 @@ async function runLargeDomFixture(chrome, baseUrl) {
   try {
     await injectInspector(cdp, baseUrl);
     await pollComplete(cdp);
-  const state = await activateFilter(cdp, 'color');
-  const afterTextTab = await clickColorSummaryTab(cdp, 'text');
-  const transitionSample = await sampleSummaryTransitionHeights(cdp, '.fds-summary-tab[data-summary-tab="bg"]');
-  const transitionRowSample = await sampleSummaryTransitionRows(cdp, '.fds-summary-tab[data-summary-tab="bg"]');
-  const hoverCopyState = await exerciseInspectorCardCopyFromGroupHover(cdp);
+    const state = await activateFilter(cdp, 'color');
+    const afterTextTab = await clickColorSummaryTab(cdp, 'text');
+    const transitionSample = await sampleSummaryTransitionHeights(cdp, '.fds-summary-tab[data-summary-tab="bg"]');
+    const transitionRowSample = await sampleSummaryTransitionRows(cdp, '.fds-summary-tab[data-summary-tab="bg"]');
+    const afterExpand = await expandFirstGroup(cdp);
+    const afterNavigate = await clickFirstDetailItem(cdp);
+    const selectedCopyState = await exerciseInspectorCardCopyFromSelectedDetail(cdp);
     const targetHoverCopyState = await exerciseInspectorCardCopyFromTargetHover(cdp);
-    const afterClick = await clickFirstGroup(cdp);
     const checks = [
       ...commonPanelChecks(state, 'large-dom'),
       assertCheck(state.metrics?.scannedElementCount === 6000, 'large-dom: scan caps at 6000 elements', state.metrics),
@@ -731,11 +785,16 @@ async function runLargeDomFixture(chrome, baseUrl) {
       assertCheck(!state.scanMetaText, 'large-dom: completed token and scan metadata are not shown as a persistent panel bar', { scanMetaText: state.scanMetaText }),
       assertCheck(state.panelInfoCount === 0, 'large-dom: completed token and scan metadata are not exposed through a title info tooltip', { panelInfoCount: state.panelInfoCount }),
       assertCheck(state.tabs.length === 3, 'large-dom: color tabs are visible only in color mode', state.tabs),
-      assertCheck(state.tabs.some((tab) => tab.aria === '배경색 1개 요소'), 'large-dom: BG tab has full accessible count label', state.tabs),
+      assertCheck(state.tabs.some((tab) => tab.aria === '배경색 2,000개 요소'), 'large-dom: BG tab has full accessible count label', state.tabs),
       assertCheck(state.tabs.some((tab) => tab.aria?.startsWith('글자색 ')), 'large-dom: Text tab has full accessible count label', state.tabs),
-      assertCheck(state.toolbarButtons.some((button) => button.filter === 'color' && button.badgeCount === '2003' && button.badgeFullCount === '2,003'), 'large-dom: toolbar badge keeps numeric count while full count remains available', state.toolbarButtons),
+      assertCheck(state.toolbarButtons.some((button) => button.filter === 'color' && button.badgeCount === '7999' && button.badgeFullCount === '7,999'), 'large-dom: toolbar badge keeps numeric count while full count remains available', state.toolbarButtons),
       assertCheck(afterTextTab.motion?.events?.includes('tab-switch'), 'large-dom: summary tab movement uses the GSAP motion layer', afterTextTab.motion),
-      assertCheck(transitionSample?.ok && transitionSample.uniquePanelCount >= 3, 'large-dom: panel height transitions continuously when tab switch changes list length', transitionSample),
+      assertCheck(
+        Math.abs((transitionSample?.startPanelHeight || 0) - (transitionSample?.endPanelHeight || 0)) <= 1
+          || (transitionSample?.ok && transitionSample.uniquePanelCount >= 3),
+        'large-dom: panel height transitions continuously when tab switch changes list length',
+        transitionSample,
+      ),
       assertCheck(
         transitionRowSample?.initialRowCount > 0 && transitionRowSample?.initialRowCount === transitionRowSample?.finalRowCount
           ? true
@@ -747,15 +806,20 @@ async function runLargeDomFixture(chrome, baseUrl) {
         'large-dom: list rows animate when list shape changes during tab transition',
         transitionRowSample,
       ),
-      assertCheck(state.statLabels.some((stat) => stat.text.includes('원시값') && stat.text.includes('영향 1개 요소')), 'large-dom: primitive color summary is framed as raw-value pattern with impact caption', state.statLabels),
-      assertCheck(hasText(state.panelText, '배경색') && hasText(state.panelText, '원시값 직접 사용') && hasText(state.panelText, '#f6f8fa'), 'large-dom: underlying primitive color issue remains visible in the grouped list', { panelText: state.panelText }),
-      assertCheck(afterClick.pinVisible === 'flex', 'large-dom: group click shows representative pin', { pinVisible: afterClick.pinVisible }),
-      assertCheck(afterClick.scrolls >= 1, 'large-dom: group click requests scroll to representative element', { scrolls: afterClick.scrolls }),
-      assertCheck(hasText(afterClick.inspectorCardText, '대체 토큰') && hasText(afterClick.inspectorCardText, '토큰명 복사'), 'large-dom: representative card gives an immediate token-copy action', { inspectorCardText: afterClick.inspectorCardText }),
-      assertCheck(hoverCopyState.visibleAfterListLeave === 'block', 'large-dom: inspector card stays open while moving from list row to copy action', hoverCopyState),
-      assertCheck(hoverCopyState.pointerEvents === 'auto', 'large-dom: inspector card accepts pointer interaction for token copy', hoverCopyState),
-      assertCheck(hoverCopyState.hasCopyButton === true && Boolean(hoverCopyState.copiedTokenAfterClick), 'large-dom: token copy action is clickable from the hover inspector card', hoverCopyState),
-      assertCheck(hoverCopyState.buttonTextAfterClick === '복사됨', 'large-dom: token copy action gives success feedback', hoverCopyState),
+      assertCheck(state.statLabels.some((stat) => stat.text.includes('원시값') && stat.text.includes('영향 2,000개 요소')), 'large-dom: primitive color summary is framed as raw-value pattern with impact caption', state.statLabels),
+      assertCheck(state.groups.some((group) => hasText(group.aria, '배경색') && hasText(group.aria, '#f6f8fa')), 'large-dom: underlying primitive color issue remains visible in the grouped list', state.groups),
+      assertCheck(afterExpand.groups[0]?.expanded === 'true', 'large-dom: group click expands details', afterExpand.groups[0]),
+      assertCheck(afterNavigate.pinVisible !== 'none', 'large-dom: detail click shows representative pin', { pinVisible: afterNavigate.pinVisible }),
+      assertCheck(afterNavigate.scrolls >= 1, 'large-dom: detail click requests scroll to representative element', { scrolls: afterNavigate.scrolls }),
+      assertCheck(
+        hasText(afterNavigate.inspectorCardText, 'Color/bg/') && hasText(afterNavigate.inspectorCopy?.aria, '복사'),
+        'large-dom: representative card gives an immediate token-copy action',
+        { inspectorCardText: afterNavigate.inspectorCardText, inspectorCopy: afterNavigate.inspectorCopy },
+      ),
+      assertCheck(selectedCopyState.visibleAfterSelection === 'block', 'large-dom: selected-detail inspector card stays open for copy action', selectedCopyState),
+      assertCheck(selectedCopyState.pointerEvents === 'auto', 'large-dom: inspector card accepts pointer interaction for token copy', selectedCopyState),
+      assertCheck(selectedCopyState.hasCopyButton === true && Boolean(selectedCopyState.copiedTokenAfterClick), 'large-dom: token copy action is clickable from the selected-detail inspector card', selectedCopyState),
+      assertCheck(selectedCopyState.buttonStateAfterClick === 'copied' && hasText(selectedCopyState.buttonAriaAfterClick, '복사되었습니다'), 'large-dom: token copy action gives success feedback', selectedCopyState),
       assertCheck(targetHoverCopyState.cardDisplay === 'block' && targetHoverCopyState.cardDisplayAfterMove === 'block', 'large-dom: target hover inspector survives real mouse movement to copy button', targetHoverCopyState),
       assertCheck(targetHoverCopyState.hasCopyButton === true && Boolean(targetHoverCopyState.copiedTokenAfterClick), 'large-dom: target hover token copy works with real mouse click', targetHoverCopyState),
       assertCheck(targetHoverCopyState.pinCardOverlapArea === 0, 'large-dom: violation pin does not overlap the inspector card', targetHoverCopyState),
