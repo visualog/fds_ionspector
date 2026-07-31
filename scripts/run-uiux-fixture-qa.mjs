@@ -461,6 +461,112 @@ async function clickMouse(cdp, x, y) {
   await cdp.send('Input.dispatchMouseEvent', { ...point, type: 'mouseReleased', buttons: 0 });
 }
 
+async function exerciseInteractionStability(cdp) {
+  for (const filter of ['radius', 'color', 'spacing']) {
+    await evaluate(cdp, `document.querySelector('[data-filter="${filter}"]')?.click()`);
+    await wait(35);
+  }
+
+  const dragStart = await evaluate(cdp, `(() => {
+    const panel = document.querySelector('#fds-summary-panel');
+    const head = panel?.querySelector('.fds-panel-head');
+    const panelRect = panel?.getBoundingClientRect?.();
+    const headRect = head?.getBoundingClientRect?.();
+    if (!panelRect || !headRect) return null;
+    return {
+      panel: { left: panelRect.left, top: panelRect.top },
+      pointer: {
+        x: headRect.left + Math.min(96, Math.max(32, headRect.width / 3)),
+        y: headRect.top + headRect.height / 2,
+      },
+    };
+  })()`);
+  if (!dragStart) return { reason: 'summary panel drag target was not available' };
+
+  const endPoint = {
+    x: Math.max(24, dragStart.pointer.x - 120),
+    y: Math.max(24, dragStart.pointer.y - 80),
+  };
+  const startPoint = {
+    x: Math.round(dragStart.pointer.x),
+    y: Math.round(dragStart.pointer.y),
+    button: 'left',
+  };
+
+  await cdp.send('Input.dispatchMouseEvent', {
+    ...startPoint,
+    type: 'mousePressed',
+    buttons: 1,
+    clickCount: 1,
+  });
+  await cdp.send('Input.dispatchMouseEvent', {
+    x: Math.round((startPoint.x + endPoint.x) / 2),
+    y: Math.round((startPoint.y + endPoint.y) / 2),
+    type: 'mouseMoved',
+    button: 'left',
+    buttons: 1,
+  });
+  await wait(24);
+  await cdp.send('Input.dispatchMouseEvent', {
+    x: Math.round(endPoint.x),
+    y: Math.round(endPoint.y),
+    type: 'mouseMoved',
+    button: 'left',
+    buttons: 1,
+  });
+  await cdp.send('Input.dispatchMouseEvent', {
+    x: Math.round(endPoint.x),
+    y: Math.round(endPoint.y),
+    type: 'mouseReleased',
+    button: 'left',
+    buttons: 0,
+    clickCount: 1,
+  });
+
+  await wait(900);
+  return evaluate(cdp, `(() => {
+    const panel = document.querySelector('#fds-summary-panel');
+    const list = panel?.querySelector('.fds-summary-list');
+    const panelRect = panel?.getBoundingClientRect?.();
+    const panelStyle = panel ? getComputedStyle(panel) : null;
+    const errorEntries = (window.__fdsConsole || []).filter((entry) => entry.level === 'error');
+    return {
+      activeFilter: document.querySelector('#fds-toolbar .fds-btn[data-filter].active')?.dataset?.filter || '',
+      panelTitle: panel?.querySelector('.fds-panel-title')?.textContent?.trim() || '',
+      panelClasses: [...(panel?.classList || [])],
+      bodyClasses: [...(document.body?.classList || [])],
+      panelRect: panelRect ? {
+        left: panelRect.left,
+        right: panelRect.right,
+        top: panelRect.top,
+        bottom: panelRect.bottom,
+      } : null,
+      dragDelta: panelRect ? {
+        x: panelRect.left - ${dragStart.panel.left},
+        y: panelRect.top - ${dragStart.panel.top},
+      } : null,
+      viewport: { width: window.innerWidth, height: window.innerHeight },
+      computedDisplay: panelStyle?.display || '',
+      computedVisibility: panelStyle?.visibility || '',
+      computedOpacity: Number.parseFloat(panelStyle?.opacity || '0'),
+      panelStyles: {
+        opacity: panel?.style?.opacity || '',
+        visibility: panel?.style?.visibility || '',
+        transform: panel?.style?.transform || '',
+        willChange: panel?.style?.willChange || '',
+      },
+      listStyles: {
+        opacity: list?.style?.opacity || '',
+        transform: list?.style?.transform || '',
+        willChange: list?.style?.willChange || '',
+      },
+      transitionGhostCount: panel?.querySelectorAll('.fds-summary-list-transition-ghost')?.length || 0,
+      motionEvents: window.__fdsMotionEvents || [],
+      errorEntries,
+    };
+  })()`);
+}
+
 async function moveMouseInSteps(cdp, from, to, steps = 8, delayMs = 35) {
   for (let index = 1; index <= steps; index += 1) {
     const progress = index / steps;
@@ -475,13 +581,20 @@ async function moveMouseInSteps(cdp, from, to, steps = 8, delayMs = 35) {
 
 async function readInspectorCopyHitState(cdp) {
   return evaluate(cdp, `(() => {
+    const card = document.querySelector('#fds-inspector-card');
     const button = document.querySelector('#fds-inspector-card .fds-token-copy');
     const rect = button?.getBoundingClientRect?.();
     const center = rect ? { x: rect.left + rect.width / 2, y: rect.top + rect.height / 2 } : null;
     const elementAtCenter = center ? document.elementFromPoint(center.x, center.y) : null;
+    const cardStyle = card ? getComputedStyle(card) : null;
     return {
       buttonCenter: center,
       isCopyButton: Boolean(elementAtCenter?.closest?.('.fds-token-copy')),
+      cardDisplay: cardStyle?.display || '',
+      cardVisibility: cardStyle?.visibility || '',
+      cardOpacity: cardStyle?.opacity || '',
+      cardTransform: cardStyle?.transform || '',
+      cardPointerEvents: cardStyle?.pointerEvents || '',
       elementAtCenterClass: elementAtCenter?.className || '',
       elementAtCenterText: elementAtCenter?.textContent || '',
       elementsAtCenter: center
@@ -493,7 +606,7 @@ async function readInspectorCopyHitState(cdp) {
             pointerEvents: getComputedStyle(element).pointerEvents,
           }))
         : [],
-      cardZIndex: getComputedStyle(document.querySelector('#fds-inspector-card')).zIndex,
+      cardZIndex: cardStyle?.zIndex || '',
       shieldZIndex: getComputedStyle(document.querySelector('#fds-page-interaction-shield')).zIndex,
     };
   })()`);
@@ -735,10 +848,57 @@ async function runSpacingFixture(chrome, baseUrl) {
     await injectInspector(cdp, baseUrl);
     await pollComplete(cdp);
     const state = await activateFilter(cdp, 'spacing');
+    const interactionState = await exerciseInteractionStability(cdp);
     const afterExpand = await expandFirstGroup(cdp);
     const afterNavigate = await clickFirstDetailItem(cdp);
     const checks = [
       ...commonPanelChecks(state, 'spacing'),
+      assertCheck(
+        interactionState.activeFilter === 'spacing' && hasText(interactionState.panelTitle, '스페이싱'),
+        'spacing: the last rapid filter selection remains active',
+        interactionState,
+      ),
+      assertCheck(
+        interactionState.motionEvents?.filter((event) => event === 'summary-refresh').length >= 3
+          && interactionState.motionEvents?.filter((event) => event === 'summary-panel-move').length >= 2,
+        'spacing: rapid filter changes interrupt active summary animations',
+        interactionState.motionEvents,
+      ),
+      assertCheck(
+        Math.abs(interactionState.dragDelta?.x || 0) >= 40 || Math.abs(interactionState.dragDelta?.y || 0) >= 40,
+        'spacing: summary panel remains movable while filter motion is interrupted',
+        interactionState,
+      ),
+      assertCheck(
+        interactionState.computedDisplay === 'block'
+          && interactionState.computedVisibility === 'visible'
+          && interactionState.computedOpacity >= 0.99,
+        'spacing: interrupted panel motion recovers to a visible state',
+        interactionState,
+      ),
+      assertCheck(
+        !interactionState.panelClasses.includes('is-resizing')
+          && !interactionState.panelClasses.includes('is-dragging')
+          && !interactionState.bodyClasses.includes('fds-panel-dragging')
+          && Object.values(interactionState.panelStyles || {}).every((value) => value === '')
+          && Object.values(interactionState.listStyles || {}).every((value) => value === '')
+          && interactionState.transitionGhostCount === 0,
+        'spacing: interrupted animations and panel drag leave no transient styles or classes',
+        interactionState,
+      ),
+      assertCheck(
+        interactionState.panelRect?.left >= 0
+          && interactionState.panelRect?.right <= interactionState.viewport?.width + 1
+          && interactionState.panelRect?.top >= 0
+          && interactionState.panelRect?.bottom <= interactionState.viewport?.height + 1,
+        'spacing: moved summary panel stays inside the viewport',
+        interactionState,
+      ),
+      assertCheck(
+        interactionState.errorEntries?.length === 0,
+        'spacing: rapid interaction sequence produces no runtime errors',
+        interactionState.errorEntries,
+      ),
       assertCheck(state.tabs.length === 0, 'spacing: color-only tabs are hidden', state.tabs),
       assertCheck(state.statLabels.some((stat) => /미등록:\s*5/.test(stat.aria || '')), 'spacing: summary prioritizes pattern count before raw element totals', state.statLabels),
       assertCheck(state.statLabels.some((stat) => /영향 7개 요소/.test(stat.aria || '')), 'spacing: summary keeps affected element total as supporting context', state.statLabels),
