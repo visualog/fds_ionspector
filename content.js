@@ -702,8 +702,6 @@ function addIssueEntry({ category, message, element, metadata = null }) {
   const tone = getIssueTone(message);
   const signature = getElementIssueSignature(element);
   const key = `${normalizedCategory}|${colorPart || 'all'}|${message}|${signature}`;
-  const existingEntry = scanData.issueEntries.find((entry) => entry.key === key);
-  if (existingEntry) return existingEntry;
 
   const entry = {
     id: scanData.issueEntries.length + 1,
@@ -3503,7 +3501,7 @@ async function runSingleScanPass() {
     markElement: () => {},
     yieldToBrowser,
   });
-  scanData = await runner.run({ filters: FILTER_KEYS, activeFilter, collectAllEntries: !activeFilter });
+  scanData = await runner.run({ filters: FILTER_KEYS, activeFilter, collectAllEntries: true });
   if (!isExtensionVisible || isDismissedByUser) {
     clearInspectionMarks();
     return scanData;

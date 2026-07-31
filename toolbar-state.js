@@ -115,7 +115,7 @@
         ]),
       }),
       [TOOLBAR_MODES.DEFAULT]: Object.freeze({
-        width: 336,
+        width: 384,
         items: Object.freeze([
           { type: 'static', id: 'fds-btn-move', kind: 'move' },
           { type: 'divider', id: 'fds-divider-a' },
@@ -123,6 +123,7 @@
           { type: 'button', ref: 'font' },
           { type: 'button', ref: 'spacing' },
           { type: 'button', ref: 'radius' },
+          { type: 'button', ref: 'refresh' },
           { type: 'divider', id: 'fds-divider-d' },
           { type: 'button', ref: 'close' },
         ]),
@@ -195,7 +196,7 @@
     const usesBadgeIndicator = indicator === 'badge';
     const badgeLabel = badgeFullCount
       ? [
-        `${BUTTON_META[key]?.title || key} ${badgeFullCount}개 위반 요소`,
+        `${BUTTON_META[key]?.title || key} ${badgeFullCount}개 위반 항목`,
         scanScopeText,
       ].filter(Boolean).join(' · ')
       : '';

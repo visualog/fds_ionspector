@@ -23,6 +23,7 @@ const contentScripts = [
   'content-state-utils.js',
   'content-inspection.js',
   'content-summary-model.js',
+  'content-violation-report.js',
   'content-summary-panel.js',
   'content-toolbar-ui.js',
   'content-bridge-specs.js',
