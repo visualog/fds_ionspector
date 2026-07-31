@@ -105,6 +105,24 @@ test('FDSMotion uses GSAP for inspector card, pin, and copy feedback', () => {
   assert.equal(calls.filter(([name]) => name === 'fromTo').length, 3);
 });
 
+test('inspector card remains pointer-hittable while its entry animation runs', () => {
+  const { calls, gsap } = createGsapRecorder();
+  const motion = createFDSMotion({
+    gsap,
+    matchMedia: () => ({ matches: false }),
+  });
+  const card = { id: 'card' };
+
+  assert.equal(motion.animateInspectorCard(card), true);
+
+  const cardCall = calls.find(([name, target]) => name === 'fromTo' && target === card);
+  assert.ok(cardCall);
+  assert.equal(cardCall[2].opacity, 0);
+  assert.equal(cardCall[2].autoAlpha, undefined);
+  assert.equal(cardCall[3].opacity, 1);
+  assert.equal(cardCall[3].autoAlpha, undefined);
+});
+
 test('FDSMotion animates summary panel movement from the previous position', () => {
   const { calls, gsap } = createGsapRecorder();
   const motion = createFDSMotion({

@@ -215,6 +215,29 @@
     return String(value || '').replace(/\s+/g, ' ').trim();
   }
 
+  function getCssEvidence(entry = {}) {
+    const evidence = entry?.metadata?.cssEvidence;
+    if (!evidence || typeof evidence !== 'object') return null;
+    return evidence;
+  }
+
+  function createCssEvidenceHtml(entry = {}) {
+    const evidence = getCssEvidence(entry);
+    if (!evidence) return '';
+    const rows = [
+      ['속성', evidence.property],
+      ['계산값', evidence.computedValue],
+      ['작성 선언', evidence.declaration || '확인 불가'],
+      ['선택자', evidence.selector || '확인 불가'],
+      ['출처', evidence.source || '확인 불가'],
+    ];
+    return `
+      <div class="css-evidence" aria-label="CSS 근거">
+        <dl>${rows.map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd><code>${escapeHtml(value)}</code></dd>`).join('')}</dl>
+      </div>
+    `;
+  }
+
   function createCategoryCounts(entries = []) {
     const counts = {};
     CATEGORY_ORDER.forEach((category) => {
@@ -354,6 +377,14 @@
     const locations = group.entries.map((entry, index) => {
       const note = getReportEntryNote(entry, getViolationNoteForEntry);
       const lines = [`${index + 1}. ${getEntryPageLocation(entry)}`];
+      const evidence = getCssEvidence(entry);
+      if (evidence) {
+        lines.push(`   - CSS 속성: ${formatMarkdownLine(evidence.property || '확인 불가')}`);
+        lines.push(`   - 계산값: ${formatMarkdownLine(evidence.computedValue || '확인 불가')}`);
+        lines.push(`   - 작성 선언: ${formatMarkdownLine(evidence.declaration || '확인 불가')}`);
+        lines.push(`   - 선택자: ${formatMarkdownLine(evidence.selector || '확인 불가')}`);
+        lines.push(`   - 출처: ${formatMarkdownLine(evidence.source || '확인 불가')}`);
+      }
       if (note) lines.push(`   - 사용자 메모: ${formatMarkdownLine(note.text)}`);
       return lines.join('\n');
     }).join('\n');
@@ -434,7 +465,11 @@
       const noteHtml = note
         ? `<div class="path-note"><span>사용자 메모</span><p>${escapeHtml(note.text)}</p></div>`
         : '';
-      return `<tr class="path-row" tabindex="0" aria-expanded="false" data-path-row data-compact-path="${escapeHtml(compactLocation)}" data-full-path="${escapeHtml(pageLocation)}"><td><code class="path-compact"><span class="path-view path-view-compact">${compactPathHtml}</span><span class="path-view path-view-full">${fullPathHtml}</span></code>${noteHtml}</td></tr>`;
+      const evidenceHtml = createCssEvidenceHtml(entry);
+      const evidenceRow = evidenceHtml
+        ? `<tr class="css-evidence-row"><td>${evidenceHtml}</td></tr>`
+        : '';
+      return `<tr class="path-row" tabindex="0" aria-expanded="false" data-path-row data-compact-path="${escapeHtml(compactLocation)}" data-full-path="${escapeHtml(pageLocation)}"><td><code class="path-compact"><span class="path-view path-view-compact">${compactPathHtml}</span><span class="path-view path-view-full">${fullPathHtml}</span></code>${noteHtml}</td></tr>${evidenceRow}`;
     }).join('');
 
     return `
@@ -890,6 +925,34 @@
         margin: 0;
         color: var(--text);
         white-space: pre-wrap;
+      }
+      .css-evidence-row td {
+        padding-top: 0;
+        background: #fbfcfe;
+      }
+      .css-evidence {
+        padding: 8px 10px;
+        border: 1px solid var(--line);
+        border-radius: 6px;
+        background: var(--surface);
+      }
+      .css-evidence dl {
+        display: grid;
+        grid-template-columns: 72px minmax(0, 1fr);
+        gap: 5px 10px;
+        margin: 0;
+        font-size: 11px;
+        line-height: 16px;
+      }
+      .css-evidence dt {
+        color: var(--muted);
+        font-weight: 700;
+      }
+      .css-evidence dd {
+        min-width: 0;
+        margin: 0;
+        overflow-wrap: anywhere;
+        color: var(--text);
       }
       tr:last-child th,
       tr:last-child td {
