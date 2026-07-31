@@ -7,7 +7,7 @@ const {
   isCssVariableReference,
 } = require('./style-token-detection.js');
 
-function createStyle(declarations = {}) {
+function createStyle(declarations = {}, priorities = {}) {
   return {
     length: Object.keys(declarations).length,
     item(index) {
@@ -16,8 +16,8 @@ function createStyle(declarations = {}) {
     getPropertyValue(property) {
       return declarations[property] || '';
     },
-    getPropertyPriority() {
-      return '';
+    getPropertyPriority(property) {
+      return priorities[property] || '';
     },
   };
 }
@@ -105,6 +105,38 @@ test('getAuthoredStyleEvidence reports inline declarations as the source', () =>
       source: 'inline style',
     }
   );
+});
+
+test('getAuthoredStyleEvidence prefers an important longhand over a later shorthand in one rule', () => {
+  const element = {
+    matches(selector) {
+      return selector === '.card';
+    },
+  };
+  const root = {
+    styleSheets: [
+      {
+        cssRules: [
+          {
+            selectorText: '.card',
+            style: createStyle(
+              {
+                'padding-right': 'var(--fds-spacing-md)',
+                padding: '14px',
+              },
+              { 'padding-right': 'important' }
+            ),
+          },
+        ],
+      },
+    ],
+  };
+
+  const evidence = getAuthoredStyleEvidence(element, ['padding-right', 'padding'], '16px', root);
+
+  assert.equal(evidence.authoredProperty, 'padding-right');
+  assert.equal(evidence.authoredValue, 'var(--fds-spacing-md)');
+  assert.equal(evidence.declaration, 'padding-right: var(--fds-spacing-md) !important');
 });
 
 test('isCssVariableReference detects authored CSS variable values', () => {

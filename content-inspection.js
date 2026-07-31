@@ -210,7 +210,7 @@
         const font = styles.fontFamily.split(',')[0].replace(/"/g, '');
         if (!activeSpecs.fonts.some((item) => font.includes(item))) {
           issues.push(`서체 '${font}' (차단)`);
-          issueDetails.push(withCssEvidence(null, element, ['font-family'], styles.fontFamily));
+          issueDetails.push(withCssEvidence(null, element, ['font-family', 'font'], styles.fontFamily));
         }
       } else if (filter === 'spacing') {
         const boxSides = [

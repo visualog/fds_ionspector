@@ -3,6 +3,7 @@ const assert = require('node:assert/strict');
 
 const { createContentInspector } = require('./content-inspection.js');
 const { createContentScanUtils } = require('./content-scan-utils.js');
+const { getAuthoredStyleEvidence: getRealAuthoredStyleEvidence } = require('./style-token-detection.js');
 
 const scanUtils = createContentScanUtils({
   parseViolationItem: () => ({}),
@@ -122,6 +123,26 @@ test('color, font, and radius violations include CSS evidence metadata', () => {
   assert.equal(font.issueDetails[0].cssEvidence.computedValue, 'Inter, sans-serif');
   assert.equal(radius.issueDetails[0].cssEvidence.property, 'border-radius');
   assert.equal(radius.issueDetails[0].cssEvidence.computedValue, '10px');
+});
+
+test('font violations capture an authored font shorthand declaration', () => {
+  const inspector = createInspector({ getAuthoredStyleEvidence: getRealAuthoredStyleEvidence });
+  const element = {
+    style: {
+      length: 1,
+      item: () => 'font',
+      getPropertyValue: (property) => (
+        property === 'font' ? 'italic 600 16px/1.5 Inter, sans-serif' : ''
+      ),
+      getPropertyPriority: () => '',
+    },
+  };
+
+  const result = inspector.getInspectionForFilter('font', { fontFamily: 'Inter, sans-serif' }, element);
+
+  assert.equal(result.issueDetails[0].cssEvidence.property, 'font-family');
+  assert.equal(result.issueDetails[0].cssEvidence.authoredProperty, 'font');
+  assert.equal(result.issueDetails[0].cssEvidence.declaration, 'font: italic 600 16px/1.5 Inter, sans-serif');
 });
 
 test('spacing inspection labels equal four-side margin as margin', () => {

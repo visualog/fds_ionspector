@@ -93,11 +93,14 @@
     candidateProperties.forEach((property) => {
       const value = readDeclarationValue(style, property).trim();
       if (!value) return;
-      declaration = {
+      const candidate = {
         property,
         value,
         important: readDeclarationPriority(style, property).toLowerCase() === 'important',
       };
+      if (!declaration || candidate.important || !declaration.important) {
+        declaration = candidate;
+      }
     });
     return declaration;
   }
