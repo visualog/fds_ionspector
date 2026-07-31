@@ -35,12 +35,6 @@
     if (!element || !properties?.length) return false;
     let latestValue = '';
 
-    const inlineStyle = element.style;
-    properties.forEach((property) => {
-      const value = readDeclarationValue(inlineStyle, property).trim();
-      if (value) latestValue = value;
-    });
-
     Array.from(root?.styleSheets || []).forEach((sheet) => {
       let rules;
       try {
@@ -56,6 +50,12 @@
           if (value) latestValue = value;
         });
       });
+    });
+
+    const inlineStyle = element.style;
+    properties.forEach((property) => {
+      const value = readDeclarationValue(inlineStyle, property).trim();
+      if (value) latestValue = value;
     });
 
     return isCssVariableReference(latestValue);
