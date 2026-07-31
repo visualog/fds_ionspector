@@ -155,6 +155,19 @@ test('UI fixture loads the violation report dependency before the content script
   );
 });
 
+test('UI fixture covers rapid filter switching while the summary panel is dragged', () => {
+  const fixtureSource = fs.readFileSync(
+    path.join(__dirname, 'scripts', 'run-uiux-fixture-qa.mjs'),
+    'utf8'
+  );
+
+  assert.match(fixtureSource, /async function exerciseInteractionStability\(cdp\)/);
+  assert.match(fixtureSource, /for \(const filter of \['radius', 'color', 'spacing'\]\)/);
+  assert.match(fixtureSource, /Input\.dispatchMouseEvent[\s\S]*type: 'mousePressed'[\s\S]*type: 'mouseMoved'[\s\S]*type: 'mouseReleased'/);
+  assert.match(fixtureSource, /interactionState\.panelClasses\.includes\('is-resizing'\)/);
+  assert.match(fixtureSource, /await exerciseInteractionStability\(cdp\)/);
+});
+
 test('browser action toggles from the content script visible state', () => {
   const backgroundSource = fs.readFileSync(path.join(__dirname, 'background.js'), 'utf8');
   const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
