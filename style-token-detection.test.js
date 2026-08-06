@@ -289,6 +289,49 @@ test('getAuthoredTokenReferenceStatus preserves permissive behavior until a regi
   );
 });
 
+test('getAuthoredTokenReferenceStatus accepts a registered color variable inherited from a parent', () => {
+  const parent = {
+    matches(selector) {
+      return selector === '.text-text-secondary';
+    },
+    style: createStyle(),
+  };
+  const child = {
+    matches() {
+      return false;
+    },
+    parentElement: parent,
+    style: createStyle(),
+  };
+  const root = {
+    styleSheets: [
+      {
+        cssRules: [
+          {
+            selectorText: '.text-text-secondary',
+            style: createStyle({ color: 'var(--color-text-secondary)' }),
+          },
+        ],
+      },
+    ],
+  };
+
+  assert.deepEqual(
+    getAuthoredTokenReferenceStatus(
+      child,
+      ['color'],
+      root,
+      { '--color-text-secondary': ['Color/text/secondary'] },
+      { includeInherited: true }
+    ),
+    {
+      status: 'registered',
+      variables: ['--color-text-secondary'],
+      unregisteredVariables: [],
+    }
+  );
+});
+
 test('hasAuthoredTokenReference detects matching rule declarations', () => {
   const element = {
     matches(selector) {

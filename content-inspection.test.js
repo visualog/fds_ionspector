@@ -12,6 +12,7 @@ const scanUtils = createContentScanUtils({
 function createInspector({
   tokenReference = false,
   tokenReferenceStatus = null,
+  getAuthoredTokenReferenceStatus = null,
   getKnownColorTokens = () => [],
   rgbToHex = (value) => value,
   getAuthoredStyleEvidence = (_element, properties, computedValue) => ({
@@ -41,11 +42,11 @@ function createInspector({
     getKnownColorTokens,
     getAuthoredStyleEvidence,
     hasAuthoredTokenReference: () => tokenReference,
-    getAuthoredTokenReferenceStatus: () => tokenReferenceStatus || {
+    getAuthoredTokenReferenceStatus: getAuthoredTokenReferenceStatus || (() => tokenReferenceStatus || {
       status: tokenReference ? 'legacy' : 'none',
       variables: [],
       unregisteredVariables: [],
-    },
+    }),
     hasDirectTextContent: () => true,
     rgbToHex,
   });
@@ -300,4 +301,31 @@ test('color inspection keeps legacy CSS variable acceptance while no registry is
   }, {});
 
   assert.deepEqual(result.issues, []);
+});
+
+test('color inspection requests inherited variable detection for text colors', () => {
+  const requests = [];
+  const inspector = createInspector({
+    getAuthoredTokenReferenceStatus: (_element, properties, options) => {
+      requests.push({ properties, options });
+      return {
+        status: properties.includes('color') ? 'registered' : 'none',
+        variables: [],
+        unregisteredVariables: [],
+      };
+    },
+  });
+
+  const result = inspector.getInspectionForFilter('color', {
+    backgroundColor: '',
+    color: '#717985',
+    borderTopWidth: '0px',
+    borderTopColor: '',
+  }, {});
+
+  assert.deepEqual(result.issues, []);
+  assert.deepEqual(
+    requests.find(({ properties }) => properties.length === 1 && properties[0] === 'color').options,
+    { includeInherited: true }
+  );
 });

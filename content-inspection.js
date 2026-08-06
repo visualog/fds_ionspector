@@ -23,9 +23,9 @@
       return evidence ? { ...detail, cssEvidence: evidence } : Object.keys(detail).length ? detail : null;
     }
 
-    function getTokenReferenceStatus(element, properties) {
+    function getTokenReferenceStatus(element, properties, options = {}) {
       if (typeof getAuthoredTokenReferenceStatus === 'function') {
-        const status = getAuthoredTokenReferenceStatus(element, properties);
+        const status = getAuthoredTokenReferenceStatus(element, properties, options);
         if (status && typeof status.status === 'string') return status;
       }
       return {
@@ -288,7 +288,7 @@
           'border-top',
         ];
         const bgTokenReferenceStatus = getTokenReferenceStatus(element, bgProperties);
-        const textTokenReferenceStatus = getTokenReferenceStatus(element, textProperties);
+        const textTokenReferenceStatus = getTokenReferenceStatus(element, textProperties, { includeInherited: true });
         const borderTokenReferenceStatus = getTokenReferenceStatus(element, borderProperties);
 
         if (bg && bgTokenReferenceStatus.status === 'unregistered') {

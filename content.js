@@ -133,11 +133,12 @@ const { getInspectionForFilter } = createContentInspector({
   getKnownColorTokens,
   getAuthoredStyleEvidence,
   hasAuthoredTokenReference,
-  getAuthoredTokenReferenceStatus: (element, properties) => getAuthoredTokenReferenceStatus(
+  getAuthoredTokenReferenceStatus: (element, properties, options = {}) => getAuthoredTokenReferenceStatus(
     element,
     properties,
     document,
-    getAllowedCssVariables()
+    getAllowedCssVariables(),
+    options
   ),
   hasDirectTextContent,
   rgbToHex,

@@ -255,13 +255,28 @@
     element,
     properties,
     root = globalScope.document,
-    allowedVariables = {}
+    allowedVariables = {},
+    { includeInherited = false } = {}
   ) {
     if (!element || !properties?.length) {
       return { status: 'none', variables: [], unregisteredVariables: [] };
     }
 
-    const evidence = getAuthoredStyleEvidence(element, properties, '', root);
+    let currentElement = element;
+    let evidence = null;
+    const visitedElements = new Set();
+
+    while (currentElement && !visitedElements.has(currentElement)) {
+      visitedElements.add(currentElement);
+      evidence = getAuthoredStyleEvidence(currentElement, properties, '', root);
+      const authoredValue = String(evidence?.authoredValue || '').trim().toLowerCase();
+      if (authoredValue && !['inherit', 'unset', 'revert', 'revert-layer'].includes(authoredValue)) {
+        break;
+      }
+      if (!includeInherited) break;
+      currentElement = currentElement.parentElement;
+    }
+
     const variables = extractCssVariableReferences(evidence?.authoredValue);
     if (!variables.length) {
       return { status: 'none', variables, unregisteredVariables: [] };
