@@ -3,6 +3,23 @@
     return /\bvar\(\s*--[^)]+\)/.test(String(value || ''));
   }
 
+  function extractCssVariableReferences(value) {
+    const variables = [];
+    const seen = new Set();
+    const matcher = /var\(\s*(--[a-zA-Z0-9_-]+)/g;
+    const text = String(value || '');
+    let match = matcher.exec(text);
+    while (match) {
+      const variableName = match[1];
+      if (!seen.has(variableName)) {
+        seen.add(variableName);
+        variables.push(variableName);
+      }
+      match = matcher.exec(text);
+    }
+    return variables;
+  }
+
   function readDeclarationValue(style, property) {
     if (!style || !property) return '';
     if (typeof style.getPropertyValue === 'function') {
@@ -234,7 +251,42 @@
     return isCssVariableReference(evidence?.authoredValue);
   }
 
-  const api = { getAuthoredStyleEvidence, hasAuthoredTokenReference, isCssVariableReference };
+  function getAuthoredTokenReferenceStatus(
+    element,
+    properties,
+    root = globalScope.document,
+    allowedVariables = {}
+  ) {
+    if (!element || !properties?.length) {
+      return { status: 'none', variables: [], unregisteredVariables: [] };
+    }
+
+    const evidence = getAuthoredStyleEvidence(element, properties, '', root);
+    const variables = extractCssVariableReferences(evidence?.authoredValue);
+    if (!variables.length) {
+      return { status: 'none', variables, unregisteredVariables: [] };
+    }
+
+    const registeredNames = new Set(Object.keys(allowedVariables || {}));
+    if (!registeredNames.size) {
+      return { status: 'legacy', variables, unregisteredVariables: [] };
+    }
+
+    const unregisteredVariables = variables.filter((variableName) => !registeredNames.has(variableName));
+    return {
+      status: unregisteredVariables.length ? 'unregistered' : 'registered',
+      variables,
+      unregisteredVariables,
+    };
+  }
+
+  const api = {
+    extractCssVariableReferences,
+    getAuthoredStyleEvidence,
+    getAuthoredTokenReferenceStatus,
+    hasAuthoredTokenReference,
+    isCssVariableReference,
+  };
 
   if (typeof module !== 'undefined' && module.exports) {
     module.exports = api;

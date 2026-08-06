@@ -3,6 +3,8 @@ const assert = require('node:assert/strict');
 
 const {
   getAuthoredStyleEvidence,
+  extractCssVariableReferences,
+  getAuthoredTokenReferenceStatus,
   hasAuthoredTokenReference,
   isCssVariableReference,
 } = require('./style-token-detection.js');
@@ -217,6 +219,74 @@ test('isCssVariableReference detects authored CSS variable values', () => {
   assert.equal(isCssVariableReference('linear-gradient(var(--fds-a), #fff)'), true);
   assert.equal(isCssVariableReference('#f6f8fa'), false);
   assert.equal(isCssVariableReference(), false);
+});
+
+test('extractCssVariableReferences returns every CSS variable from nested fallback values', () => {
+  assert.deepEqual(
+    extractCssVariableReferences('var(--color-text-primary, var(--color-text-fallback))'),
+    ['--color-text-primary', '--color-text-fallback']
+  );
+  assert.deepEqual(extractCssVariableReferences('#f6f8fa'), []);
+});
+
+test('getAuthoredTokenReferenceStatus accepts only registered CSS variables when a registry is available', () => {
+  const element = {
+    matches(selector) {
+      return selector === '.target';
+    },
+  };
+  const root = {
+    styleSheets: [
+      {
+        cssRules: [
+          { selectorText: '.target', style: createStyle({ color: 'var(--color-text-primary)' }) },
+        ],
+      },
+    ],
+  };
+
+  assert.deepEqual(
+    getAuthoredTokenReferenceStatus(element, ['color'], root, {
+      '--color-text-primary': ['Color/text/primary'],
+    }),
+    {
+      status: 'registered',
+      variables: ['--color-text-primary'],
+      unregisteredVariables: [],
+    }
+  );
+});
+
+test('getAuthoredTokenReferenceStatus flags unknown CSS variables even when a known fallback is present', () => {
+  const element = {
+    style: createStyle({ color: 'var(--custom-brand, var(--color-text-primary))' }),
+  };
+
+  assert.deepEqual(
+    getAuthoredTokenReferenceStatus(element, ['color'], { styleSheets: [] }, {
+      '--color-text-primary': ['Color/text/primary'],
+    }),
+    {
+      status: 'unregistered',
+      variables: ['--custom-brand', '--color-text-primary'],
+      unregisteredVariables: ['--custom-brand'],
+    }
+  );
+});
+
+test('getAuthoredTokenReferenceStatus preserves permissive behavior until a registry is available', () => {
+  const element = {
+    style: createStyle({ color: 'var(--custom-brand)' }),
+  };
+
+  assert.deepEqual(
+    getAuthoredTokenReferenceStatus(element, ['color'], { styleSheets: [] }, {}),
+    {
+      status: 'legacy',
+      variables: ['--custom-brand'],
+      unregisteredVariables: [],
+    }
+  );
 });
 
 test('hasAuthoredTokenReference detects matching rule declarations', () => {
