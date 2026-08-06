@@ -221,6 +221,10 @@
     return evidence;
   }
 
+  function getCssEvidenceConfidenceLabel(confidence) {
+    return ({ high: '높음', medium: '보통', low: '낮음' })[confidence] || '확인 필요';
+  }
+
   function createCssEvidenceHtml(entry = {}) {
     const evidence = getCssEvidence(entry);
     if (!evidence) return '';
@@ -231,6 +235,12 @@
       ['선택자', evidence.selector || '확인 불가'],
       ['출처', evidence.source || '확인 불가'],
     ];
+    if (evidence.confidence) {
+      rows.push(
+        ['판정 신뢰도', getCssEvidenceConfidenceLabel(evidence.confidence)],
+        ['판정 근거', evidence.confidenceReason || '확인 필요'],
+      );
+    }
     return `
       <div class="css-evidence" aria-label="CSS 근거">
         <dl>${rows.map(([label, value]) => `<dt>${escapeHtml(label)}</dt><dd><code>${escapeHtml(value)}</code></dd>`).join('')}</dl>
@@ -384,6 +394,10 @@
         lines.push(`   - 작성 선언: ${formatMarkdownLine(evidence.declaration || '확인 불가')}`);
         lines.push(`   - 선택자: ${formatMarkdownLine(evidence.selector || '확인 불가')}`);
         lines.push(`   - 출처: ${formatMarkdownLine(evidence.source || '확인 불가')}`);
+        if (evidence.confidence) {
+          lines.push(`   - 판정 신뢰도: ${getCssEvidenceConfidenceLabel(evidence.confidence)}`);
+          lines.push(`   - 판정 근거: ${formatMarkdownLine(evidence.confidenceReason || '확인 필요')}`);
+        }
       }
       if (note) lines.push(`   - 사용자 메모: ${formatMarkdownLine(note.text)}`);
       return lines.join('\n');

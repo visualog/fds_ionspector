@@ -1874,6 +1874,10 @@ function renderSuggestedTokenRows(tokens = []) {
   `).join('');
 }
 
+function getCssEvidenceConfidenceLabel(confidence) {
+  return ({ high: '높음', medium: '보통', low: '낮음' })[confidence] || '확인 필요';
+}
+
 function renderCssEvidence(entry) {
   const evidence = entry?.metadata?.cssEvidence;
   if (!evidence) return '';
@@ -1884,6 +1888,12 @@ function renderCssEvidence(entry) {
     ['선택자', evidence.selector || '확인 불가'],
     ['출처', evidence.source || '확인 불가'],
   ];
+  if (evidence.confidence) {
+    rows.push(
+      ['판정 신뢰도', getCssEvidenceConfidenceLabel(evidence.confidence)],
+      ['판정 근거', evidence.confidenceReason || '확인 필요'],
+    );
+  }
   return `
     <dl class="fds-css-evidence" aria-label="CSS 근거">
       ${rows.map(([label, value]) => `

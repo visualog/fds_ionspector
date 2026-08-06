@@ -52,8 +52,77 @@ test('getAuthoredStyleEvidence captures property, values, selector, and styleshe
       declaration: 'padding-right: 14px',
       selector: '.card',
       source: 'https://example.test/assets/layout.css',
+      confidence: 'high',
+      confidenceReason: '작성 CSS 선언과 적용 선택자를 확인함',
     }
   );
+});
+
+test('getAuthoredStyleEvidence marks a fully inspectable winning declaration as high confidence', () => {
+  const element = {
+    matches(selector) {
+      return selector === '.card';
+    },
+    style: createStyle(),
+  };
+  const root = {
+    styleSheets: [
+      {
+        href: 'https://example.test/assets/layout.css',
+        cssRules: [
+          { selectorText: '.card', style: createStyle({ 'padding-right': '14px' }) },
+        ],
+      },
+    ],
+  };
+
+  const evidence = getAuthoredStyleEvidence(element, ['padding-right'], '14px', root);
+
+  assert.equal(evidence.confidence, 'high');
+  assert.match(evidence.confidenceReason, /작성 CSS 선언과 적용 선택자/);
+});
+
+test('getAuthoredStyleEvidence marks evidence as medium confidence when a stylesheet is inaccessible', () => {
+  const element = {
+    matches(selector) {
+      return selector === '.card';
+    },
+    style: createStyle(),
+  };
+  const inaccessibleSheet = {};
+  Object.defineProperty(inaccessibleSheet, 'cssRules', {
+    get() {
+      throw new Error('SecurityError');
+    },
+  });
+  const root = {
+    styleSheets: [
+      inaccessibleSheet,
+      {
+        href: 'https://example.test/assets/layout.css',
+        cssRules: [
+          { selectorText: '.card', style: createStyle({ 'padding-right': '14px' }) },
+        ],
+      },
+    ],
+  };
+
+  const evidence = getAuthoredStyleEvidence(element, ['padding-right'], '14px', root);
+
+  assert.equal(evidence.confidence, 'medium');
+  assert.match(evidence.confidenceReason, /일부 스타일시트/);
+});
+
+test('getAuthoredStyleEvidence marks computed-only evidence as low confidence', () => {
+  const evidence = getAuthoredStyleEvidence(
+    { style: createStyle() },
+    ['border-radius'],
+    '10px',
+    { styleSheets: [] }
+  );
+
+  assert.equal(evidence.confidence, 'low');
+  assert.match(evidence.confidenceReason, /작성 CSS 선언을 확인할 수 없음/);
 });
 
 test('getAuthoredStyleEvidence prefers a more specific matching selector over a later rule', () => {
@@ -84,6 +153,8 @@ test('getAuthoredStyleEvidence prefers a more specific matching selector over a 
       declaration: 'color: #172033',
       selector: '#checkout',
       source: '<style id="checkout-styles">',
+      confidence: 'high',
+      confidenceReason: '작성 CSS 선언과 적용 선택자를 확인함',
     }
   );
 });
@@ -103,6 +174,8 @@ test('getAuthoredStyleEvidence reports inline declarations as the source', () =>
       declaration: 'border-radius: 10px',
       selector: 'style attribute',
       source: 'inline style',
+      confidence: 'high',
+      confidenceReason: '작성 CSS 선언과 적용 선택자를 확인함',
     }
   );
 });

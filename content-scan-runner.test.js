@@ -755,6 +755,8 @@ test('inspector hover card renders captured CSS evidence', () => {
   assert.match(contentSource, /\['작성 선언', evidence\.declaration \|\| '확인 불가'\]/);
   assert.match(contentSource, /\['선택자', evidence\.selector \|\| '확인 불가'\]/);
   assert.match(contentSource, /\['출처', evidence\.source \|\| '확인 불가'\]/);
+  assert.match(contentSource, /\['판정 신뢰도', getCssEvidenceConfidenceLabel\(evidence\.confidence\)\]/);
+  assert.match(contentSource, /\['판정 근거', evidence\.confidenceReason \|\| '확인 필요'\]/);
   assert.match(contentSource, /\$\{renderCssEvidence\(entry\)\}/);
   assert.match(styleSource, /\.fds-css-evidence\s*\{[\s\S]*display:\s*grid/);
   assert.match(styleSource, /\.fds-css-evidence-label\s*\{[\s\S]*color:/);

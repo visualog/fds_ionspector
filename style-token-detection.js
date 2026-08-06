@@ -129,6 +129,25 @@
     return Boolean(selectorText && getMatchingSelectors(element, selectorText).length);
   }
 
+  function getEvidenceConfidence(winner, hasInaccessibleStyleSheet) {
+    if (!winner) {
+      return {
+        confidence: 'low',
+        confidenceReason: '작성 CSS 선언을 확인할 수 없음',
+      };
+    }
+    if (hasInaccessibleStyleSheet) {
+      return {
+        confidence: 'medium',
+        confidenceReason: '일부 스타일시트에 접근할 수 없어 우선순위가 달라질 수 있음',
+      };
+    }
+    return {
+      confidence: 'high',
+      confidenceReason: '작성 CSS 선언과 적용 선택자를 확인함',
+    };
+  }
+
   function visitCssRules(rules, visitor) {
     Array.from(rules || []).forEach((rule) => {
       if (rule?.cssRules) {
@@ -142,12 +161,14 @@
     if (!element || !properties?.length) return null;
     let winner = null;
     let order = 0;
+    let hasInaccessibleStyleSheet = false;
 
     Array.from(root?.styleSheets || []).forEach((sheet) => {
       let rules;
       try {
         rules = sheet.cssRules;
       } catch {
+        hasInaccessibleStyleSheet = true;
         return;
       }
 
@@ -181,6 +202,7 @@
     }
 
     const targetProperty = properties[0];
+    const confidence = getEvidenceConfidence(winner, hasInaccessibleStyleSheet);
     if (!winner) {
       return {
         property: targetProperty,
@@ -190,6 +212,7 @@
         declaration: '',
         selector: '',
         source: '작성 CSS 확인 불가',
+        ...confidence,
       };
     }
 
@@ -201,6 +224,7 @@
       declaration: `${winner.property}: ${winner.value}${winner.important ? ' !important' : ''}`,
       selector: winner.selector,
       source: winner.source,
+      ...confidence,
     };
   }
 

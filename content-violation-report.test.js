@@ -94,6 +94,8 @@ test('createViolationReportHtml groups every violation into a styled savable rep
               declaration: 'padding-right: 13px',
               selector: '.stack',
               source: 'https://example.test/assets/layout.css',
+              confidence: 'high',
+              confidenceReason: '작성 CSS 선언과 적용 선택자를 확인함',
             },
           },
           element: { tagName: 'SECTION', className: 'stack' },
@@ -204,7 +206,7 @@ test('createViolationReportHtml groups every violation into a styled savable rep
   assert.match(report, /<section class="category-section" id="report-panel-spacing" role="tabpanel" aria-labelledby="report-tab-spacing" data-report-panel="spacing" hidden>/);
   assert.match(report, /<span class="tone warning">원시값 직접 사용<\/span>[\s\S]*<span class="issue-table-title"><code>13px<\/code><\/span>[\s\S]*<span class="issue-table-impact">1개 요소에 영향<\/span>[\s\S]*<div class="issue-token-hint"><span>대체 토큰<\/span><code>spacing\/13<\/code><\/div>/);
   assert.match(report, /<tr class="path-row" tabindex="0" aria-expanded="false" data-path-row data-compact-path="section\.stack" data-full-path="section\.stack"><td><code class="path-compact"><span class="path-view path-view-compact"><span class="path-segment path-segment-impact warning">section\.stack<\/span><\/span><span class="path-view path-view-full"><span class="path-segment path-segment-impact warning">section\.stack<\/span><\/span><\/code><\/td><\/tr>/);
-  assert.match(report, /<div class="css-evidence" aria-label="CSS 근거">[\s\S]*<dt>속성<\/dt><dd><code>padding-right<\/code><\/dd>[\s\S]*<dt>계산값<\/dt><dd><code>13px<\/code><\/dd>[\s\S]*<dt>작성 선언<\/dt><dd><code>padding-right: 13px<\/code><\/dd>[\s\S]*<dt>선택자<\/dt><dd><code>\.stack<\/code><\/dd>[\s\S]*<dt>출처<\/dt><dd><code>https:\/\/example\.test\/assets\/layout\.css<\/code><\/dd>[\s\S]*<\/div>/);
+  assert.match(report, /<div class="css-evidence" aria-label="CSS 근거">[\s\S]*<dt>속성<\/dt><dd><code>padding-right<\/code><\/dd>[\s\S]*<dt>계산값<\/dt><dd><code>13px<\/code><\/dd>[\s\S]*<dt>작성 선언<\/dt><dd><code>padding-right: 13px<\/code><\/dd>[\s\S]*<dt>선택자<\/dt><dd><code>\.stack<\/code><\/dd>[\s\S]*<dt>출처<\/dt><dd><code>https:\/\/example\.test\/assets\/layout\.css<\/code><\/dd>[\s\S]*<dt>판정 신뢰도<\/dt><dd><code>높음<\/code><\/dd>[\s\S]*<dt>판정 근거<\/dt><dd><code>작성 CSS 선언과 적용 선택자를 확인함<\/code><\/dd>[\s\S]*<\/div>/);
   assert.match(report, /<section class="category-section" id="report-panel-radius" role="tabpanel" aria-labelledby="report-tab-radius" data-report-panel="radius" hidden>/);
   assert.match(report, /<script>\(\(\) => \{/);
   assert.match(report, /document\.querySelectorAll\('\[data-report-view-tab\]'\)/);
@@ -257,6 +259,8 @@ test('createViolationReportAiRequestMarkdown summarizes violations for AI handof
               declaration: 'padding-right: 13px',
               selector: '.stack',
               source: 'https://example.test/assets/layout.css',
+              confidence: 'high',
+              confidenceReason: '작성 CSS 선언과 적용 선택자를 확인함',
             },
           },
           element: { tagName: 'SECTION', className: 'stack' },
@@ -306,7 +310,7 @@ test('createViolationReportAiRequestMarkdown summarizes violations for AI handof
   assert.match(markdown, /## 보더색[\s\S]*### 원시값 직접 사용 \/ #d0d7e2 \/ 1개 요소에 영향[\s\S]*대체 토큰: Color\.border\.default/);
   assert.match(markdown, /영향 요소 위치:\n1\. div\.card/);
   assert.match(markdown, /## 스페이싱[\s\S]*### 원시값 직접 사용 \/ 13px \/ 1개 요소에 영향[\s\S]*대체 토큰: spacing\/13/);
-  assert.match(markdown, /1\. section\.stack[\s\S]*   - CSS 속성: padding-right[\s\S]*   - 계산값: 13px[\s\S]*   - 작성 선언: padding-right: 13px[\s\S]*   - 선택자: \.stack[\s\S]*   - 출처: https:\/\/example\.test\/assets\/layout\.css[\s\S]*   - 사용자 메모: Stack 컴포넌트 gap token으로 정리/);
+  assert.match(markdown, /1\. section\.stack[\s\S]*   - CSS 속성: padding-right[\s\S]*   - 계산값: 13px[\s\S]*   - 작성 선언: padding-right: 13px[\s\S]*   - 선택자: \.stack[\s\S]*   - 출처: https:\/\/example\.test\/assets\/layout\.css[\s\S]*   - 판정 신뢰도: 높음[\s\S]*   - 판정 근거: 작성 CSS 선언과 적용 선택자를 확인함[\s\S]*   - 사용자 메모: Stack 컴포넌트 gap token으로 정리/);
   assert.doesNotMatch(markdown, /- 검사 탭:/);
   assert.doesNotMatch(markdown, /- 위반 상태:/);
   assert.doesNotMatch(markdown, /- 위반 값:/);
