@@ -11,6 +11,13 @@
     'dark.json': 'dark',
   };
 
+  function buildCssVariableRegistry(tokenNames) {
+    return globalScope.FDSCssTokenRegistry?.buildCssVariableRegistry?.(tokenNames) || {
+      variables: {},
+      meta: { cssVariableCount: 0 },
+    };
+  }
+
   function normalizeHexColor(value) {
     const text = String(value || '').trim();
     if (!text.startsWith('#')) return null;
@@ -190,6 +197,7 @@
     const colors = {};
     const spacingTokens = {};
     const radiusTokens = {};
+    const cssTokenNames = [];
     const unresolvedReferences = [];
 
     function collectToken(path, token, themeName = null) {
@@ -203,6 +211,7 @@
 
       if (type === 'color') {
         appendToken(colors, normalizeHexColor(resolvedValue), path);
+        cssTokenNames.push(path);
         return;
       }
 
@@ -211,9 +220,13 @@
         if (!px) return;
         if (path.startsWith('spacing.')) {
           const numericPx = pxTextToNumber(px);
-          if (Number.isFinite(numericPx)) appendToken(spacingTokens, numericPx, path);
+          if (Number.isFinite(numericPx)) {
+            appendToken(spacingTokens, numericPx, path);
+            cssTokenNames.push(path);
+          }
         } else if (path.startsWith('radius.')) {
           appendToken(radiusTokens, px, path);
+          cssTokenNames.push(path);
         }
       }
     }
@@ -225,6 +238,7 @@
 
       if (type === 'COLOR') {
         appendToken(colors, normalizeColorObject(value) || normalizeHexColor(value), tokenName);
+        cssTokenNames.push(tokenName);
         return;
       }
 
@@ -233,9 +247,13 @@
         if (!px) return;
         if (tokenName.startsWith('spacing/')) {
           const numericPx = pxTextToNumber(px);
-          if (Number.isFinite(numericPx)) appendToken(spacingTokens, numericPx, tokenName);
+          if (Number.isFinite(numericPx)) {
+            appendToken(spacingTokens, numericPx, tokenName);
+            cssTokenNames.push(tokenName);
+          }
         } else if (tokenName.startsWith('radius/')) {
           appendToken(radiusTokens, px, tokenName);
+          cssTokenNames.push(tokenName);
         }
       }
     }
@@ -269,6 +287,7 @@
       const rank = (value) => value === '9999px' ? Number.MAX_SAFE_INTEGER : Number.parseFloat(value);
       return rank(a) - rank(b);
     });
+    const cssVariables = buildCssVariableRegistry(cssTokenNames);
 
     return {
       colors,
@@ -276,6 +295,7 @@
       radius,
       spacingTokens,
       radiusTokens,
+      cssVariables,
       meta: {
         source: 'snapshot',
         themeCount: Object.keys(themeTokens).length,
@@ -283,6 +303,7 @@
         colorTokenCount: Object.values(colors).reduce((sum, items) => sum + items.length, 0),
         spacingTokenCount: Object.values(spacingTokens).reduce((sum, items) => sum + items.length, 0),
         radiusTokenCount: Object.values(radiusTokens).reduce((sum, items) => sum + items.length, 0),
+        cssVariableCount: cssVariables.meta.cssVariableCount,
         unresolvedReferenceCount: unresolvedReferences.length,
       },
     };

@@ -3,6 +3,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 
+require('./css-token-registry.js');
+
 const {
   buildSnapshotTokenSpecs,
   normalizeSnapshotPayloads,
@@ -82,4 +84,7 @@ test('buildSnapshotTokenSpecs creates inspector-compatible colors, spacing, and 
   assert.equal(specs.meta.spacingTokenCount, 18);
   assert.equal(specs.meta.radiusTokenCount, 10);
   assert.equal(specs.meta.unresolvedReferenceCount, 0);
+  assert.equal(specs.cssVariables.variables['--color-bg-primary'].includes('Color/bg/primary'), true);
+  assert.deepEqual(specs.cssVariables.variables['--spacing-16'], ['spacing/16']);
+  assert.deepEqual(specs.cssVariables.variables['--radius-circle'], ['radius/circle']);
 });

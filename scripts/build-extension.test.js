@@ -34,6 +34,7 @@ test('extension build copies only runtime files into a clean dist directory', as
     assert.equal(result.fileCount, BUILD_FILES.length);
     assert.equal(fs.existsSync(path.join(outDir, 'stale.txt')), false);
     assert.equal(fs.existsSync(path.join(outDir, 'content.js')), true);
+    assert.equal(fs.existsSync(path.join(outDir, 'css-token-registry.js')), true);
     assert.equal(fs.existsSync(path.join(outDir, 'vendor', 'gsap.min.js')), true);
     assert.equal(fs.existsSync(path.join(outDir, 'tokens', '0.1.primitives.json')), true);
     assert.equal(fs.existsSync(path.join(outDir, 'content-render.test.js')), false);

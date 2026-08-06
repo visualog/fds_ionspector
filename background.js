@@ -1,4 +1,5 @@
 import './background-logic.js';
+import './css-token-registry.js';
 import './bridge-token-source.js';
 import './snapshot-token-source.js';
 

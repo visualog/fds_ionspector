@@ -107,6 +107,13 @@
     return variables.filter((item) => item && typeof item === 'object');
   }
 
+  function buildCssVariableRegistry(tokenNames) {
+    return globalScope.FDSCssTokenRegistry?.buildCssVariableRegistry?.(tokenNames) || {
+      variables: {},
+      meta: { cssVariableCount: 0 },
+    };
+  }
+
   function normalizeColorObject(value) {
     if (!value || typeof value !== 'object') return null;
 
@@ -171,6 +178,7 @@
         .map((variableDef) => [variableDef.id, variableDef])
     );
     const colors = {};
+    const colorTokenNames = [];
     let colorVariableCount = 0;
 
     variables.forEach((variableDef) => {
@@ -184,14 +192,19 @@
       if (!hexes.length) return;
 
       colorVariableCount += 1;
+      colorTokenNames.push(tokenName);
       hexes.forEach((hex) => appendToken(colors, hex, tokenName));
     });
 
+    const cssVariables = buildCssVariableRegistry(colorTokenNames);
+
     return {
       colors,
+      cssVariables,
       meta: {
         colorTokenCount: Object.values(colors).reduce((sum, items) => sum + items.length, 0),
         colorVariableCount,
+        cssVariableCount: cssVariables.meta.cssVariableCount,
       },
     };
   }
@@ -202,15 +215,25 @@
 
     const spacing = extractNumericScale(spacingMatches, 'spacing');
     const radius = extractRadiusScale(radiusMatches);
+    const cssVariables = buildCssVariableRegistry([
+      ...spacingMatches
+        .filter((match) => Number.isFinite(extractSlashNumber(match.name, 'spacing')))
+        .map((match) => match.name),
+      ...radiusMatches
+        .filter((match) => match?.name === 'radius/circle' || Number.isFinite(extractSlashNumber(match.name, 'radius')))
+        .map((match) => match.name),
+    ]);
 
     return {
       spacing,
       radius,
       spacingTokens: extractNumericTokenMap(spacingMatches, 'spacing'),
       radiusTokens: extractRadiusTokenMap(radiusMatches),
+      cssVariables,
       meta: {
         spacingTokenCount: spacingMatches.length,
         radiusTokenCount: radiusMatches.length,
+        cssVariableCount: cssVariables.meta.cssVariableCount,
       },
     };
   }

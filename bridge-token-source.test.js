@@ -1,6 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 
+require('./css-token-registry.js');
+
 const {
   buildBridgeColorRegistry,
   buildInspectorSpecOverrides,
@@ -35,6 +37,16 @@ test('buildInspectorSpecOverrides extracts spacing and radius specs from bridge 
   assert.deepEqual(overrides.spacingTokens[6], ['spacing/6']);
   assert.deepEqual(overrides.radiusTokens['12px'], ['radius/12']);
   assert.deepEqual(overrides.radiusTokens['9999px'], ['radius/circle']);
+  assert.deepEqual(overrides.cssVariables.variables, {
+    '--spacing-0': ['spacing/0'],
+    '--spacing-2': ['spacing/2'],
+    '--spacing-6': ['spacing/6'],
+    '--spacing-144': ['spacing/144'],
+    '--radius-0': ['radius/0'],
+    '--radius-6': ['radius/6'],
+    '--radius-12': ['radius/12'],
+    '--radius-circle': ['radius/circle'],
+  });
 });
 
 test('buildInspectorSpecOverrides tolerates direct match payloads and invalid names', () => {
@@ -98,4 +110,9 @@ test('buildBridgeColorRegistry builds hex registry from direct color values and 
   ]);
   assert.deepEqual(registry.colors['#0f131a'], ['Color/text/primary']);
   assert.equal(registry.meta.colorVariableCount, 3);
+  assert.deepEqual(registry.cssVariables.variables, {
+    '--color-avatar-green-50': ['color/avatar/green/50'],
+    '--color-avatar-green-bg': ['Color/avatar/green/bg'],
+    '--color-text-primary': ['Color/text/primary'],
+  });
 });

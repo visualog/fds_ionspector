@@ -120,6 +120,7 @@ test('content injection file lists preserve dependency order', () => {
     'toolbar-state.js',
     'toolbar-drag.js',
     'style-token-detection.js',
+    'css-token-registry.js',
     'token-source.js',
     'bridge-token-source.js',
     'snapshot-token-source.js',
