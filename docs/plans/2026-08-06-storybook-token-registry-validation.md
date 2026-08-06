@@ -64,6 +64,10 @@ git commit -m "feat: derive Storybook CSS variable registry"
 - Modify: `bridge-token-source.test.js`
 - Modify: `snapshot-token-source.js`
 - Modify: `snapshot-token-source.test.js`
+- Modify: `background.js`
+- Modify: `background-logic.js`
+- Modify: `background-logic.test.js`
+- Modify: `scripts/build-extension.mjs`
 
 **Step 1: Write the failing tests**
 
@@ -77,7 +81,7 @@ Expected: FAIL because the spec payloads contain no CSS variable registry.
 
 **Step 3: Write minimal implementation**
 
-Collect token names while existing color/spacing/radius maps are built, pass them through the registry helper, and include `cssVariables` plus `meta.cssVariableCount` in each spec payload. Preserve all current color and dimensional outputs.
+Collect token names while existing color/spacing/radius maps are built, pass them through the registry helper, and include `cssVariables` plus `meta.cssVariableCount` in each spec payload. Load the helper before bridge/snapshot sources in the background and content injection order, and add it to the extension build manifest. Preserve all current color and dimensional outputs.
 
 **Step 4: Run tests to verify they pass**
 
@@ -88,7 +92,7 @@ Expected: PASS.
 **Step 5: Commit**
 
 ```bash
-git add bridge-token-source.js bridge-token-source.test.js snapshot-token-source.js snapshot-token-source.test.js css-token-registry.js
+git add bridge-token-source.js bridge-token-source.test.js snapshot-token-source.js snapshot-token-source.test.js background.js background-logic.js background-logic.test.js scripts/build-extension.mjs css-token-registry.js
 git commit -m "feat: expose FDS CSS variable registries"
 ```
 
