@@ -17,7 +17,11 @@ const {
   computeToolbarDragPosition,
   shouldStartToolbarDrag: shouldStartToolbarDragByState,
 } = globalThis.FDSToolbarDrag;
-const { getAuthoredStyleEvidence, hasAuthoredTokenReference } = globalThis.FDSStyleTokenDetection;
+const {
+  getAuthoredStyleEvidence,
+  getAuthoredTokenReferenceStatus,
+  hasAuthoredTokenReference,
+} = globalThis.FDSStyleTokenDetection;
 const { buildTokenRegistry } = globalThis.FDSTokenSource;
 const { escapeHtml } = globalThis.FDSHtmlUtils;
 const { createContentRenderers } = globalThis.FDSContentRender;
@@ -129,6 +133,12 @@ const { getInspectionForFilter } = createContentInspector({
   getKnownColorTokens,
   getAuthoredStyleEvidence,
   hasAuthoredTokenReference,
+  getAuthoredTokenReferenceStatus: (element, properties) => getAuthoredTokenReferenceStatus(
+    element,
+    properties,
+    document,
+    getAllowedCssVariables()
+  ),
   hasDirectTextContent,
   rgbToHex,
 });
@@ -489,6 +499,30 @@ function getKnownColorTokens(hex) {
     : [];
   const builtInToken = FDS_SPECS.colors[hex] ? [FDS_SPECS.colors[hex]] : [];
   return [...new Set([...bridgeTokens, ...snapshotTokens, ...sourceTokens, ...builtInToken])];
+}
+
+function addCssVariables(target, registry) {
+  const variables = registry?.variables && typeof registry.variables === 'object'
+    ? registry.variables
+    : {};
+  Object.entries(variables).forEach(([variableName, tokenNames]) => {
+    if (!target[variableName]) target[variableName] = [];
+    (Array.isArray(tokenNames) ? tokenNames : []).forEach((tokenName) => {
+      if (!target[variableName].includes(tokenName)) target[variableName].push(tokenName);
+    });
+    target[variableName].sort((left, right) => left.localeCompare(right));
+  });
+}
+
+function getAllowedCssVariables() {
+  const variables = {};
+  addCssVariables(variables, bridgeInspectorSpecOverrides?.cssVariables);
+  addCssVariables(variables, bridgeColorTokenRegistry?.cssVariables);
+  addCssVariables(variables, snapshotInspectorSpecOverrides?.cssVariables);
+  addCssVariables(variables, snapshotColorTokenRegistry?.cssVariables);
+  addCssVariables(variables, activeTokenSource?.cssVariables);
+  addCssVariables(variables, activeTokenRegistry?.cssVariables);
+  return variables;
 }
 
 function getActiveInspectorSpecs() {

@@ -1,9 +1,26 @@
 (function initContentBridgeSpecs(globalScope) {
   function createContentBridgeSpecs({ formatTokenContextLabel }) {
+    function normalizeCssVariableRegistry(specs = {}) {
+      const variables = specs?.cssVariables?.variables && typeof specs.cssVariables.variables === 'object'
+        ? specs.cssVariables.variables
+        : {};
+      return {
+        variables,
+        meta: {
+          cssVariableCount: Number(
+            specs?.cssVariables?.meta?.cssVariableCount ||
+            specs?.meta?.cssVariableCount ||
+            Object.keys(variables).length
+          ),
+        },
+      };
+    }
+
     function normalizeInspectorSpecOverrides(specs = {}) {
       return {
         spacing: Array.isArray(specs?.spacing) ? specs.spacing : [],
         radius: Array.isArray(specs?.radius) ? specs.radius : [],
+        cssVariables: normalizeCssVariableRegistry(specs),
         spacingTokens: specs?.spacingTokens && typeof specs.spacingTokens === 'object' ? specs.spacingTokens : {},
         radiusTokens: specs?.radiusTokens && typeof specs.radiusTokens === 'object' ? specs.radiusTokens : {},
         meta: specs?.meta || null,
@@ -13,12 +30,14 @@
     function normalizeColorRegistry(specs = {}, { includeVariables = false } = {}) {
       const meta = {
         colorTokenCount: Number(specs?.meta?.colorTokenCount || 0),
+        cssVariableCount: Number(specs?.meta?.cssVariableCount || specs?.cssVariables?.meta?.cssVariableCount || 0),
       };
       if (includeVariables) {
         meta.colorVariableCount = Number(specs?.meta?.colorVariableCount || 0);
       }
       return {
         colors: specs?.colors && typeof specs.colors === 'object' ? specs.colors : {},
+        cssVariables: normalizeCssVariableRegistry(specs),
         meta,
       };
     }
@@ -113,6 +132,11 @@
       const radiusTokens = overrides?.radiusTokens && typeof overrides.radiusTokens === 'object'
         ? Object.entries(overrides.radiusTokens).sort()
         : [];
+      const cssVariables = overrides?.cssVariables?.variables && typeof overrides.cssVariables.variables === 'object'
+        ? Object.keys(overrides.cssVariables.variables)
+          .sort()
+          .map((name) => [name, [...new Set(overrides.cssVariables.variables[name] || [])].sort()])
+        : [];
       const colors = colorRegistry?.colors && typeof colorRegistry.colors === 'object'
         ? Object.keys(colorRegistry.colors)
           .sort()
@@ -127,6 +151,7 @@
         radius,
         spacingTokens,
         radiusTokens,
+        cssVariables,
         colors,
       });
     }
@@ -163,6 +188,7 @@
 
     return {
       normalizeInspectorSpecOverrides,
+      normalizeCssVariableRegistry,
       normalizeColorRegistry,
       normalizeBridgeInspectorSpecsResponse,
       normalizeSnapshotInspectorSpecsResponse,

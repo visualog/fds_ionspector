@@ -25,6 +25,26 @@ const SNAPSHOT_TOKEN_FILES = Object.freeze({
 const activeTabStates = new Map();
 let snapshotTokenSpecsCache = null;
 
+function mergeCssVariableRegistries(...registries) {
+  const variables = {};
+  registries.forEach((registry) => {
+    const entries = registry?.variables && typeof registry.variables === 'object'
+      ? Object.entries(registry.variables)
+      : [];
+    entries.forEach(([variableName, tokenNames]) => {
+      if (!variables[variableName]) variables[variableName] = [];
+      (Array.isArray(tokenNames) ? tokenNames : []).forEach((tokenName) => {
+        if (!variables[variableName].includes(tokenName)) variables[variableName].push(tokenName);
+      });
+      variables[variableName].sort((left, right) => left.localeCompare(right));
+    });
+  });
+  return {
+    variables,
+    meta: { cssVariableCount: Object.keys(variables).length },
+  };
+}
+
 function getActiveState(tabId) {
   return activeTabStates.get(tabId) === true;
 }
@@ -210,6 +230,10 @@ async function fetchBridgeTokenSpecs() {
 
   const inspectorSpecs = buildInspectorSpecOverrides({ spacingResult, radiusResult });
   const colorRegistry = buildBridgeColorRegistry(variableDefsResult);
+  const cssVariables = mergeCssVariableRegistries(
+    inspectorSpecs.cssVariables,
+    colorRegistry.cssVariables
+  );
 
   return {
     connected: true,
@@ -219,9 +243,11 @@ async function fetchBridgeTokenSpecs() {
     specs: {
       ...inspectorSpecs,
       colors: colorRegistry.colors,
+      cssVariables,
       meta: {
         ...(inspectorSpecs.meta || {}),
         ...(colorRegistry.meta || {}),
+        cssVariableCount: cssVariables.meta.cssVariableCount,
       },
     },
   };

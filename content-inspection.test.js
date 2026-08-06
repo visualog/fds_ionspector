@@ -11,6 +11,7 @@ const scanUtils = createContentScanUtils({
 
 function createInspector({
   tokenReference = false,
+  tokenReferenceStatus = null,
   getKnownColorTokens = () => [],
   rgbToHex = (value) => value,
   getAuthoredStyleEvidence = (_element, properties, computedValue) => ({
@@ -40,6 +41,11 @@ function createInspector({
     getKnownColorTokens,
     getAuthoredStyleEvidence,
     hasAuthoredTokenReference: () => tokenReference,
+    getAuthoredTokenReferenceStatus: () => tokenReferenceStatus || {
+      status: tokenReference ? 'legacy' : 'none',
+      variables: [],
+      unregisteredVariables: [],
+    },
     hasDirectTextContent: () => true,
     rgbToHex,
   });
@@ -232,4 +238,66 @@ test('color inspection treats wrong color token part as unregistered for the ele
     '글자색 #1a202c (원시값 직접 사용)',
     '보더색 #1a202c (미등록)',
   ]);
+});
+
+test('color inspection accepts a registered Storybook CSS variable', () => {
+  const inspector = createInspector({
+    tokenReferenceStatus: {
+      status: 'registered',
+      variables: ['--color-bg-primary'],
+      unregisteredVariables: [],
+    },
+  });
+
+  const result = inspector.getInspectionForFilter('color', {
+    backgroundColor: '#ffffff',
+    color: '',
+    borderTopWidth: '0px',
+    borderTopColor: 'rgba(0, 0, 0, 0)',
+  }, {});
+
+  assert.deepEqual(result.issues, []);
+});
+
+test('color inspection reports an unknown CSS variable with structured evidence', () => {
+  const inspector = createInspector({
+    tokenReferenceStatus: {
+      status: 'unregistered',
+      variables: ['--custom-brand'],
+      unregisteredVariables: ['--custom-brand'],
+    },
+  });
+
+  const result = inspector.getInspectionForFilter('color', {
+    backgroundColor: '#ffffff',
+    color: '',
+    borderTopWidth: '0px',
+    borderTopColor: 'rgba(0, 0, 0, 0)',
+  }, {});
+
+  assert.deepEqual(result.issues, ['배경색 #ffffff (등록되지 않은 CSS 변수: --custom-brand)']);
+  assert.deepEqual(result.issueDetails[0].cssVariable, {
+    status: 'unregistered',
+    variables: ['--custom-brand'],
+    unregisteredVariables: ['--custom-brand'],
+  });
+});
+
+test('color inspection keeps legacy CSS variable acceptance while no registry is available', () => {
+  const inspector = createInspector({
+    tokenReferenceStatus: {
+      status: 'legacy',
+      variables: ['--custom-brand'],
+      unregisteredVariables: [],
+    },
+  });
+
+  const result = inspector.getInspectionForFilter('color', {
+    backgroundColor: '#ffffff',
+    color: '',
+    borderTopWidth: '0px',
+    borderTopColor: 'rgba(0, 0, 0, 0)',
+  }, {});
+
+  assert.deepEqual(result.issues, []);
 });

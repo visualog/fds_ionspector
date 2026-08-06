@@ -27,6 +27,9 @@ test('bridge specs signature sorts token maps and color registries', () => {
       overrides: {
         spacing: [8, 4],
         radius: ['12px'],
+        cssVariables: {
+          variables: { '--spacing-8': ['spacing/8'] },
+        },
         spacingTokens: {
           8: ['spacing.2'],
           4: ['spacing.1'],
@@ -50,6 +53,7 @@ test('bridge specs signature sorts token maps and color registries', () => {
       radius: ['12px'],
       spacingTokens: [['4', ['spacing.1']], ['8', ['spacing.2']]],
       radiusTokens: [['12px', ['radius.12']]],
+      cssVariables: [['--spacing-8', ['spacing/8']]],
       colors: [['#000', ['Color.text']], ['#fff', ['Color.bg']]],
     }),
   );
@@ -67,8 +71,9 @@ test('bridge specs normalize connected bridge token payloads', () => {
       specs: {
         spacing: [4, 8],
         radius: [],
+        cssVariables: { variables: { '--spacing-4': ['spacing/4'] } },
         colors: { '#1a202c': ['Color.text.primary'] },
-        meta: { colorTokenCount: 1, colorVariableCount: 2 },
+        meta: { colorTokenCount: 1, colorVariableCount: 2, cssVariableCount: 1 },
       },
     }),
     {
@@ -79,13 +84,21 @@ test('bridge specs normalize connected bridge token payloads', () => {
       overrides: {
         spacing: [4, 8],
         radius: [],
+        cssVariables: {
+          variables: { '--spacing-4': ['spacing/4'] },
+          meta: { cssVariableCount: 1 },
+        },
         spacingTokens: {},
         radiusTokens: {},
-        meta: { colorTokenCount: 1, colorVariableCount: 2 },
+        meta: { colorTokenCount: 1, colorVariableCount: 2, cssVariableCount: 1 },
       },
       colorRegistry: {
         colors: { '#1a202c': ['Color.text.primary'] },
-        meta: { colorTokenCount: 1, colorVariableCount: 2 },
+        cssVariables: {
+          variables: { '--spacing-4': ['spacing/4'] },
+          meta: { cssVariableCount: 1 },
+        },
+        meta: { colorTokenCount: 1, colorVariableCount: 2, cssVariableCount: 1 },
       },
     },
   );
@@ -140,8 +153,9 @@ test('bridge specs create next snapshot refresh state', () => {
       specs: {
         spacing: [4],
         radius: ['12px'],
+        cssVariables: { variables: { '--radius-12': ['radius/12'] } },
         colors: { '#fff': ['Color.bg'] },
-        meta: { colorTokenCount: 1 },
+        meta: { colorTokenCount: 1, cssVariableCount: 1 },
       },
     }),
     {
@@ -150,13 +164,21 @@ test('bridge specs create next snapshot refresh state', () => {
       overrides: {
         spacing: [4],
         radius: ['12px'],
+        cssVariables: {
+          variables: { '--radius-12': ['radius/12'] },
+          meta: { cssVariableCount: 1 },
+        },
         spacingTokens: {},
         radiusTokens: {},
-        meta: { colorTokenCount: 1 },
+        meta: { colorTokenCount: 1, cssVariableCount: 1 },
       },
       colorRegistry: {
         colors: { '#fff': ['Color.bg'] },
-        meta: { colorTokenCount: 1 },
+        cssVariables: {
+          variables: { '--radius-12': ['radius/12'] },
+          meta: { cssVariableCount: 1 },
+        },
+        meta: { colorTokenCount: 1, cssVariableCount: 1 },
       },
       hasSnapshotTokenSource: true,
     },

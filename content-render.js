@@ -107,16 +107,21 @@
     }
 
     function getViolationToneFromSuffix(suffix, fallback = 'warning') {
-      return suffix === '미등록' ? 'danger' : fallback;
+      return suffix === '미등록' || String(suffix || '').startsWith('등록되지 않은 CSS 변수:')
+        ? 'danger'
+        : fallback;
     }
 
     function parseViolationItem(item) {
       const text = String(item || '');
       const patterns = [
+        { regex: /^배경색\s+(.+?)\s+\((등록되지 않은 CSS 변수:.+?)\)$/, chip: '배경색', tone: 'danger', valueLabel: '값' },
         { regex: /^배경색\s+(.+?)\s+\((미등록)\)$/, chip: '배경색', tone: 'danger', valueLabel: '값' },
         { regex: /^배경색\s+(.+?)\s+\((원시값 직접 사용)\)$/, chip: '배경색', tone: 'warning', valueLabel: '값' },
+        { regex: /^글자색\s+(.+?)\s+\((등록되지 않은 CSS 변수:.+?)\)$/, chip: '글자색', tone: 'danger', valueLabel: '값' },
         { regex: /^글자색\s+(.+?)\s+\((미등록)\)$/, chip: '글자색', tone: 'danger', valueLabel: '값' },
         { regex: /^글자색\s+(.+?)\s+\((원시값 직접 사용)\)$/, chip: '글자색', tone: 'warning', valueLabel: '값' },
+        { regex: /^보더색\s+(.+?)\s+\((등록되지 않은 CSS 변수:.+?)\)$/, chip: '보더색', tone: 'danger', valueLabel: '값' },
         { regex: /^보더색\s+(.+?)\s+\((미등록)\)$/, chip: '보더색', tone: 'danger', valueLabel: '값' },
         { regex: /^보더색\s+(.+?)\s+\((원시값 직접 사용)\)$/, chip: '보더색', tone: 'warning', valueLabel: '값' },
         { regex: /^서체\s+'(.+?)'\s+\((.+?)\)$/, chip: '서체', tone: 'success', valueLabel: '글꼴' },

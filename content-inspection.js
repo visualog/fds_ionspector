@@ -4,14 +4,55 @@
     getKnownColorTokens,
     getAuthoredStyleEvidence,
     hasAuthoredTokenReference,
+    getAuthoredTokenReferenceStatus,
     hasDirectTextContent,
     rgbToHex,
   }) {
-    function withCssEvidence(metadata, element, properties, computedValue) {
+    function withCssEvidence(metadata, element, properties, computedValue, tokenReferenceStatus = null) {
       const evidence = typeof getAuthoredStyleEvidence === 'function'
         ? getAuthoredStyleEvidence(element, properties, computedValue)
         : null;
-      return evidence ? { ...(metadata || {}), cssEvidence: evidence } : metadata;
+      const detail = { ...(metadata || {}) };
+      if (tokenReferenceStatus?.status === 'unregistered') {
+        detail.cssVariable = {
+          status: tokenReferenceStatus.status,
+          variables: tokenReferenceStatus.variables || [],
+          unregisteredVariables: tokenReferenceStatus.unregisteredVariables || [],
+        };
+      }
+      return evidence ? { ...detail, cssEvidence: evidence } : Object.keys(detail).length ? detail : null;
+    }
+
+    function getTokenReferenceStatus(element, properties) {
+      if (typeof getAuthoredTokenReferenceStatus === 'function') {
+        const status = getAuthoredTokenReferenceStatus(element, properties);
+        if (status && typeof status.status === 'string') return status;
+      }
+      return {
+        status: hasAuthoredTokenReference(element, properties) ? 'legacy' : 'none',
+        variables: [],
+        unregisteredVariables: [],
+      };
+    }
+
+    function allowsTokenReference(status) {
+      return status?.status === 'registered' || status?.status === 'legacy';
+    }
+
+    function addUnregisteredCssVariableIssue({
+      issues,
+      issueDetails,
+      label,
+      value,
+      metadata,
+      element,
+      properties,
+      computedValue,
+      tokenReferenceStatus,
+    }) {
+      const variableNames = tokenReferenceStatus?.unregisteredVariables || [];
+      issues.push(`${label} ${value} (등록되지 않은 CSS 변수: ${variableNames.join(', ')})`);
+      issueDetails.push(withCssEvidence(metadata, element, properties, computedValue, tokenReferenceStatus));
     }
 
     function formatKnownTokenList(tokens) {
@@ -82,7 +123,20 @@
       const allSidesEqual = values.every((item) => item.value === values[0].value);
       if (allSidesEqual) {
         const tokenProps = [kind, ...sides.map((side) => side.cssProp)];
-        if (!hasAuthoredTokenReference(element, tokenProps)) {
+        const tokenReferenceStatus = getTokenReferenceStatus(element, tokenProps);
+        if (tokenReferenceStatus.status === 'unregistered') {
+          addUnregisteredCssVariableIssue({
+            issues,
+            issueDetails,
+            label: kind === 'padding' ? '패딩' : '마진',
+            value: `${values[0].value}px`,
+            metadata: { spacing: { kind, sides: ['top', 'right', 'bottom', 'left'], value: values[0].value } },
+            element,
+            properties: tokenProps,
+            computedValue: `${values[0].value}px`,
+            tokenReferenceStatus,
+          });
+        } else if (!allowsTokenReference(tokenReferenceStatus)) {
           addSpacingIssue({
             issues,
             issueDetails,
@@ -102,7 +156,23 @@
 
       values.forEach((item) => {
         if (item.value <= 0) return;
-        if (hasAuthoredTokenReference(element, [item.cssProp, kind])) return;
+        const tokenProps = [item.cssProp, kind];
+        const tokenReferenceStatus = getTokenReferenceStatus(element, tokenProps);
+        if (allowsTokenReference(tokenReferenceStatus)) return;
+        if (tokenReferenceStatus.status === 'unregistered') {
+          addUnregisteredCssVariableIssue({
+            issues,
+            issueDetails,
+            label: `${item.label} ${kind === 'padding' ? '패딩' : '마진'}`,
+            value: `${item.value}px`,
+            metadata: { spacing: { kind, sides: [item.side], value: item.value } },
+            element,
+            properties: tokenProps,
+            computedValue: `${item.value}px`,
+            tokenReferenceStatus,
+          });
+          return;
+        }
         addSpacingIssue({
           issues,
           issueDetails,
@@ -112,7 +182,7 @@
           metadata: withCssEvidence(
             { spacing: { kind, sides: [item.side], value: item.value } },
             element,
-            [item.cssProp, kind],
+            tokenProps,
             `${item.value}px`
           ),
         });
@@ -132,7 +202,21 @@
 
       const allGapsEqual = gaps.every((item) => item.value === gaps[0].value);
       if (allGapsEqual) {
-        if (!hasAuthoredTokenReference(element, ['gap', 'row-gap', 'column-gap'])) {
+        const tokenProps = ['gap', 'row-gap', 'column-gap'];
+        const tokenReferenceStatus = getTokenReferenceStatus(element, tokenProps);
+        if (tokenReferenceStatus.status === 'unregistered') {
+          addUnregisteredCssVariableIssue({
+            issues,
+            issueDetails,
+            label: '갭',
+            value: `${gaps[0].value}px`,
+            metadata: { spacing: { kind: 'gap', sides: ['row', 'column'], value: gaps[0].value } },
+            element,
+            properties: tokenProps,
+            computedValue: `${gaps[0].value}px`,
+            tokenReferenceStatus,
+          });
+        } else if (!allowsTokenReference(tokenReferenceStatus)) {
           addSpacingIssue({
             issues,
             issueDetails,
@@ -142,7 +226,7 @@
             metadata: withCssEvidence(
               { spacing: { kind: 'gap', sides: ['row', 'column'], value: gaps[0].value } },
               element,
-              ['gap', 'row-gap', 'column-gap'],
+              tokenProps,
               `${gaps[0].value}px`
             ),
           });
@@ -151,7 +235,23 @@
       }
 
       positiveGaps.forEach((item) => {
-        if (hasAuthoredTokenReference(element, [item.cssProp, 'gap'])) return;
+        const tokenProps = [item.cssProp, 'gap'];
+        const tokenReferenceStatus = getTokenReferenceStatus(element, tokenProps);
+        if (allowsTokenReference(tokenReferenceStatus)) return;
+        if (tokenReferenceStatus.status === 'unregistered') {
+          addUnregisteredCssVariableIssue({
+            issues,
+            issueDetails,
+            label: item.label,
+            value: `${item.value}px`,
+            metadata: { spacing: { kind: 'gap', sides: [item.axis], value: item.value } },
+            element,
+            properties: tokenProps,
+            computedValue: `${item.value}px`,
+            tokenReferenceStatus,
+          });
+          return;
+        }
         addSpacingIssue({
           issues,
           issueDetails,
@@ -161,7 +261,7 @@
           metadata: withCssEvidence(
             { spacing: { kind: 'gap', sides: [item.axis], value: item.value } },
             element,
-            [item.cssProp, 'gap'],
+            tokenProps,
             `${item.value}px`
           ),
         });
@@ -179,31 +279,67 @@
         const text = hasDirectTextContent(element) ? rgbToHex(styles.color) : null;
         const borderWidth = Number.parseFloat(styles.borderTopWidth || '0');
         const borderColor = rgbToHex(styles.borderTopColor);
-        const bgUsesToken = hasAuthoredTokenReference(element, ['background-color', 'background']);
-        const textUsesToken = hasAuthoredTokenReference(element, ['color']);
-        const borderUsesToken = hasAuthoredTokenReference(element, [
+        const bgProperties = ['background-color', 'background'];
+        const textProperties = ['color'];
+        const borderProperties = [
           'border-color',
           'border-top-color',
           'border',
           'border-top',
-        ]);
+        ];
+        const bgTokenReferenceStatus = getTokenReferenceStatus(element, bgProperties);
+        const textTokenReferenceStatus = getTokenReferenceStatus(element, textProperties);
+        const borderTokenReferenceStatus = getTokenReferenceStatus(element, borderProperties);
 
-        if (bg && !bgUsesToken) {
+        if (bg && bgTokenReferenceStatus.status === 'unregistered') {
+          addUnregisteredCssVariableIssue({
+            issues,
+            issueDetails,
+            label: '배경색',
+            value: bg,
+            element,
+            properties: bgProperties,
+            computedValue: styles.backgroundColor,
+            tokenReferenceStatus: bgTokenReferenceStatus,
+          });
+        } else if (bg && !allowsTokenReference(bgTokenReferenceStatus)) {
           const tokens = getKnownColorTokensForPart(bg, 'bg');
           issues.push(tokens.length ? `배경색 ${bg} (원시값 직접 사용)` : `배경색 ${bg} (미등록)`);
-          issueDetails.push(withCssEvidence(null, element, ['background-color', 'background'], styles.backgroundColor));
+          issueDetails.push(withCssEvidence(null, element, bgProperties, styles.backgroundColor));
         }
 
-        if (text && !textUsesToken) {
+        if (text && textTokenReferenceStatus.status === 'unregistered') {
+          addUnregisteredCssVariableIssue({
+            issues,
+            issueDetails,
+            label: '글자색',
+            value: text,
+            element,
+            properties: textProperties,
+            computedValue: styles.color,
+            tokenReferenceStatus: textTokenReferenceStatus,
+          });
+        } else if (text && !allowsTokenReference(textTokenReferenceStatus)) {
           const tokens = getKnownColorTokensForPart(text, 'text');
           issues.push(tokens.length ? `글자색 ${text} (원시값 직접 사용)` : `글자색 ${text} (미등록)`);
-          issueDetails.push(withCssEvidence(null, element, ['color'], styles.color));
+          issueDetails.push(withCssEvidence(null, element, textProperties, styles.color));
         }
 
-        if (borderWidth > 0 && borderColor && !borderUsesToken) {
+        if (borderWidth > 0 && borderColor && borderTokenReferenceStatus.status === 'unregistered') {
+          addUnregisteredCssVariableIssue({
+            issues,
+            issueDetails,
+            label: '보더색',
+            value: borderColor,
+            element,
+            properties: borderProperties,
+            computedValue: styles.borderTopColor,
+            tokenReferenceStatus: borderTokenReferenceStatus,
+          });
+        } else if (borderWidth > 0 && borderColor && !allowsTokenReference(borderTokenReferenceStatus)) {
           const tokens = getKnownColorTokensForPart(borderColor, 'border');
           issues.push(tokens.length ? `보더색 ${borderColor} (원시값 직접 사용)` : `보더색 ${borderColor} (미등록)`);
-          issueDetails.push(withCssEvidence(null, element, ['border-top-color', 'border-color', 'border-top', 'border'], styles.borderTopColor));
+          issueDetails.push(withCssEvidence(null, element, borderProperties, styles.borderTopColor));
         }
       } else if (filter === 'font') {
         if (!hasDirectTextContent(element)) return { issues, issueDetails, suggestions };
@@ -236,15 +372,27 @@
         inspectGapSpacing({ issues, issueDetails, activeSpecs, styles, element });
       } else if (filter === 'radius') {
         const radius = styles.borderRadius;
-        const radiusUsesToken = hasAuthoredTokenReference(element, ['border-radius']);
-        if (radius !== '0px' && !radiusUsesToken) {
+        const radiusProperties = ['border-radius'];
+        const radiusTokenReferenceStatus = getTokenReferenceStatus(element, radiusProperties);
+        if (radius !== '0px' && radiusTokenReferenceStatus.status === 'unregistered') {
+          addUnregisteredCssVariableIssue({
+            issues,
+            issueDetails,
+            label: '라운드',
+            value: radius,
+            element,
+            properties: radiusProperties,
+            computedValue: radius,
+            tokenReferenceStatus: radiusTokenReferenceStatus,
+          });
+        } else if (radius !== '0px' && !allowsTokenReference(radiusTokenReferenceStatus)) {
           const tokens = getRadiusTokens(activeSpecs, radius);
           if (tokens.length) {
             issues.push(`라운드 ${radius} (원시값 직접 사용${formatKnownTokenList(tokens)})`);
-            issueDetails.push(withCssEvidence(null, element, ['border-radius'], radius));
+            issueDetails.push(withCssEvidence(null, element, radiusProperties, radius));
           } else if (!activeSpecs.radius.includes(radius)) {
             issues.push(`라운드 ${radius} (미준수)`);
-            issueDetails.push(withCssEvidence(null, element, ['border-radius'], radius));
+            issueDetails.push(withCssEvidence(null, element, radiusProperties, radius));
           }
         }
       }

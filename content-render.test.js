@@ -182,6 +182,15 @@ test('renderSummaryGroupItem can summarize all-side padding violations', () => {
   assert.equal(parsed.value, '14px');
 });
 
+test('renderSummaryGroupItem distinguishes an unregistered CSS variable from a raw value', () => {
+  const parsed = renderers.parseViolationItem('배경색 #ffffff (등록되지 않은 CSS 변수: --custom-brand)');
+
+  assert.equal(parsed.chip, '배경색');
+  assert.equal(parsed.tag, '등록되지 않은 CSS 변수: --custom-brand');
+  assert.equal(parsed.tone, 'danger');
+  assert.equal(parsed.value, '#ffffff');
+});
+
 test('renderSummaryGroupItem can summarize directional padding violations', () => {
   const parsed = renderers.parseViolationItem('오른쪽 패딩 14px (미등록)');
 
