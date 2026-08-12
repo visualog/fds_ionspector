@@ -11,11 +11,15 @@
     'dark.json': 'dark',
   };
 
-  function buildCssVariableRegistry(tokenNames) {
-    return globalScope.FDSCssTokenRegistry?.buildCssVariableRegistry?.(tokenNames) || {
+  function buildCssVariableRegistry(tokenNames, options) {
+    return globalScope.FDSCssTokenRegistry?.buildCssVariableRegistry?.(tokenNames, options) || {
       variables: {},
       meta: { cssVariableCount: 0 },
     };
+  }
+
+  function buildTailwindSpacingAliases(spacingTokens) {
+    return globalScope.FDSCssTokenRegistry?.buildTailwindSpacingAliases?.(spacingTokens) || {};
   }
 
   function normalizeHexColor(value) {
@@ -287,7 +291,11 @@
       const rank = (value) => value === '9999px' ? Number.MAX_SAFE_INTEGER : Number.parseFloat(value);
       return rank(a) - rank(b);
     });
-    const cssVariables = buildCssVariableRegistry(cssTokenNames);
+    const cssVariables = buildCssVariableRegistry(cssTokenNames, {
+      aliases: {
+        ...buildTailwindSpacingAliases(spacingTokens),
+      },
+    });
 
     return {
       colors,

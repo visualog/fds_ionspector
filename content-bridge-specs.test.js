@@ -29,6 +29,13 @@ test('bridge specs signature sorts token maps and color registries', () => {
         radius: ['12px'],
         cssVariables: {
           variables: { '--spacing-8': ['spacing/8'] },
+          aliases: {
+            '--spacing-3': {
+              tokenNames: ['spacing/12'],
+              expectedValue: '12px',
+              source: 'tailwind-spacing',
+            },
+          },
         },
         spacingTokens: {
           8: ['spacing.2'],
@@ -54,6 +61,7 @@ test('bridge specs signature sorts token maps and color registries', () => {
       spacingTokens: [['4', ['spacing.1']], ['8', ['spacing.2']]],
       radiusTokens: [['12px', ['radius.12']]],
       cssVariables: [['--spacing-8', ['spacing/8']]],
+      cssVariableAliases: [['--spacing-3', ['spacing/12'], '12px', 'tailwind-spacing']],
       colors: [['#000', ['Color.text']], ['#fff', ['Color.bg']]],
     }),
   );
@@ -71,7 +79,16 @@ test('bridge specs normalize connected bridge token payloads', () => {
       specs: {
         spacing: [4, 8],
         radius: [],
-        cssVariables: { variables: { '--spacing-4': ['spacing/4'] } },
+        cssVariables: {
+          variables: { '--spacing-4': ['spacing/4'] },
+          aliases: {
+            '--spacing-3': {
+              tokenNames: ['spacing/12'],
+              expectedValue: '12px',
+              source: 'tailwind-spacing',
+            },
+          },
+        },
         colors: { '#1a202c': ['Color.text.primary'] },
         meta: { colorTokenCount: 1, colorVariableCount: 2, cssVariableCount: 1 },
       },
@@ -86,6 +103,13 @@ test('bridge specs normalize connected bridge token payloads', () => {
         radius: [],
         cssVariables: {
           variables: { '--spacing-4': ['spacing/4'] },
+          aliases: {
+            '--spacing-3': {
+              tokenNames: ['spacing/12'],
+              expectedValue: '12px',
+              source: 'tailwind-spacing',
+            },
+          },
           meta: { cssVariableCount: 1 },
         },
         spacingTokens: {},
@@ -96,6 +120,13 @@ test('bridge specs normalize connected bridge token payloads', () => {
         colors: { '#1a202c': ['Color.text.primary'] },
         cssVariables: {
           variables: { '--spacing-4': ['spacing/4'] },
+          aliases: {
+            '--spacing-3': {
+              tokenNames: ['spacing/12'],
+              expectedValue: '12px',
+              source: 'tailwind-spacing',
+            },
+          },
           meta: { cssVariableCount: 1 },
         },
         meta: { colorTokenCount: 1, colorVariableCount: 2, cssVariableCount: 1 },

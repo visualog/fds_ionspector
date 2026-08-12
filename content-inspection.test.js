@@ -66,6 +66,28 @@ test('spacing inspection warns when a token value is used as a raw value', () =>
   assert.deepEqual(result.issues, ['상단 패딩 8px (원시값 직접 사용: spacing/8)']);
 });
 
+test('spacing inspection reports a Tailwind alias when its resolved value differs from the mapped FDS token', () => {
+  const inspector = createInspector({
+    tokenReferenceStatus: {
+      status: 'mismatch',
+      variables: ['--spacing-3'],
+      unregisteredVariables: [],
+      mismatchedVariables: [{
+        name: '--spacing-3',
+        expectedValue: '12px',
+        computedValue: '16px',
+        tokenNames: ['spacing/12'],
+      }],
+    },
+  });
+
+  const result = inspector.getInspectionForFilter('spacing', { paddingLeft: '16px' }, {});
+
+  assert.deepEqual(result.issues, [
+    '왼쪽 패딩 16px (FDS 변환값 불일치: --spacing-3, 기대 12px, 실제 16px)',
+  ]);
+});
+
 test('spacing inspection flags values outside the token scale', () => {
   const inspector = createInspector();
   const result = inspector.getInspectionForFilter('spacing', { paddingTop: '13px' }, {});

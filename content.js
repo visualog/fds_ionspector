@@ -507,11 +507,38 @@ function addCssVariables(target, registry) {
     ? registry.variables
     : {};
   Object.entries(variables).forEach(([variableName, tokenNames]) => {
-    if (!target[variableName]) target[variableName] = [];
+    const existing = target[variableName];
+    const mergedTokens = Array.isArray(existing)
+      ? existing
+      : Array.isArray(existing?.tokenNames)
+        ? existing.tokenNames
+        : [];
     (Array.isArray(tokenNames) ? tokenNames : []).forEach((tokenName) => {
-      if (!target[variableName].includes(tokenName)) target[variableName].push(tokenName);
+      if (!mergedTokens.includes(tokenName)) mergedTokens.push(tokenName);
     });
-    target[variableName].sort((left, right) => left.localeCompare(right));
+    mergedTokens.sort((left, right) => left.localeCompare(right));
+    if (existing && !Array.isArray(existing)) {
+      existing.tokenNames = mergedTokens;
+    } else {
+      target[variableName] = mergedTokens;
+    }
+  });
+
+  const aliases = registry?.aliases && typeof registry.aliases === 'object'
+    ? registry.aliases
+    : {};
+  Object.entries(aliases).forEach(([variableName, alias]) => {
+    const existing = target[variableName];
+    const tokenNames = [
+      ...(Array.isArray(existing) ? existing : Array.isArray(existing?.tokenNames) ? existing.tokenNames : []),
+      ...(Array.isArray(alias?.tokenNames) ? alias.tokenNames : []),
+    ].filter((tokenName, index, all) => Boolean(tokenName) && all.indexOf(tokenName) === index)
+      .sort((left, right) => left.localeCompare(right));
+    target[variableName] = {
+      tokenNames,
+      expectedValue: alias?.expectedValue,
+      source: alias?.source,
+    };
   });
 }
 

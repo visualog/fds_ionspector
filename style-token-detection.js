@@ -20,6 +20,36 @@
     return variables;
   }
 
+  function getTailwindSpacingUtilityVariables(element, properties = []) {
+    const className = typeof element?.className === 'string' ? element.className : '';
+    if (!className || !properties.some((property) => ['gap', 'row-gap', 'column-gap'].includes(property))) {
+      return [];
+    }
+
+    const acceptsGap = properties.includes('gap');
+    const acceptsRowGap = properties.includes('row-gap');
+    const acceptsColumnGap = properties.includes('column-gap');
+    const variables = [];
+
+    className.trim().split(/\s+/).forEach((classToken) => {
+      const match = String(classToken).match(/(?:^|:)gap(?:-([xy]))?-(\d+)$/);
+      if (!match) return;
+
+      const axis = match[1] || '';
+      const isApplicable = !axis
+        ? acceptsGap || acceptsRowGap || acceptsColumnGap
+        : axis === 'x'
+          ? acceptsGap || acceptsColumnGap
+          : acceptsGap || acceptsRowGap;
+      if (!isApplicable) return;
+
+      const variableName = `--spacing-${match[2]}`;
+      if (!variables.includes(variableName)) variables.push(variableName);
+    });
+
+    return variables;
+  }
+
   function readDeclarationValue(style, property) {
     if (!style || !property) return '';
     if (typeof style.getPropertyValue === 'function') {
@@ -256,7 +286,7 @@
     properties,
     root = globalScope.document,
     allowedVariables = {},
-    { includeInherited = false } = {}
+    { includeInherited = false, computedValue = '' } = {}
   ) {
     if (!element || !properties?.length) {
       return { status: 'none', variables: [], unregisteredVariables: [] };
@@ -279,6 +309,9 @@
 
     const variables = extractCssVariableReferences(evidence?.authoredValue);
     if (!variables.length) {
+      variables.push(...getTailwindSpacingUtilityVariables(element, properties));
+    }
+    if (!variables.length) {
       return { status: 'none', variables, unregisteredVariables: [] };
     }
 
@@ -288,10 +321,34 @@
     }
 
     const unregisteredVariables = variables.filter((variableName) => !registeredNames.has(variableName));
+    if (unregisteredVariables.length) {
+      return {
+        status: 'unregistered',
+        variables,
+        unregisteredVariables,
+      };
+    }
+
+    const normalizeDimension = (value) => String(value || '').trim().toLowerCase().replace(/\s+/g, ' ');
+    const mismatchedVariables = variables.reduce((mismatches, variableName) => {
+      const definition = allowedVariables?.[variableName];
+      const expectedValue = normalizeDimension(definition?.expectedValue);
+      const actualValue = normalizeDimension(computedValue);
+      if (!expectedValue || !actualValue || expectedValue === actualValue) return mismatches;
+      mismatches.push({
+        name: variableName,
+        expectedValue: definition.expectedValue,
+        computedValue: String(computedValue),
+        tokenNames: Array.isArray(definition.tokenNames) ? definition.tokenNames : [],
+      });
+      return mismatches;
+    }, []);
+
     return {
-      status: unregisteredVariables.length ? 'unregistered' : 'registered',
+      status: mismatchedVariables.length ? 'mismatch' : 'registered',
       variables,
       unregisteredVariables,
+      ...(mismatchedVariables.length ? { mismatchedVariables } : {}),
     };
   }
 

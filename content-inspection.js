@@ -20,6 +20,13 @@
           unregisteredVariables: tokenReferenceStatus.unregisteredVariables || [],
         };
       }
+      if (tokenReferenceStatus?.status === 'mismatch') {
+        detail.cssVariable = {
+          status: tokenReferenceStatus.status,
+          variables: tokenReferenceStatus.variables || [],
+          mismatchedVariables: tokenReferenceStatus.mismatchedVariables || [],
+        };
+      }
       return evidence ? { ...detail, cssEvidence: evidence } : Object.keys(detail).length ? detail : null;
     }
 
@@ -52,6 +59,22 @@
     }) {
       const variableNames = tokenReferenceStatus?.unregisteredVariables || [];
       issues.push(`${label} ${value} (등록되지 않은 CSS 변수: ${variableNames.join(', ')})`);
+      issueDetails.push(withCssEvidence(metadata, element, properties, computedValue, tokenReferenceStatus));
+    }
+
+    function addMismatchedCssVariableIssue({
+      issues,
+      issueDetails,
+      label,
+      value,
+      metadata,
+      element,
+      properties,
+      computedValue,
+      tokenReferenceStatus,
+    }) {
+      const mismatch = tokenReferenceStatus?.mismatchedVariables?.[0];
+      issues.push(`${label} ${value} (FDS 변환값 불일치: ${mismatch?.name || ''}, 기대 ${mismatch?.expectedValue || ''}, 실제 ${mismatch?.computedValue || computedValue})`);
       issueDetails.push(withCssEvidence(metadata, element, properties, computedValue, tokenReferenceStatus));
     }
 
@@ -123,8 +146,20 @@
       const allSidesEqual = values.every((item) => item.value === values[0].value);
       if (allSidesEqual) {
         const tokenProps = [kind, ...sides.map((side) => side.cssProp)];
-        const tokenReferenceStatus = getTokenReferenceStatus(element, tokenProps);
-        if (tokenReferenceStatus.status === 'unregistered') {
+        const tokenReferenceStatus = getTokenReferenceStatus(element, tokenProps, { computedValue: `${values[0].value}px` });
+        if (tokenReferenceStatus.status === 'mismatch') {
+          addMismatchedCssVariableIssue({
+            issues,
+            issueDetails,
+            label: kind === 'padding' ? '패딩' : '마진',
+            value: `${values[0].value}px`,
+            metadata: { spacing: { kind, sides: ['top', 'right', 'bottom', 'left'], value: values[0].value } },
+            element,
+            properties: tokenProps,
+            computedValue: `${values[0].value}px`,
+            tokenReferenceStatus,
+          });
+        } else if (tokenReferenceStatus.status === 'unregistered') {
           addUnregisteredCssVariableIssue({
             issues,
             issueDetails,
@@ -157,8 +192,22 @@
       values.forEach((item) => {
         if (item.value <= 0) return;
         const tokenProps = [item.cssProp, kind];
-        const tokenReferenceStatus = getTokenReferenceStatus(element, tokenProps);
+        const tokenReferenceStatus = getTokenReferenceStatus(element, tokenProps, { computedValue: `${item.value}px` });
         if (allowsTokenReference(tokenReferenceStatus)) return;
+        if (tokenReferenceStatus.status === 'mismatch') {
+          addMismatchedCssVariableIssue({
+            issues,
+            issueDetails,
+            label: `${item.label} ${kind === 'padding' ? '패딩' : '마진'}`,
+            value: `${item.value}px`,
+            metadata: { spacing: { kind, sides: [item.side], value: item.value } },
+            element,
+            properties: tokenProps,
+            computedValue: `${item.value}px`,
+            tokenReferenceStatus,
+          });
+          return;
+        }
         if (tokenReferenceStatus.status === 'unregistered') {
           addUnregisteredCssVariableIssue({
             issues,
@@ -203,8 +252,20 @@
       const allGapsEqual = gaps.every((item) => item.value === gaps[0].value);
       if (allGapsEqual) {
         const tokenProps = ['gap', 'row-gap', 'column-gap'];
-        const tokenReferenceStatus = getTokenReferenceStatus(element, tokenProps);
-        if (tokenReferenceStatus.status === 'unregistered') {
+        const tokenReferenceStatus = getTokenReferenceStatus(element, tokenProps, { computedValue: `${gaps[0].value}px` });
+        if (tokenReferenceStatus.status === 'mismatch') {
+          addMismatchedCssVariableIssue({
+            issues,
+            issueDetails,
+            label: '갭',
+            value: `${gaps[0].value}px`,
+            metadata: { spacing: { kind: 'gap', sides: ['row', 'column'], value: gaps[0].value } },
+            element,
+            properties: tokenProps,
+            computedValue: `${gaps[0].value}px`,
+            tokenReferenceStatus,
+          });
+        } else if (tokenReferenceStatus.status === 'unregistered') {
           addUnregisteredCssVariableIssue({
             issues,
             issueDetails,
@@ -236,8 +297,22 @@
 
       positiveGaps.forEach((item) => {
         const tokenProps = [item.cssProp, 'gap'];
-        const tokenReferenceStatus = getTokenReferenceStatus(element, tokenProps);
+        const tokenReferenceStatus = getTokenReferenceStatus(element, tokenProps, { computedValue: `${item.value}px` });
         if (allowsTokenReference(tokenReferenceStatus)) return;
+        if (tokenReferenceStatus.status === 'mismatch') {
+          addMismatchedCssVariableIssue({
+            issues,
+            issueDetails,
+            label: item.label,
+            value: `${item.value}px`,
+            metadata: { spacing: { kind: 'gap', sides: [item.axis], value: item.value } },
+            element,
+            properties: tokenProps,
+            computedValue: `${item.value}px`,
+            tokenReferenceStatus,
+          });
+          return;
+        }
         if (tokenReferenceStatus.status === 'unregistered') {
           addUnregisteredCssVariableIssue({
             issues,

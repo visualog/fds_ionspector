@@ -86,5 +86,20 @@ test('buildSnapshotTokenSpecs creates inspector-compatible colors, spacing, and 
   assert.equal(specs.meta.unresolvedReferenceCount, 0);
   assert.equal(specs.cssVariables.variables['--color-bg-primary'].includes('Color/bg/primary'), true);
   assert.deepEqual(specs.cssVariables.variables['--spacing-16'], ['spacing/16']);
+  assert.deepEqual(specs.cssVariables.aliases['--spacing-1'], {
+    tokenNames: ['spacing/4'],
+    expectedValue: '4px',
+    source: 'tailwind-spacing',
+  });
+  assert.deepEqual(specs.cssVariables.aliases['--spacing-3'], {
+    tokenNames: ['spacing/12'],
+    expectedValue: '12px',
+    source: 'tailwind-spacing',
+  });
+  assert.equal(
+    specs.cssVariables.aliases?.['--radius-lg'],
+    undefined,
+    'Tailwind radius aliases stay unregistered until Storybook documents their FDS mapping',
+  );
   assert.deepEqual(specs.cssVariables.variables['--radius-circle'], ['radius/circle']);
 });

@@ -4,8 +4,12 @@
       const variables = specs?.cssVariables?.variables && typeof specs.cssVariables.variables === 'object'
         ? specs.cssVariables.variables
         : {};
+      const aliases = specs?.cssVariables?.aliases && typeof specs.cssVariables.aliases === 'object'
+        ? specs.cssVariables.aliases
+        : {};
       return {
         variables,
+        ...(Object.keys(aliases).length ? { aliases } : {}),
         meta: {
           cssVariableCount: Number(
             specs?.cssVariables?.meta?.cssVariableCount ||
@@ -137,6 +141,19 @@
           .sort()
           .map((name) => [name, [...new Set(overrides.cssVariables.variables[name] || [])].sort()])
         : [];
+      const cssVariableAliases = overrides?.cssVariables?.aliases && typeof overrides.cssVariables.aliases === 'object'
+        ? Object.keys(overrides.cssVariables.aliases)
+          .sort()
+          .map((name) => {
+            const alias = overrides.cssVariables.aliases[name] || {};
+            return [
+              name,
+              [...new Set(Array.isArray(alias.tokenNames) ? alias.tokenNames : [])].sort(),
+              alias.expectedValue || '',
+              alias.source || '',
+            ];
+          })
+        : [];
       const colors = colorRegistry?.colors && typeof colorRegistry.colors === 'object'
         ? Object.keys(colorRegistry.colors)
           .sort()
@@ -152,6 +169,7 @@
         spacingTokens,
         radiusTokens,
         cssVariables,
+        cssVariableAliases,
         colors,
       });
     }

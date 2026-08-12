@@ -257,6 +257,67 @@ test('getAuthoredTokenReferenceStatus accepts only registered CSS variables when
   );
 });
 
+test('getAuthoredTokenReferenceStatus rejects a Tailwind alias whose computed value differs from its FDS token', () => {
+  const element = {
+    style: createStyle({ 'padding-left': 'var(--spacing-3)' }),
+  };
+
+  assert.deepEqual(
+    getAuthoredTokenReferenceStatus(
+      element,
+      ['padding-left'],
+      { styleSheets: [] },
+      {
+        '--spacing-3': {
+          tokenNames: ['spacing/12'],
+          expectedValue: '12px',
+          source: 'tailwind-spacing',
+        },
+      },
+      { computedValue: '16px' }
+    ),
+    {
+      status: 'mismatch',
+      variables: ['--spacing-3'],
+      unregisteredVariables: [],
+      mismatchedVariables: [{
+        name: '--spacing-3',
+        expectedValue: '12px',
+        computedValue: '16px',
+        tokenNames: ['spacing/12'],
+      }],
+    }
+  );
+});
+
+test('getAuthoredTokenReferenceStatus accepts a Tailwind gap utility only when it resolves to the mapped FDS spacing value', () => {
+  const element = {
+    className: 'inline-flex items-center gap-2 text-body-2-regular',
+    style: createStyle(),
+  };
+
+  assert.deepEqual(
+    getAuthoredTokenReferenceStatus(
+      element,
+      ['gap', 'row-gap', 'column-gap'],
+      { styleSheets: [] },
+      {
+        '--spacing-2': {
+          tokenNames: ['spacing/8'],
+          expectedValue: '8px',
+          source: 'tailwind-spacing',
+        },
+      },
+      { computedValue: '8px' }
+    ),
+    {
+      status: 'registered',
+      variables: ['--spacing-2'],
+      unregisteredVariables: [],
+    }
+  );
+});
+
 test('getAuthoredTokenReferenceStatus flags unknown CSS variables even when a known fallback is present', () => {
   const element = {
     style: createStyle({ color: 'var(--custom-brand, var(--color-text-primary))' }),
