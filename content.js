@@ -110,6 +110,7 @@ const {
   getElementIssueSignature,
   getDirectTextContent,
   hasDirectTextContent,
+  rebindUnrenderedIssueEntries,
   getIssueTone,
   getIssueColorPart,
   getIssueCategoryFromMessage,
@@ -206,6 +207,8 @@ let queuedScanReason = '';
 let lastScanMetrics = null;
 let pendingSummaryMotion = null;
 const scheduledVisualUpdates = [];
+let lastViewportWidth = window.innerWidth;
+let pendingResponsiveLockedIssueKeys = [];
 
 const FILTER_LABELS = Object.freeze({
   color: '컬러',
@@ -738,6 +741,7 @@ function clampPosition(value, min, max) {
 const {
   createInspectorCardHideTimer,
   createVisualUpdateScheduler,
+  createDebouncedUpdateScheduler,
   getViolationPinLabel,
   isViolationPinTargetVisible,
   getRectOverlapArea,
@@ -782,12 +786,35 @@ const inspectorPreviewPositionScheduler = createVisualUpdateScheduler({
     refreshActiveInspectorPreviewPosition();
   },
 });
+function refreshResponsiveIssueGeometry() {
+  if (!isExtensionVisible || isDismissedByUser) return;
+  rebindUnrenderedIssueEntries({
+    entries: scanData.issueEntries.filter((entry) => entry.category === activeFilter),
+    root: document,
+    isElementVisible: isScannableElement,
+    getStyles: (element) => window.getComputedStyle(element),
+    inspectElement: ({ filterKey, styles, element }) => getInspectionForFilter(filterKey, styles, element),
+  });
+  if (pendingResponsiveLockedIssueKeys.length > 0) {
+    lockedPinnedIssueKeys = [...pendingResponsiveLockedIssueKeys];
+    lockedPinnedIssueKey = lockedPinnedIssueKeys[0] || null;
+    pendingResponsiveLockedIssueKeys = [];
+  }
+  applyVisibleIssueHighlights();
+  refreshActiveInspectorPreviewPosition();
+}
+
+const responsiveViewportGeometryScheduler = createDebouncedUpdateScheduler({
+  delayMs: 300,
+  onUpdate: refreshResponsiveIssueGeometry,
+});
 scheduledVisualUpdates.push(
   gapHighlightScheduler,
   radiusHighlightScheduler,
   textColorHighlightScheduler,
   violationPinPositionScheduler,
   inspectorPreviewPositionScheduler,
+  responsiveViewportGeometryScheduler,
 );
 
 function cancelScheduledVisualUpdates() {
@@ -3305,7 +3332,12 @@ function bindViewportEvents() {
   hasBoundViewportEvents = true;
 
   window.addEventListener('resize', () => {
+    const viewportWidthChanged = window.innerWidth !== lastViewportWidth;
+    lastViewportWidth = window.innerWidth;
     if (!isExtensionVisible || isDismissedByUser) return;
+    if (viewportWidthChanged && lockedPinnedIssueKeys.length > 0) {
+      pendingResponsiveLockedIssueKeys = [...lockedPinnedIssueKeys];
+    }
     stopToolbarDrag();
     stopSummaryPanelDrag();
     syncToolbar();
@@ -3321,6 +3353,9 @@ function bindViewportEvents() {
     scheduleTextColorHighlightUpdate();
     scheduleGapHighlightUpdate();
     scheduleRadiusHighlightUpdate();
+    if (viewportWidthChanged) {
+      responsiveViewportGeometryScheduler.schedule();
+    }
   });
 
   window.addEventListener('scroll', () => {

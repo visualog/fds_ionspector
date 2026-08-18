@@ -63,3 +63,62 @@ test('issue signatures distinguish repeated card elements with the same classes'
   assert.match(utils.getElementIssueSignature(firstCard), /section\[0\]>div\[0\]/);
   assert.match(utils.getElementIssueSignature(secondCard), /section\[0\]>div\[1\]/);
 });
+
+test('responsive issue rebinding reconnects hidden entries to visible matching elements', () => {
+  const hiddenFirst = { tagName: 'DIV', className: 'sc-dmyCSP card', isConnected: true };
+  const hiddenSecond = { tagName: 'DIV', className: 'sc-dmyCSP card', isConnected: false };
+  const visibleFirst = { tagName: 'DIV', className: 'sc-dmyCSP card', isConnected: true };
+  const visibleSecond = { tagName: 'DIV', className: 'sc-dmyCSP card', isConnected: true };
+  const entries = [
+    { key: 'issue-1', category: 'spacing', message: '패딩 14px (미등록)', element: hiddenFirst },
+    { key: 'issue-2', category: 'spacing', message: '패딩 14px (미등록)', element: hiddenSecond },
+  ];
+  const visibleElements = new Set([visibleFirst, visibleSecond]);
+  const selectors = [];
+
+  const reboundCount = utils.rebindUnrenderedIssueEntries({
+    entries,
+    root: {
+      querySelectorAll: (selector) => {
+        selectors.push(selector);
+        return [visibleFirst, visibleSecond];
+      },
+    },
+    isElementVisible: (element) => visibleElements.has(element),
+    getStyles: () => ({}),
+    inspectElement: ({ element }) => ({
+      issues: ['패딩 14px (미등록)'],
+      issueDetails: [{ rebound: element === visibleFirst ? 'first' : 'second' }],
+    }),
+  });
+
+  assert.equal(reboundCount, 2);
+  assert.deepEqual(selectors, ['div.sc-dmyCSP', 'div.sc-dmyCSP']);
+  assert.equal(entries[0].element, visibleFirst);
+  assert.equal(entries[1].element, visibleSecond);
+  assert.deepEqual(entries[0].metadata, { rebound: 'first' });
+  assert.deepEqual(entries[1].metadata, { rebound: 'second' });
+  assert.deepEqual(entries.map((entry) => entry.key), ['issue-1', 'issue-2']);
+});
+
+test('responsive issue rebinding leaves an entry stale when no visible candidate has the same violation', () => {
+  const hiddenElement = { tagName: 'BUTTON', className: 'card', isConnected: true };
+  const visibleElement = { tagName: 'BUTTON', className: 'card', isConnected: true };
+  const entry = {
+    key: 'issue-1',
+    category: 'spacing',
+    message: '갭 5px (미등록)',
+    element: hiddenElement,
+  };
+
+  const reboundCount = utils.rebindUnrenderedIssueEntries({
+    entries: [entry],
+    root: { querySelectorAll: () => [visibleElement] },
+    isElementVisible: (element) => element === visibleElement,
+    getStyles: () => ({}),
+    inspectElement: () => ({ issues: ['갭 8px (원시값 직접 사용)'], issueDetails: [] }),
+  });
+
+  assert.equal(reboundCount, 0);
+  assert.equal(entry.element, hiddenElement);
+});

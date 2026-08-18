@@ -51,6 +51,77 @@
       return getDirectTextContent(element).length > 0;
     }
 
+    function getElementRebindSelector(element) {
+      const tagName = element?.tagName?.toLowerCase?.();
+      if (!tagName) return null;
+      const escapeIdentifier = (value) => {
+        if (typeof globalScope.CSS?.escape === 'function') return globalScope.CSS.escape(value);
+        return /^[A-Za-z_][A-Za-z0-9_-]*$/.test(value) ? value : null;
+      };
+      const id = element.id ? escapeIdentifier(String(element.id)) : null;
+      if (id) return `${tagName}#${id}`;
+      const firstClass = typeof element.className === 'string'
+        ? element.className.trim().split(/\s+/).find(Boolean)
+        : null;
+      const className = firstClass ? escapeIdentifier(firstClass) : null;
+      return className ? `${tagName}.${className}` : tagName;
+    }
+
+    function rebindUnrenderedIssueEntries({
+      entries = [],
+      root,
+      isElementVisible,
+      getStyles,
+      inspectElement,
+    }) {
+      if (!root?.querySelectorAll || typeof inspectElement !== 'function') return 0;
+      const isRendered = (element) => Boolean(element?.isConnected) && Boolean(isElementVisible?.(element));
+      const usedElements = new Set(entries.filter((entry) => isRendered(entry?.element)).map((entry) => entry.element));
+      const replacementByOriginal = new Map();
+      let reboundCount = 0;
+
+      entries.forEach((entry) => {
+        const originalElement = entry?.element;
+        if (!entry?.message || !entry?.category || isRendered(originalElement)) return;
+        const selector = getElementRebindSelector(originalElement);
+        if (!selector) return;
+
+        let candidates;
+        try {
+          candidates = Array.from(root.querySelectorAll(selector));
+        } catch (_error) {
+          return;
+        }
+
+        const preferredCandidate = replacementByOriginal.get(originalElement);
+        if (preferredCandidate) {
+          candidates = [preferredCandidate, ...candidates.filter((candidate) => candidate !== preferredCandidate)];
+        }
+
+        for (const candidate of candidates) {
+          if (!isRendered(candidate) || candidate.closest?.('#fds-root')) continue;
+          if (usedElements.has(candidate) && candidate !== preferredCandidate) continue;
+          const inspection = inspectElement({
+            filterKey: entry.category,
+            styles: getStyles?.(candidate),
+            element: candidate,
+          });
+          const issues = Array.isArray(inspection?.issues) ? inspection.issues : [];
+          const issueIndex = issues.indexOf(entry.message);
+          if (issueIndex < 0) continue;
+
+          entry.element = candidate;
+          entry.metadata = inspection?.issueDetails?.[issueIndex] || entry.metadata || null;
+          replacementByOriginal.set(originalElement, candidate);
+          usedElements.add(candidate);
+          reboundCount += 1;
+          break;
+        }
+      });
+
+      return reboundCount;
+    }
+
     function getIssueTone(message) {
       if (String(message || '').includes('(미등록)')) return 'danger';
       if (String(message || '').includes('(원시값 직접 사용)')) return 'warning';
@@ -100,6 +171,8 @@
       getElementDomPath,
       getDirectTextContent,
       hasDirectTextContent,
+      getElementRebindSelector,
+      rebindUnrenderedIssueEntries,
       getIssueTone,
       getIssueColorPart,
       getIssueCategoryFromMessage,

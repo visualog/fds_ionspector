@@ -966,6 +966,21 @@ test('active violation pin follows nested app scroll and clears stale targets', 
   assert.match(contentSource, /if \(!visiblePinCount && !lockedPinnedIssueKey && lockedPinnedIssueKeys\.length === 0\) \{[\s\S]*clearActiveViolationPin\(\);[\s\S]*\}/);
 });
 
+test('viewport width changes refresh settled highlight geometry without rescanning the page', () => {
+  const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
+  const floatingInspectorSource = fs.readFileSync(path.join(__dirname, 'content-floating-inspector.js'), 'utf8');
+
+  assert.match(floatingInspectorSource, /function\s+createDebouncedUpdateScheduler\(/);
+  assert.match(contentSource, /let\s+lastViewportWidth\s*=\s*window\.innerWidth/);
+  assert.match(contentSource, /function\s+refreshResponsiveIssueGeometry\(\)[\s\S]*rebindUnrenderedIssueEntries\([\s\S]*applyVisibleIssueHighlights\(\)[\s\S]*refreshActiveInspectorPreviewPosition\(\)/);
+  assert.match(contentSource, /pendingResponsiveLockedIssueKeys\s*=\s*\[\.\.\.lockedPinnedIssueKeys\]/);
+  assert.match(contentSource, /const\s+responsiveViewportGeometryScheduler\s*=\s*createDebouncedUpdateScheduler\(\{[\s\S]*delayMs:\s*300,[\s\S]*onUpdate:\s*refreshResponsiveIssueGeometry/);
+  assert.match(contentSource, /window\.addEventListener\('resize'[\s\S]*const\s+viewportWidthChanged\s*=\s*window\.innerWidth\s*!==\s*lastViewportWidth/);
+  assert.match(contentSource, /window\.addEventListener\('resize'[\s\S]*if\s*\(viewportWidthChanged\)\s*\{[\s\S]*responsiveViewportGeometryScheduler\.schedule\(\)/);
+  assert.match(contentSource, /scheduledVisualUpdates\.push\([\s\S]*responsiveViewportGeometryScheduler[\s\S]*\)/);
+  assert.doesNotMatch(contentSource, /responsiveViewport\w*Scheduler[\s\S]{0,300}void\s+scan\(/);
+});
+
 test('inspector card hover area is protected from document-level mouse clearing', () => {
   const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
 

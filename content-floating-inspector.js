@@ -100,6 +100,52 @@
       };
     }
 
+    function createDebouncedUpdateScheduler({
+      delayMs,
+      onUpdate,
+      setTimeoutFn = globalScope.setTimeout?.bind?.(globalScope),
+      clearTimeoutFn = globalScope.clearTimeout?.bind?.(globalScope),
+    }) {
+      let pendingTask = null;
+
+      function run(task) {
+        if (pendingTask !== task) return;
+        pendingTask = null;
+        onUpdate?.();
+      }
+
+      function cancel() {
+        if (!pendingTask) return false;
+        const task = pendingTask;
+        pendingTask = null;
+        clearTimeoutFn?.(task.id);
+        return true;
+      }
+
+      function schedule() {
+        cancel();
+        const task = { id: null };
+        pendingTask = task;
+
+        if (typeof setTimeoutFn === 'function') {
+          task.id = setTimeoutFn(() => run(task), delayMs);
+        } else {
+          run(task);
+        }
+        return true;
+      }
+
+      function isScheduled() {
+        return Boolean(pendingTask);
+      }
+
+      return {
+        schedule,
+        cancel,
+        isScheduled,
+      };
+    }
+
     function getViolationPinLabel(entry) {
       const element = entry?.element;
       const tagName = element?.tagName?.toLowerCase?.() || 'element';
@@ -244,6 +290,7 @@
     return {
       createInspectorCardHideTimer,
       createVisualUpdateScheduler,
+      createDebouncedUpdateScheduler,
       getViolationPinLabel,
       isViolationPinTargetVisible,
       getRectOverlapArea,

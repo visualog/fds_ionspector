@@ -153,6 +153,65 @@ test('floating inspector visual scheduler cancels its timeout fallback correctly
   assert.equal(pendingTimers.size, 0);
 });
 
+test('floating inspector debounced scheduler waits for the last viewport update', () => {
+  const inspector = createInspector();
+  const pendingTimers = new Map();
+  const clearedTimers = [];
+  let nextTimerId = 0;
+  let updateCount = 0;
+  const scheduler = inspector.createDebouncedUpdateScheduler({
+    delayMs: 300,
+    onUpdate: () => {
+      updateCount += 1;
+    },
+    setTimeoutFn: (callback, delay) => {
+      const id = `timer-${nextTimerId += 1}`;
+      pendingTimers.set(id, { callback, delay });
+      return id;
+    },
+    clearTimeoutFn: (id) => {
+      clearedTimers.push(id);
+      pendingTimers.delete(id);
+    },
+  });
+
+  assert.equal(scheduler.schedule(), true);
+  assert.equal(pendingTimers.get('timer-1').delay, 300);
+  assert.equal(scheduler.schedule(), true);
+  assert.deepEqual(clearedTimers, ['timer-1']);
+  assert.equal(pendingTimers.size, 1);
+  assert.equal(scheduler.isScheduled(), true);
+
+  pendingTimers.get('timer-2').callback();
+  assert.equal(updateCount, 1);
+  assert.equal(scheduler.isScheduled(), false);
+});
+
+test('floating inspector debounced scheduler cancels a stale delayed update', () => {
+  const inspector = createInspector();
+  const pendingTimers = new Map();
+  let updateCount = 0;
+  const scheduler = inspector.createDebouncedUpdateScheduler({
+    delayMs: 300,
+    onUpdate: () => {
+      updateCount += 1;
+    },
+    setTimeoutFn: (callback) => {
+      pendingTimers.set(9, callback);
+      return 9;
+    },
+    clearTimeoutFn: () => {},
+  });
+
+  scheduler.schedule();
+  assert.equal(scheduler.cancel(), true);
+  pendingTimers.get(9)();
+
+  assert.equal(updateCount, 0);
+  assert.equal(scheduler.isScheduled(), false);
+  assert.equal(scheduler.cancel(), false);
+});
+
 test('floating inspector detects whether a violation pin target is visible', () => {
   const inspector = createInspector({ width: 100, height: 80 });
 
