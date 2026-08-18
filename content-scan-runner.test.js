@@ -182,6 +182,12 @@ test('spacing violations expose directional padding and margin markers', () => {
   assert.match(contentSource, /function\s+getTextColorMarkerRects\(element\)/);
   assert.match(contentSource, /range\.getClientRects/);
   assert.match(contentSource, /function\s+appendTextColorMarker\(layer, rect\)/);
+  assert.match(contentSource, /const\s+gapHighlightScheduler\s*=\s*createVisualUpdateScheduler/);
+  assert.match(contentSource, /const\s+radiusHighlightScheduler\s*=\s*createVisualUpdateScheduler/);
+  assert.match(contentSource, /const\s+textColorHighlightScheduler\s*=\s*createVisualUpdateScheduler/);
+  assert.match(contentSource, /function\s+scheduleGapHighlightUpdate\(\)\s*\{\s*gapHighlightScheduler\.schedule\(\)/);
+  assert.match(contentSource, /function\s+scheduleRadiusHighlightUpdate\(\)\s*\{\s*radiusHighlightScheduler\.schedule\(\)/);
+  assert.match(contentSource, /function\s+scheduleTextColorHighlightUpdate\(\)\s*\{\s*textColorHighlightScheduler\.schedule\(\)/);
   assert.match(contentSource, /scheduleTextColorHighlightUpdate\(\)/);
   assert.match(contentSource, /renderTextColorHighlights\(scanData\.issueEntries\)/);
   assert.match(contentSource, /function\s+renderRadiusHighlights\(entries = getVisibleIssueEntries\(\)\)/);
@@ -748,6 +754,7 @@ test('inspector hover card separates issue value from repeated violation type co
   assert.match(contentSource, /<span class="fds-issue-description">\$\{escapeHtml\(issueDisplay\.description\)\}<\/span>/);
   assert.match(contentSource, /<span class="fds-issue-tip"><svg class="fds-issue-tip-icon" data-lucide="info"[\s\S]*<span>\$\{escapeHtml\(issueDisplay\.tip\)\}<\/span><\/span>/);
   assert.match(contentSource, /function\s+renderSuggestedTokenRows\(tokens = \[\]\)/);
+  assert.match(contentSource, /<span class="fds-issue-replacement-label">FDS 추천 토큰<\/span>/);
   assert.match(contentSource, /tokens\.map\(\(token\) => `[\s\S]*<div class="fds-token-row">[\s\S]*data-copy-token="\$\{escapeHtml\(token\)\}"/);
   assert.match(contentSource, /<button class="fds-token-copy"[\s\S]*data-lucide="\$\{escapeHtml\(name\)\}"/);
   assert.doesNotMatch(contentSource, />토큰명 복사<\/button>/);
@@ -763,6 +770,7 @@ test('inspector hover card separates issue value from repeated violation type co
   assert.match(styleSource, /\.fds-issue-tip-icon\s*\{[\s\S]*width:\s*12px/);
   assert.doesNotMatch(styleSource, /\.fds-issue-tip-icon\s*\{[^}]*margin-top/);
   assert.match(styleSource, /\.fds-issue-replacement\s*\{[\s\S]*flex-direction:\s*column/);
+  assert.match(styleSource, /\.fds-issue-replacement-label\s*\{[\s\S]*font-size:\s*9px/);
   assert.match(styleSource, /\.fds-token-row\s*\{[\s\S]*align-items:\s*center/);
   assert.doesNotMatch(styleSource, /\.fds-issue-replacement span\s*\{/);
   assert.match(styleSource, /\.fds-token-row strong\s*\{[\s\S]*flex:\s*1 1 auto/);
@@ -922,10 +930,16 @@ test('violation pin placement avoids overlapping the inspector card', () => {
 test('active violation pin follows nested app scroll and clears stale targets', () => {
   const contentSource = fs.readFileSync(path.join(__dirname, 'content.js'), 'utf8');
 
-  assert.match(contentSource, /let\s+violationPinPositionFrame\s*=\s*null/);
-  assert.match(contentSource, /let\s+inspectorPreviewPositionFrame\s*=\s*null/);
-  assert.match(contentSource, /function\s+scheduleViolationPinPositionUpdate\(\)/);
-  assert.match(contentSource, /function\s+scheduleInspectorPreviewPositionUpdate\(\)/);
+  assert.match(contentSource, /createVisualUpdateScheduler/);
+  assert.match(contentSource, /const\s+violationPinPositionScheduler\s*=\s*createVisualUpdateScheduler/);
+  assert.match(contentSource, /const\s+inspectorPreviewPositionScheduler\s*=\s*createVisualUpdateScheduler/);
+  assert.match(contentSource, /function\s+scheduleViolationPinPositionUpdate\(\)\s*\{\s*violationPinPositionScheduler\.schedule\(\)/);
+  assert.match(contentSource, /function\s+scheduleInspectorPreviewPositionUpdate\(\)\s*\{\s*inspectorPreviewPositionScheduler\.schedule\(\)/);
+  assert.match(contentSource, /const\s+scheduledVisualUpdates\s*=\s*\[\]/);
+  assert.match(contentSource, /scheduledVisualUpdates\.push\([\s\S]*violationPinPositionScheduler[\s\S]*inspectorPreviewPositionScheduler[\s\S]*\)/);
+  assert.match(contentSource, /function\s+cancelScheduledVisualUpdates\(\)\s*\{\s*scheduledVisualUpdates\.forEach\(\(scheduler\)\s*=>\s*scheduler\.cancel\(\)\)/);
+  assert.match(contentSource, /function\s+clearInspectionMarks\(\)\s*\{\s*cancelScheduledVisualUpdates\(\)/);
+  assert.match(contentSource, /function\s+handleExtensionContextInvalid\(error\)[\s\S]*cancelScheduledVisualUpdates\(\)/);
   assert.match(contentSource, /document\.addEventListener\('scroll'[\s\S]*scheduleInspectorPreviewPositionUpdate\(\)[\s\S]*\{\s*passive:\s*true,\s*capture:\s*true\s*\}/);
   assert.match(contentSource, /window\.addEventListener\('resize'[\s\S]*scheduleInspectorPreviewPositionUpdate\(\)/);
   assert.doesNotMatch(contentSource, /window\.addEventListener\('resize'[\s\S]*hideInspectorCard\(\)[\s\S]*scheduleInspectorPreviewPositionUpdate\(\)/);

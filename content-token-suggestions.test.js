@@ -23,7 +23,7 @@ function createSuggestions(overrides = {}) {
       ]
       : []),
     parseViolationItem: (message) => {
-      const [, tag = '', value = ''] = String(message).match(/^(.*)\s+([^\s]+)\s+\(원시값 직접 사용/) || [];
+      const [, , value = '', tag = ''] = String(message).match(/^(.*)\s+([^\s]+)\s+\(([^)]+)/) || [];
       return { tag, value };
     },
     ...overrides,
@@ -42,6 +42,20 @@ test('token suggestions rank design token names ahead of generic aliases', () =>
       'spacing.2',
     ]),
     ['Color.text.primary', 'spacing.2', 'dark.neutral.900', 'Unit.Spacing.8'],
+  );
+});
+
+test('token suggestions rank FDS tokens ahead of CSS variables and Tailwind utilities', () => {
+  const suggestions = createSuggestions();
+
+  assert.deepEqual(
+    suggestions.rankSuggestedTokens([
+      'gap-2',
+      '--spacing-2',
+      'spacing.2',
+      'p-2',
+    ]),
+    ['spacing.2', '--spacing-2', 'gap-2', 'p-2'],
   );
 });
 
@@ -123,14 +137,56 @@ test('token suggestions extract radius replacement tokens from raw-value tags', 
   );
 });
 
-test('token suggestions ignore non raw-value issues', () => {
+test('token suggestions offer the nearest FDS tokens for unregistered spacing values', () => {
+  const suggestions = createSuggestions({
+    getActiveInspectorSpecs: () => ({
+      spacingTokens: {
+        8: ['gap-2', '--spacing-2', 'spacing.2'],
+        10: ['spacing.2.5'],
+      },
+      radiusTokens: {},
+    }),
+    parseViolationItem: () => ({
+      tag: '미등록',
+      value: '9px',
+    }),
+  });
+
+  assert.deepEqual(
+    suggestions.getSuggestedTokensForIssue({
+      category: 'spacing',
+      message: '간격 9px (미등록)',
+    }),
+    ['spacing.2', 'spacing.2.5', '--spacing-2'],
+  );
+});
+
+test('token suggestions do not recommend a distant token as a similar replacement', () => {
+  const suggestions = createSuggestions({
+    parseViolationItem: () => ({
+      tag: '미등록',
+      value: '999px',
+    }),
+  });
+
+  assert.deepEqual(
+    suggestions.getSuggestedTokensForIssue({
+      category: 'spacing',
+      message: '간격 999px (미등록)',
+    }),
+    [],
+  );
+});
+
+test('token suggestions offer registered FDS color tokens for unregistered color values', () => {
   const suggestions = createSuggestions();
 
   assert.deepEqual(
     suggestions.getSuggestedTokensForIssue({
       category: 'color',
+      colorPart: 'text',
       message: '글자색 #1a202c (미등록)',
     }),
-    [],
+    ['Color.text.primary', 'Color/avatar/cool gray/text'],
   );
 });

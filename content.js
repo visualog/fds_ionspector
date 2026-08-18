@@ -205,11 +205,7 @@ let activeScanPromise = null;
 let queuedScanReason = '';
 let lastScanMetrics = null;
 let pendingSummaryMotion = null;
-let violationPinPositionFrame = null;
-let inspectorPreviewPositionFrame = null;
-let gapHighlightFrame = null;
-let radiusHighlightFrame = null;
-let textColorHighlightFrame = null;
+const scheduledVisualUpdates = [];
 
 const FILTER_LABELS = Object.freeze({
   color: '컬러',
@@ -312,6 +308,7 @@ function handleExtensionContextInvalid(error) {
 
   isExtensionVisible = false;
   isDismissedByUser = true;
+  cancelScheduledVisualUpdates();
   clearConnectedMessageTimer();
   stopBridgePolling();
   hideTooltip();
@@ -740,6 +737,7 @@ function clampPosition(value, min, max) {
 
 const {
   createInspectorCardHideTimer,
+  createVisualUpdateScheduler,
   getViolationPinLabel,
   isViolationPinTargetVisible,
   getRectOverlapArea,
@@ -754,6 +752,47 @@ const inspectorCardHideTimer = createInspectorCardHideTimer({
   hideDelayMs: INSPECTOR_CARD_HIDE_DELAY_MS,
   onClear: () => clearTransientInspectorPreview(),
 });
+const gapHighlightScheduler = createVisualUpdateScheduler({
+  onUpdate: () => {
+    if (!isExtensionVisible || isDismissedByUser) return;
+    renderGapHighlights();
+  },
+});
+const radiusHighlightScheduler = createVisualUpdateScheduler({
+  onUpdate: () => {
+    if (!isExtensionVisible || isDismissedByUser) return;
+    renderRadiusHighlights();
+  },
+});
+const textColorHighlightScheduler = createVisualUpdateScheduler({
+  onUpdate: () => {
+    if (!isExtensionVisible || isDismissedByUser) return;
+    renderTextColorHighlights();
+  },
+});
+const violationPinPositionScheduler = createVisualUpdateScheduler({
+  onUpdate: () => {
+    if (!isExtensionVisible || isDismissedByUser) return;
+    positionViolationPin();
+  },
+});
+const inspectorPreviewPositionScheduler = createVisualUpdateScheduler({
+  onUpdate: () => {
+    if (!isExtensionVisible || isDismissedByUser) return;
+    refreshActiveInspectorPreviewPosition();
+  },
+});
+scheduledVisualUpdates.push(
+  gapHighlightScheduler,
+  radiusHighlightScheduler,
+  textColorHighlightScheduler,
+  violationPinPositionScheduler,
+  inspectorPreviewPositionScheduler,
+);
+
+function cancelScheduledVisualUpdates() {
+  scheduledVisualUpdates.forEach((scheduler) => scheduler.cancel());
+}
 
 function placeFloatingElement(element, preferredLeft, preferredTop, { margin = 12 } = {}) {
   const width = element.offsetWidth || 0;
@@ -1660,54 +1699,15 @@ function renderTextColorHighlights(entries = getVisibleIssueEntries()) {
 }
 
 function scheduleGapHighlightUpdate() {
-  if (gapHighlightFrame !== null) return;
-
-  const updateGapHighlights = () => {
-    gapHighlightFrame = null;
-    if (!isExtensionVisible || isDismissedByUser) return;
-    renderGapHighlights();
-  };
-
-  if (typeof window.requestAnimationFrame === 'function') {
-    gapHighlightFrame = window.requestAnimationFrame(updateGapHighlights);
-    return;
-  }
-
-  gapHighlightFrame = window.setTimeout(updateGapHighlights, 16);
+  gapHighlightScheduler.schedule();
 }
 
 function scheduleRadiusHighlightUpdate() {
-  if (radiusHighlightFrame !== null) return;
-
-  const updateRadiusHighlights = () => {
-    radiusHighlightFrame = null;
-    if (!isExtensionVisible || isDismissedByUser) return;
-    renderRadiusHighlights();
-  };
-
-  if (typeof window.requestAnimationFrame === 'function') {
-    radiusHighlightFrame = window.requestAnimationFrame(updateRadiusHighlights);
-    return;
-  }
-
-  radiusHighlightFrame = window.setTimeout(updateRadiusHighlights, 16);
+  radiusHighlightScheduler.schedule();
 }
 
 function scheduleTextColorHighlightUpdate() {
-  if (textColorHighlightFrame !== null) return;
-
-  const updateTextColorHighlights = () => {
-    textColorHighlightFrame = null;
-    if (!isExtensionVisible || isDismissedByUser) return;
-    renderTextColorHighlights();
-  };
-
-  if (typeof window.requestAnimationFrame === 'function') {
-    textColorHighlightFrame = window.requestAnimationFrame(updateTextColorHighlights);
-    return;
-  }
-
-  textColorHighlightFrame = window.setTimeout(updateTextColorHighlights, 16);
+  textColorHighlightScheduler.schedule();
 }
 
 function applyVisibleIssueHighlights(entries = getVisibleIssueEntries()) {
@@ -2010,6 +2010,7 @@ function showInspectorCardForEntries(target, issueEntries, anchorElement = targe
             </div>
             ${suggestedTokens.length
               ? `<div class="fds-issue-replacement">
+                  <span class="fds-issue-replacement-label">FDS 추천 토큰</span>
                   ${renderSuggestedTokenRows(suggestedTokens)}
                 </div>`
               : ''}
@@ -2290,20 +2291,7 @@ function positionViolationPin(
 }
 
 function scheduleViolationPinPositionUpdate() {
-  if (violationPinPositionFrame !== null) return;
-
-  const updatePinPosition = () => {
-    violationPinPositionFrame = null;
-    if (!isExtensionVisible || isDismissedByUser) return;
-    positionViolationPin();
-  };
-
-  if (typeof window.requestAnimationFrame === 'function') {
-    violationPinPositionFrame = window.requestAnimationFrame(updatePinPosition);
-    return;
-  }
-
-  violationPinPositionFrame = window.setTimeout(updatePinPosition, 16);
+  violationPinPositionScheduler.schedule();
 }
 
 function refreshActiveInspectorPreviewPosition() {
@@ -2323,20 +2311,7 @@ function refreshActiveInspectorPreviewPosition() {
 }
 
 function scheduleInspectorPreviewPositionUpdate() {
-  if (inspectorPreviewPositionFrame !== null) return;
-
-  const updatePreviewPosition = () => {
-    inspectorPreviewPositionFrame = null;
-    if (!isExtensionVisible || isDismissedByUser) return;
-    refreshActiveInspectorPreviewPosition();
-  };
-
-  if (typeof window.requestAnimationFrame === 'function') {
-    inspectorPreviewPositionFrame = window.requestAnimationFrame(updatePreviewPosition);
-    return;
-  }
-
-  inspectorPreviewPositionFrame = window.setTimeout(updatePreviewPosition, 16);
+  inspectorPreviewPositionScheduler.schedule();
 }
 
 function setActiveViolationPin(entry, { locked = false } = {}) {
@@ -3594,6 +3569,7 @@ function refreshActiveScanBreakdown() {
 }
 
 function clearInspectionMarks() {
+  cancelScheduledVisualUpdates();
   clearGapHighlights();
   clearRadiusHighlights();
   clearTextColorHighlights();

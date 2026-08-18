@@ -905,6 +905,13 @@ body.fds-panel-resizing {
   border-top: none;
 }
 
+.fds-issue-replacement-label {
+  font-size: 9px;
+  line-height: 12px;
+  font-weight: 700;
+  color: rgba(255, 255, 255, 0.5);
+}
+
 .fds-token-row {
   display: flex;
   align-items: center;

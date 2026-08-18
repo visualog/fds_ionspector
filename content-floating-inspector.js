@@ -39,6 +39,67 @@
       };
     }
 
+    function createVisualUpdateScheduler({
+      onUpdate,
+      requestAnimationFrameFn = globalScope.requestAnimationFrame?.bind?.(globalScope),
+      cancelAnimationFrameFn = globalScope.cancelAnimationFrame?.bind?.(globalScope),
+      setTimeoutFn = globalScope.setTimeout?.bind?.(globalScope),
+      clearTimeoutFn = globalScope.clearTimeout?.bind?.(globalScope),
+    }) {
+      let pendingTask = null;
+
+      function run(task) {
+        if (pendingTask !== task) return;
+        pendingTask = null;
+        onUpdate?.();
+      }
+
+      function schedule() {
+        if (pendingTask) return false;
+
+        const task = { kind: null, id: null };
+        pendingTask = task;
+        const callback = () => run(task);
+
+        if (typeof requestAnimationFrameFn === 'function') {
+          task.kind = 'frame';
+          task.id = requestAnimationFrameFn(callback);
+          return true;
+        }
+
+        if (typeof setTimeoutFn === 'function') {
+          task.kind = 'timeout';
+          task.id = setTimeoutFn(callback, 16);
+          return true;
+        }
+
+        run(task);
+        return true;
+      }
+
+      function cancel() {
+        if (!pendingTask) return false;
+        const task = pendingTask;
+        pendingTask = null;
+        if (task.kind === 'frame') {
+          cancelAnimationFrameFn?.(task.id);
+        } else if (task.kind === 'timeout') {
+          clearTimeoutFn?.(task.id);
+        }
+        return true;
+      }
+
+      function isScheduled() {
+        return Boolean(pendingTask);
+      }
+
+      return {
+        schedule,
+        cancel,
+        isScheduled,
+      };
+    }
+
     function getViolationPinLabel(entry) {
       const element = entry?.element;
       const tagName = element?.tagName?.toLowerCase?.() || 'element';
@@ -182,6 +243,7 @@
 
     return {
       createInspectorCardHideTimer,
+      createVisualUpdateScheduler,
       getViolationPinLabel,
       isViolationPinTargetVisible,
       getRectOverlapArea,

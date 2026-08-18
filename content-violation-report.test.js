@@ -167,7 +167,7 @@ test('createViolationReportHtml groups every violation into a styled savable rep
   assert.match(report, /<details class="issue-group danger">\s*<summary class="issue-table-summary">\s*<span class="issue-accordion-marker" aria-hidden="true"><\/span>[\s\S]*<span class="tone danger">미등록<\/span>[\s\S]*<span class="issue-table-separator">\/<\/span>[\s\S]*<span class="issue-table-title"><code>#ffffff<\/code><\/span>[\s\S]*<span class="issue-table-separator">\/<\/span>[\s\S]*<span class="issue-table-impact">2개 요소에 영향<\/span>[\s\S]*<\/summary>/);
   assert.doesNotMatch(report, /<span class="issue-table-title">배경색 <code>#ffffff<\/code><\/span>/);
   assert.match(report, /<details class="issue-group danger">[\s\S]*<span class="tone danger">미등록<\/span>[\s\S]*<\/details>\s*<details class="issue-group warning">[\s\S]*<span class="tone warning">원시값 직접 사용<\/span>[\s\S]*<span class="issue-table-title"><code>#f9fafb<\/code><\/span>/);
-  assert.match(report, /<div class="issue-token-hint"><span>대체 토큰<\/span><code>Color\.bg\.surface<\/code><\/div>/);
+  assert.match(report, /<div class="issue-token-hint"><span>FDS 추천 토큰<\/span><code>Color\.bg\.surface<\/code><\/div>/);
   assert.doesNotMatch(report, /<details class="issue-group danger" open>/);
   assert.doesNotMatch(report, /issue-table-summary-row/);
   assert.match(report, /<tr class="path-row" tabindex="0" aria-expanded="false" data-path-row data-compact-path="div#root &gt; … &gt; div\.card" data-full-path="div#root &gt; main\.app-main &gt; section\.hero-section &gt; div\.card"><td><code class="path-compact"><span class="path-view path-view-compact">[\s\S]*<span class="path-segment path-segment-impact danger">div\.card<\/span>[\s\S]*<span class="path-view path-view-full">[\s\S]*<span class="path-segment path-segment-impact danger">div\.card<\/span>[\s\S]*<\/code>[\s\S]*<\/td><\/tr>/);
@@ -191,7 +191,7 @@ test('createViolationReportHtml groups every violation into a styled savable rep
   assert.match(report, /<section class="category-section" id="report-panel-font-family" role="tabpanel" aria-labelledby="report-tab-font-family" data-report-panel="font-family" hidden>/);
   assert.match(report, /<tr class="path-row" tabindex="0" aria-expanded="false" data-path-row data-compact-path="span\.label" data-full-path="span\.label"><td><code class="path-compact"><span class="path-view path-view-compact"><span class="path-segment path-segment-impact danger">span\.label<\/span><\/span><span class="path-view path-view-full"><span class="path-segment path-segment-impact danger">span\.label<\/span><\/span><\/code><\/td><\/tr>/);
   assert.match(report, /<section class="category-section" id="report-panel-spacing" role="tabpanel" aria-labelledby="report-tab-spacing" data-report-panel="spacing" hidden>/);
-  assert.match(report, /<span class="tone warning">원시값 직접 사용<\/span>[\s\S]*<span class="issue-table-title"><code>13px<\/code><\/span>[\s\S]*<span class="issue-table-impact">1개 요소에 영향<\/span>[\s\S]*<div class="issue-token-hint"><span>대체 토큰<\/span><code>spacing\/13<\/code><\/div>/);
+  assert.match(report, /<span class="tone warning">원시값 직접 사용<\/span>[\s\S]*<span class="issue-table-title"><code>13px<\/code><\/span>[\s\S]*<span class="issue-table-impact">1개 요소에 영향<\/span>[\s\S]*<div class="issue-token-hint"><span>FDS 추천 토큰<\/span><code>spacing\/13<\/code><\/div>/);
   assert.match(report, /<tr class="path-row" tabindex="0" aria-expanded="false" data-path-row data-compact-path="section\.stack" data-full-path="section\.stack"><td><code class="path-compact"><span class="path-view path-view-compact"><span class="path-segment path-segment-impact warning">section\.stack<\/span><\/span><span class="path-view path-view-full"><span class="path-segment path-segment-impact warning">section\.stack<\/span><\/span><\/code><\/td><\/tr>/);
   assert.match(report, /<section class="category-section" id="report-panel-radius" role="tabpanel" aria-labelledby="report-tab-radius" data-report-panel="radius" hidden>/);
   assert.match(report, /<script>\(\(\) => \{/);
@@ -281,10 +281,10 @@ test('createViolationReportAiRequestMarkdown summarizes violations for AI handof
   assert.match(markdown, /- 검사 시각: 2026-06-18 09:30/);
   assert.match(markdown, /- 위치 정보 안내: DOM 클래스명은 빌드 과정에서 생성된 불안정한 값일 수 있습니다\./);
   assert.match(markdown, /## 배경색[\s\S]*### 미등록 \/ #ffffff \/ 1개 요소에 영향/);
-  assert.match(markdown, /## 배경색[\s\S]*### 원시값 직접 사용 \/ #f9fafb \/ 1개 요소에 영향[\s\S]*대체 토큰: Color\.bg\.surface/);
-  assert.match(markdown, /## 보더색[\s\S]*### 원시값 직접 사용 \/ #d0d7e2 \/ 1개 요소에 영향[\s\S]*대체 토큰: Color\.border\.default/);
+  assert.match(markdown, /## 배경색[\s\S]*### 원시값 직접 사용 \/ #f9fafb \/ 1개 요소에 영향[\s\S]*FDS 추천 토큰: Color\.bg\.surface/);
+  assert.match(markdown, /## 보더색[\s\S]*### 원시값 직접 사용 \/ #d0d7e2 \/ 1개 요소에 영향[\s\S]*FDS 추천 토큰: Color\.border\.default/);
   assert.match(markdown, /영향 요소 위치:\n1\. div\.card/);
-  assert.match(markdown, /## 스페이싱[\s\S]*### 원시값 직접 사용 \/ 13px \/ 1개 요소에 영향[\s\S]*대체 토큰: spacing\/13/);
+  assert.match(markdown, /## 스페이싱[\s\S]*### 원시값 직접 사용 \/ 13px \/ 1개 요소에 영향[\s\S]*FDS 추천 토큰: spacing\/13/);
   assert.match(markdown, /1\. section\.stack\n   - 사용자 메모: Stack 컴포넌트 gap token으로 정리/);
   assert.doesNotMatch(markdown, /- 검사 탭:/);
   assert.doesNotMatch(markdown, /- 위반 상태:/);

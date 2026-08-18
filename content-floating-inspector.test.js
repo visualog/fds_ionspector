@@ -74,6 +74,85 @@ test('floating inspector card hide timer clears and schedules preview cleanup', 
   assert.equal(timer.isScheduled(), false);
 });
 
+test('floating inspector visual scheduler coalesces repeated frame requests', () => {
+  const inspector = createInspector();
+  const pendingFrames = new Map();
+  let nextFrameId = 0;
+  let updateCount = 0;
+  const scheduler = inspector.createVisualUpdateScheduler({
+    onUpdate: () => {
+      updateCount += 1;
+    },
+    requestAnimationFrameFn: (callback) => {
+      const id = `frame-${nextFrameId += 1}`;
+      pendingFrames.set(id, callback);
+      return id;
+    },
+  });
+
+  assert.equal(scheduler.schedule(), true);
+  assert.equal(scheduler.schedule(), false);
+  assert.equal(pendingFrames.size, 1);
+  assert.equal(scheduler.isScheduled(), true);
+
+  pendingFrames.get('frame-1')();
+  assert.equal(updateCount, 1);
+  assert.equal(scheduler.isScheduled(), false);
+});
+
+test('floating inspector visual scheduler cancels a stale frame before it can update', () => {
+  const inspector = createInspector();
+  const pendingFrames = new Map();
+  const cancelledFrames = [];
+  let updateCount = 0;
+  const scheduler = inspector.createVisualUpdateScheduler({
+    onUpdate: () => {
+      updateCount += 1;
+    },
+    requestAnimationFrameFn: (callback) => {
+      pendingFrames.set(42, callback);
+      return 42;
+    },
+    cancelAnimationFrameFn: (id) => {
+      cancelledFrames.push(id);
+    },
+  });
+
+  scheduler.schedule();
+  assert.equal(scheduler.cancel(), true);
+  assert.deepEqual(cancelledFrames, [42]);
+  assert.equal(scheduler.isScheduled(), false);
+
+  pendingFrames.get(42)();
+  assert.equal(updateCount, 0);
+  assert.equal(scheduler.cancel(), false);
+});
+
+test('floating inspector visual scheduler cancels its timeout fallback correctly', () => {
+  const inspector = createInspector();
+  const pendingTimers = new Map();
+  const clearedTimers = [];
+  const scheduler = inspector.createVisualUpdateScheduler({
+    onUpdate: () => {},
+    requestAnimationFrameFn: null,
+    setTimeoutFn: (callback, delay) => {
+      pendingTimers.set(7, { callback, delay });
+      return 7;
+    },
+    clearTimeoutFn: (id) => {
+      clearedTimers.push(id);
+      pendingTimers.delete(id);
+    },
+  });
+
+  scheduler.schedule();
+  assert.equal(pendingTimers.get(7).delay, 16);
+  scheduler.cancel();
+
+  assert.deepEqual(clearedTimers, [7]);
+  assert.equal(pendingTimers.size, 0);
+});
+
 test('floating inspector detects whether a violation pin target is visible', () => {
   const inspector = createInspector({ width: 100, height: 80 });
 

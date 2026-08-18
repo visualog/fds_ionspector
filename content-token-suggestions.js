@@ -10,14 +10,38 @@
           const score = (token) => {
             const text = String(token);
             let value = 0;
-            if (/^Color\./.test(text)) value += 40;
-            if (/^(spacing|radius)\./.test(text)) value += 35;
+            if (/^Color[./]/.test(text)) value += 80;
+            if (/^(spacing|radius)[./]/.test(text)) value += 75;
             if (/\b(text|bg|background|border|surface)\b/i.test(text)) value += 10;
             if (!/^(light|dark|Unit)\./i.test(text)) value += 5;
+            if (/^(?:var\()?--(?:color|spacing|radius|typography|shadow)-/i.test(text)) value += 30;
+            if (/^-?(?:p[trblxy]?|m[trblxy]?|gap(?:-[xy])?|space-[xy]|rounded(?:-[trbl]{1,2})?|text|bg|border|shadow)-/i.test(text)) value -= 30;
             return value;
           };
           return score(b) - score(a) || String(a).localeCompare(String(b));
         });
+    }
+
+    function getNearestTokenNames(tokenMap = {}, numericValue) {
+      if (!Number.isFinite(numericValue)) return [];
+      const candidates = Object.entries(tokenMap)
+        .map(([value, tokens]) => ({
+          value: Number.parseFloat(value),
+          tokens: Array.isArray(tokens) ? tokens : [],
+        }))
+        .filter((candidate) => Number.isFinite(candidate.value) && candidate.tokens.length > 0)
+        .sort((a, b) => (
+          Math.abs(a.value - numericValue) - Math.abs(b.value - numericValue)
+          || a.value - b.value
+        ));
+      if (!candidates.length) return [];
+
+      const closestDistance = Math.abs(candidates[0].value - numericValue);
+      const maxSimilarDistance = Math.max(2, Math.min(16, Math.abs(numericValue) * 0.25));
+      if (closestDistance > maxSimilarDistance) return [];
+      return candidates
+        .filter((candidate) => Math.abs(candidate.value - numericValue) === closestDistance)
+        .flatMap((candidate) => candidate.tokens);
     }
 
     function extractTokenNamesFromTag(tag) {
@@ -59,7 +83,9 @@
 
     function getSuggestedTokensForIssue(entry) {
       const message = String(entry?.message || '');
-      if (!message.includes('원시값 직접 사용')) return [];
+      const isRawValueIssue = message.includes('원시값 직접 사용');
+      const isUnregisteredIssue = message.includes('미등록');
+      if (!isRawValueIssue && !isUnregisteredIssue) return [];
 
       const parsed = parseViolationItem(message);
       const activeSpecs = getActiveInspectorSpecs();
@@ -69,14 +95,25 @@
 
       if (entry?.category === 'spacing') {
         const numericValue = Number.parseFloat(parsed.value);
-        const mappedTokens = Number.isFinite(numericValue)
+        const exactTokens = Number.isFinite(numericValue)
           ? activeSpecs.spacingTokens?.[numericValue] || activeSpecs.spacingTokens?.[String(numericValue)] || []
           : [];
+        const mappedTokens = exactTokens.length > 0
+          ? exactTokens
+          : isUnregisteredIssue
+            ? getNearestTokenNames(activeSpecs.spacingTokens, numericValue)
+            : [];
         return rankSuggestedTokens([...mappedTokens, ...extractTokenNamesFromTag(parsed.tag)]).slice(0, 3);
       }
 
       if (entry?.category === 'radius') {
-        const mappedTokens = activeSpecs.radiusTokens?.[parsed.value] || [];
+        const numericValue = Number.parseFloat(parsed.value);
+        const exactTokens = activeSpecs.radiusTokens?.[parsed.value] || [];
+        const mappedTokens = exactTokens.length > 0
+          ? exactTokens
+          : isUnregisteredIssue
+            ? getNearestTokenNames(activeSpecs.radiusTokens, numericValue)
+            : [];
         return rankSuggestedTokens([...mappedTokens, ...extractTokenNamesFromTag(parsed.tag)]).slice(0, 3);
       }
 
@@ -85,6 +122,7 @@
 
     return {
       rankSuggestedTokens,
+      getNearestTokenNames,
       extractTokenNamesFromTag,
       filterColorTokensForIssue,
       getSuggestedTokensForIssue,

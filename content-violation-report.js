@@ -360,7 +360,7 @@
     return [
       `### ${groupTone} / ${groupValue} / ${formatNumber(group.entries.length)}개 요소에 영향`,
       '',
-      `대체 토큰: ${getReplacementTokenLabel(group)}`,
+      `FDS 추천 토큰: ${getReplacementTokenLabel(group)}`,
       '',
       '영향 요소 위치:',
       locations || '- 없음',
@@ -449,7 +449,7 @@
             <span class="issue-table-impact">${formatNumber(group.entries.length)}개 요소에 영향</span>
           </span>
         </summary>
-        <div class="issue-token-hint"><span>대체 토큰</span><code>${escapeHtml(replacementTokenLabel)}</code></div>
+        <div class="issue-token-hint"><span>FDS 추천 토큰</span><code>${escapeHtml(replacementTokenLabel)}</code></div>
         <table class="issue-table">
           <tbody>${rows}</tbody>
         </table>
